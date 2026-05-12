@@ -12,6 +12,7 @@ SKILLS=(
   nelson-ai-agents
   nelson-ai-vision
   nelson-background-jobs
+  nelson-chat-with-documents
   nelson-ci-cd
   nelson-code-quality
   nelson-database
