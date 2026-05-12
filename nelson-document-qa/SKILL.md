@@ -1,11 +1,11 @@
 ---
-name: nelson-chat-with-documents
-title: Chat con Documentos - RAG completo funcional
-description: Sistema completo para cargar documentos PDF/Word/TXT y hacer preguntas sobre su contenido usando RAG. Backend FastAPI, Qdrant, Ollama local. Basado en implementacion real probada en produccion.
-skill: nelson-chat-with-documents
+name: nelson-document-qa
+title: Document QA - Chat con Documentos via RAG
+description: Sistema completo de Question Answering sobre documentos usando RAG (Retrieval Augmented Generation). Soporta PDF, Word, TXT y Markdown. Backend FastAPI, Qdrant, Ollama local. Basado en implementacion real probada.
+skill: nelson-document-qa
 author: equipo-nelson
 version: 1.0.0
-keywords: [rag, chat, documents, pdf, qdrant, ollama, fastapi, ingestion]
+keywords: [rag, document-qa, qa, chat, documents, pdf, qdrant, ollama, fastapi, ingestion]
 dependencies: [nelson-rag-pipeline, nelson-document-processing, nelson-embeddings, nelson-vector-databases, nelson-llm-generation]
 ---
 

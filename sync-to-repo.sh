@@ -20,6 +20,7 @@ SKILLS=(
   nelson-deploy-gcp
   nelson-documentation
   nelson-document-processing
+  nelson-document-qa
   nelson-embeddings
   nelson-frontend-stack
   nelson-frontend-testing
