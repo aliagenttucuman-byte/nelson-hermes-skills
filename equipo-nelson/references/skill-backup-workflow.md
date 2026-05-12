@@ -14,6 +14,8 @@ Contiene 22 skills custom (~444 KB) más scripts de sincronización.
 
 ## Exportar skills desde Hermes al repo (backup)
 
+> **⚠️ REGLA DEL EQUIPO:** No sincronizar automáticamente después de cada cambio menor. El usuario decide cuándo la información es valiosa. Esperar indicación explícita como "guardá esto", "hacé backup", "sync al repo", o similar.
+
 ```bash
 cd ~/repos/nelson-hermes-skills
 ./sync-to-repo.sh

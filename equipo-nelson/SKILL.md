@@ -18,27 +18,39 @@ Stack: Python (FastAPI) + React (Vite) + Docker + IA.
 
 ## Los Agentes
 
-### 1. Backend-Python ("Beto")
-- **Rol:** APIs REST con FastAPI, base de datos, lógica de negocio, integración con modelos de IA
+### 1. Arquitecto-Backend ("Beto")
+- **Rol:** Arquitectura de APIs REST con FastAPI, base de datos, lógica de negocio, integración con modelos de IA
 - **Stack:** Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.0/PostgreSQL, Uvicorn, pytest, Alembic
 - **Tareas típicas:**
+  - Diseñar arquitectura y specs OpenAPI
   - Crear endpoints CRUD
   - Implementar autenticación JWT
   - Integrar modelos de IA (OpenAI, Ollama local, embeddings)
   - Dockerizar servicios Python
   - Tests unitarios y de integración
 
-### 2. Frontend-React ("Ricky")
-- **Rol:** Interfaces web con React, Vite, TypeScript
-- **Stack:** React 19+, Vite 6+, TypeScript 5.7+, Tailwind CSS 4+, React Query 5+, Axios
+### 2. Backend-Developer ("Ricky")
+- **Rol:** Implementación backend, lógica de negocio, integraciones, mantenimiento de APIs
+- **Stack:** Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.0/PostgreSQL, Celery, Redis
 - **Tareas típicas:**
-  - Crear componentes UI
-  - Consumir APIs del backend
-  - Manejo de estado global
-  - Routing con React Router 7+
-  - Dockerizar build de producción
+  - Implementar endpoints según specs de Beto
+  - Repositorios, servicios, modelos ORM
+  - Background jobs con Celery
+  - Integraciones con terceros
+  - Code review y refactor
 
-### 3. DevOps-Docker ("Diego")
+### 3. Frontend-Developer ("Nico")
+- **Rol:** Interfaces web con React 19, Vite 6, TypeScript, Tailwind 4
+- **Stack:** React 19+, Vite 6+, TypeScript 5.7+, Tailwind CSS 4+, React Query 5+, Axios, React Router 7+
+- **Tareas típicas:**
+  - Scaffolding y estructura de proyecto frontend
+  - Componentes UI reutilizables
+  - Consumo de APIs del backend
+  - Routing, auth guards, state management
+  - Tests unitarios (Vitest) y E2E (Playwright)
+  - Dockerizar build de producción con nginx
+
+### 4. DevOps-Docker ("Diego")
 - **Rol:** Docker, docker-compose, CI/CD, despliegue, observabilidad
 - **Stack:** Docker, docker-compose, nginx, GitHub Actions, Prometheus, structlog
 - **Tareas típicas:**
@@ -47,15 +59,16 @@ Stack: Python (FastAPI) + React (Vite) + Docker + IA.
   - Configurar redes y volúmenes
   - Health checks, logs estructurados, métricas
 
-### 4. AI-Integration ("Alma")
-- **Rol:** Integrar modelos de IA en el stack, RAG, agentes, visión
-- **Stack:** OpenAI API, Ollama, Qdrant, sentence-transformers, Celery + Redis
+### 5. AI-Integration / QA ("Alma")
+- **Rol:** Integrar modelos de IA en el stack, RAG, agentes, visión, testing, calidad
+- **Stack:** OpenAI API, Ollama, Qdrant, sentence-transformers, Celery + Redis, Playwright
 - **Tareas típicas:**
   - Conectar APIs de IA al backend
   - Implementar RAG con vector DB (Qdrant)
   - Embeddings locales y en la nube
   - Agentes autónomos con herramientas
   - Visión por computadora (OCR, detección)
+  - Testing E2E y validación de calidad
 
 ## Entorno de Nelson (Este Servidor)
 
@@ -311,6 +324,8 @@ networks:
 8. **IA como servicio** — cada proyecto tiene componente inteligente
 9. **Commits frecuentes** — cada tarea terminada = un commit
 10. **Reviews obligatorias** — spec compliance + code quality
+11. **Sync al repo solo con info valiosa** — No sincronizar skills ni memoria al repo GitHub en cada cambio menor. **El usuario decide cuándo la información es lo suficientemente valiosa como para hacer backup.** No hacer push automático después de cada actualización de memoria o skill. Esperar indicación explícita del usuario (ej: "guardá esto", "hacé backup", "sync al repo"). Ver `references/skill-backup-workflow.md` para el procedimiento completo.
+12. **Naming enterprise para skills** — Preferir nombres técnicos estándar (`document-qa`, `rag-pipeline`) sobre nombres descriptivos casuales (`chat-with-documents`).
 
 ## Integración con IA
 
@@ -322,9 +337,10 @@ networks:
 ## Comunicación entre Agentes
 
 Cuando un agente necesita algo de otro:
-- Beto (backend) genera el OpenAPI schema → Ricky (frontend) lo consume
-- Diego (DevOps) necesita los puertos y variables → Beto y Ricky los documentan
-- Alma (IA) necesita endpoints → Beto los expone
+- Beto (arquitecto backend) genera el OpenAPI schema → Nico (frontend) lo consume
+- Diego (DevOps) necesita los puertos y variables → Beto, Ricky y Nico los documentan
+- Alma (QA) necesita endpoints → Beto y Ricky los exponen
+- Alma (QA) define flujos críticos → Nico escribe tests E2E
 
 ## Requisitos Previos Instalados
 
@@ -341,6 +357,11 @@ Ver `references/docker-setup.md` para comandos Docker exactos.
 Ver `references/ollama-hardware-testing.md` en skill `nelson-llm-generation` para modelos testeados.
 
 ## Notas Importantes del Stack
+
+### Memoria persistente de Hermes (MEMORY.md / USER.md)
+- **Límite:** 2,200 caracteres por archivo de memoria
+- **Si se alcanza el límite:** usar `memory(action="replace", ...)` en vez de `memory(action="add", ...)` para actualizar entradas existentes sin exceder el límite
+- **Sincronización:** Solo cuando el usuario indique que la información es valiosa (ver Regla 11 del equipo)
 
 ### TypeScript + Vite
 El frontend con Vite necesita un archivo `vite-env.d.ts` para que TypeScript reconozca `import.meta.env`:
@@ -387,10 +408,10 @@ class User(Base):
 
 1. **Bootstrap proyecto** — Nelson describe una idea y se genera el proyecto completo con `nelson-project-bootstrap`
 2. **Spec-driven** — Beto escribe la spec OpenAPI en `specs/`
-3. **Backend** — Ricky implementa models, schemas, endpoints con FastAPI
-4. **Frontend** — Ricky crea componentes con React 19 + Tailwind 4
+3. **Backend** — Ricky implementa models, schemas, endpoints con FastAPI (según specs de Beto)
+4. **Frontend** — Nico crea componentes con React 19 + Tailwind 4, consume la API
 5. **IA** — Alma integra RAG, embeddings, LLM generation
-6. **Testing** — Tests con pytest + Vitest + Playwright
+6. **Testing** — Tests con pytest + Vitest + Playwright (Nico + Alma)
 7. **Deploy** — Diego deploya a Cloud Run con `nelson-deploy-gcp`
 
 Para cualquiera de estos, seguir el flujo: `writing-plans` → `subagent-driven-development`.
