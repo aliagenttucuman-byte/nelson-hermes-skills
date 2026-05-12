@@ -80,6 +80,7 @@ Ver `references/google-cloud-deploy.md` para deploy a Google Cloud.
 | `references/docker-pitfalls.md` | Problemas comunes de Docker en este stack |
 | `references/github-cli-setup.md` | Instalar y loguear gh CLI para commits/push/skills |
 | `references/skills-from-github.md` | Instalar skills cuando el hub trunca los IDs |
+| `references/skill-backup-workflow.md` | Exportar/importar skills custom a repo GitHub. Backup y migración |
 | `references/google-cloud-deploy.md` | Deploy a GCP, credenciales, Cloud Run |
 | `templates/project-boilerplate.md` | Boilerplate completo del stack (FastAPI + React + Docker) |
 | `templates/nginx-frontend.conf` | Config nginx para servir el build de React/Vite |
@@ -171,6 +172,12 @@ mi-proyecto/
 ```
 
 ## Flujo de Trabajo
+
+### Para migrar skills a máquina nueva o onboarding de equipo:
+1. Clonar `nelson-hermes-skills` desde GitHub
+2. Correr `./sync-from-repo.sh` para instalar las 22 skills custom
+3. Verificar con `hermes skills list | grep nelson`
+4. Ver `references/skill-backup-workflow.md` para detalles completos
 
 ### Para nuevas features:
 1. Nelson describe la feature

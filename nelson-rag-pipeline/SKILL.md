@@ -121,7 +121,9 @@ class IngestionPipeline:
             for i, chunk in enumerate(chunks)
         ]
 
-        ids = [f"{doc_id}_chunk_{i}" for i in range(len(chunks))]
+        import uuid
+
+        ids = [str(uuid.uuid4()) for _ in range(len(chunks))]
 
         self.store.upsert(
             collection="documents",
@@ -325,6 +327,25 @@ volumes:
   ollama_data:
 ```
 
+## Testing y Validación
+
+Antes de entregar un sistema RAG, validar con un documento de prueba extenso y realizar consultas de diferentes tipos:
+
+### Tipos de pregunta a probar
+| Tipo | Ejemplo | Que valida |
+|------|---------|-----------|
+| **Hecho directo** | "Cuantos dias de vacaciones para 8 anos de antiguedad?" | Retrieval preciso de tabla/dato especifico |
+| **Reformulacion** | "Padre por nacimiento de hijo" vs "licencia por paternidad" | Robustez del embedding ante sinonimos |
+| **Inferencia** | "Si un empleado tiene calificacion 4.5, cual es su bono?" | Combinacion de retrieval + razonamiento del LLM |
+| **Negativa** | "Cual es la politica de viajes al exterior?" | El sistema dice "no se" cuando no hay info |
+
+### Pipeline de prueba recomendado
+1. Generar o usar un PDF extenso de prueba (12+ paginas, tablas, datos).
+2. Subir via endpoint `/documents/upload` y verificar chunks procesados.
+3. Verificar indexacion en Qdrant (`GET /collections/documents`).
+4. Ejecutar 4-6 preguntas variadas y verificar que las respuestas citan el documento.
+5. Revisar logs del backend para confirmar scores de retrieval > 0.6.
+
 ## Checklist
 
 - [ ] Mismo modelo de embedding para ingestion y query
@@ -334,6 +355,7 @@ volumes:
 - [ ] Prompt claro con instrucciones de no alucinar
 - [ ] Sources devueltas al frontend para verificacion
 - [ ] Rate limiting en endpoints RAG (costoso)
+- [ ] Documento de prueba subido y validado antes de entregar
 
 ## Pitfalls
 
@@ -343,3 +365,6 @@ volumes:
 - No filtrar por usuario/tenant = data leakage entre usuarios
 - No limitar contexto enviado al LLM = excede ventana de contexto
 - No incluir sources = usuario no puede verificar
+- **Qdrant point IDs deben ser UUIDs**: strings personalizadas como `doc_123_chunk_0` generan `400 Bad Request`. Usar `uuid.uuid4()` o enteros unsigned.
+- **Formulacion de la pregunta importa**: sinonimos o terminos tecnicos pueden no matchar bien con el embedding del chunk. Probar reformulaciones.
+- **Scores de retrieval bajos (< 0.6)**: indican que el embedding no esta encontrando chunks relevantes. Revisar chunk size, overlap y calidad del texto extraido.

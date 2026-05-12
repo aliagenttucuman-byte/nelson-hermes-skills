@@ -1,6 +1,6 @@
 GitHub CLI (gh) instalado y autenticado con cuenta aliagenttucuman@gmail.com. Token guardado en keyring. Git configurado con user.name='aliagenttucuman' y user.email='aliagenttucuman@gmail.com'. gh CLI sirve para commits, push, PRs y para descargar skills sin rate limit.
 §
-Nelson tiene NVIDIA GeForce GTX 1650 Mobile/Max-Q con 4GB GDDR5 VRAM (no 6GB). RAM del sistema: 13GB total. Ollama puede correr modelos grandes usando VRAM+RAM automaticamente. Modelos probados y funcionando: llama3.2:3b (2GB, rapido en VRAM), qwen2.5:3b (1.9GB, rapido en VRAM), llama3.1:8b (4.9GB, usa 43% CPU + 57% GPU, respuesta <2 seg). nomic-embed-text (274MB) para embeddings.
+Nelson tiene NVIDIA GeForce GTX 1650 Mobile/Max-Q con 4GB GDDR5 VRAM (no 6GB). RAM del sistema: 13GB total. Ollama puede correr modelos grandes usando VRAM+RAM automaticamente. Modelos probados y funcionando: llama3.2:3b (2GB, rapido en VRAM, ~5s), qwen2.5:3b (1.9GB, rapido en VRAM, ~6s), llama3.1:8b (4.9GB, usa 43% CPU + 57% GPU, respuesta <2 seg), gemma3:1b (800MB, muy rapido ~2.7s), gemma3:4b (3.3GB, ocupa 2.4GB VRAM, ~6.3s). nomic-embed-text (274MB) para embeddings. Gemma 4 no disponible en Ollama (solo 26B y 31B, no entran en 4GB VRAM). Recomendacion: llama3.2:3b o gemma3:1b para velocidad, gemma3:4b para mas capacidad.
 §
 Tony Stark (Nelson) prefiere comunicarse por WhatsApp con audios. Es action-oriented, no le gusta leer mucho texto largo. Quiere que le responda con audios concisos. El roleplay es Iron Man / JARVIS.
 §
