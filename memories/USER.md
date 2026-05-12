@@ -7,3 +7,5 @@ Email: aliagenttucuman@gmail.com. Template: github.com/aliagenttucuman-byte/nels
 Nelson está armando una consultora de desarrollo de software donde describe ideas por voz/texto y un equipo de agentes ejecuta. Los agentes tienen nombres y roles definidos: Beto (Arquitecto), Ricky (Backend), Diego (DevOps), Alma (QA).
 §
 Pablo Ruiz (apodo 'Terian') es socio/amigo de Nelson en la consultora de software que están armando. Va a colaborar en los proyectos del equipo.
+§
+Nelson valida sistemas RAG con pruebas concretas usando documentos de prueba reales. Notó que la formulación exacta de la pregunta afecta drásticamente la calidad de la respuesta (ej: "licencia por paternidad" falló, pero "padre por nacimiento de hijo" funcionó). Quiere resúmenes de sesión escritos al finalizar tareas importantes. Todo trabajo (skills, memoria, resúmenes) debe sincronizarse al repo nelson-hermes-skills en GitHub.
