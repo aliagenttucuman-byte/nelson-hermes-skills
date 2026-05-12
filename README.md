@@ -1,6 +1,6 @@
 # Skills del Equipo Nelson para Hermes Agent
 
-Repositorio de backup y versionado de las skills custom creadas para el equipo de desarrollo de Nelson Acosta (Tony Stark).
+Repositorio de backup y versionado de las skills custom y la memoria persistente creadas para el equipo de desarrollo de Nelson Acosta (Tony Stark).
 
 ## Skills incluidas
 
@@ -43,23 +43,34 @@ git clone https://github.com/aliagenttucuman-byte/nelson-hermes-skills.git
 hermes skills install ./nelson-security/SKILL.md
 ```
 
+## Memoria persistente
+
+Tambien se backupea la memoria de JARVIS:
+
+| Archivo | Que guarda |
+|---------|-----------|
+| `memories/MEMORY.md` | Notas del entorno, preferencias, lecciones aprendidas |
+| `memories/USER.md` | Perfil de Nelson (Tony Stark), stack, familia, socios |
+
+Esto permite que si cambiamos de maquina, JARVIS recuerde todo desde el primer momento.
+
 ## Flujo de trabajo
 
-### Exportar skills desde Hermes al repo (backup)
+### Exportar skills y memoria desde Hermes al repo (backup)
 
 ```bash
 ./sync-to-repo.sh
 ```
 
-Esto copia las skills desde `~/.hermes/skills/software-development/` al repo.
+Esto copia las skills desde `~/.hermes/skills/software-development/` y la memoria desde `~/.hermes/memories/` al repo.
 
-### Importar skills desde el repo a Hermes
+### Importar skills y memoria desde el repo a Hermes
 
 ```bash
 ./sync-from-repo.sh
 ```
 
-Esto copia las skills al directorio de Hermes y las hace disponibles inmediatamente.
+Esto copia todo al directorio de Hermes y lo hace disponible inmediatamente.
 
 ### Usar como fuente de skills (tap)
 

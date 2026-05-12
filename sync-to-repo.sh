@@ -45,5 +45,10 @@ for skill in "${SKILLS[@]}"; do
   fi
 done
 
-echo "=== Listo. Skills exportadas al repo. ==="
-echo "Ahora haga: cd $REPO_DIR && git add . && git commit -m 'sync skills' && git push"
+# Sync memoria
+echo "=== Sync memoria ==="
+cp "$HOME/.hermes/memories/MEMORY.md" "$REPO_DIR/memories/" 2>/dev/null || echo "MEMORY.md no encontrado"
+cp "$HOME/.hermes/memories/USER.md" "$REPO_DIR/memories/" 2>/dev/null || echo "USER.md no encontrado"
+
+echo "=== Listo. Skills y memoria exportadas al repo. ==="
+echo "Ahora haga: cd $REPO_DIR && git add . && git commit -m 'sync skills + memoria' && git push"

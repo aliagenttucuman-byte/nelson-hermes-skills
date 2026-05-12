@@ -47,5 +47,11 @@ for skill in "${SKILLS[@]}"; do
   fi
 done
 
-echo "=== Listo. Skills importadas a Hermes. ==="
+# Sync memoria
+echo "=== Sync memoria ==="
+mkdir -p "$HOME/.hermes/memories"
+cp "$REPO_DIR/memories/MEMORY.md" "$HOME/.hermes/memories/" 2>/dev/null || echo "MEMORY.md no existe en el repo"
+cp "$REPO_DIR/memories/USER.md" "$HOME/.hermes/memories/" 2>/dev/null || echo "USER.md no existe en el repo"
+
+echo "=== Listo. Skills y memoria importadas a Hermes. ==="
 echo "Reiniciar Hermes o usar /reload-skills para que carguen."
