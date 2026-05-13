@@ -307,10 +307,20 @@ class UserCreate(BaseModel):
         return v
 ```
 
+## Workflow de sincronizacion al repo
+
+El equipo Nelson mantiene un repo de skills y memoria (`nelson-hermes-skills`).
+Regla de oro: **solo sincronizar cuando la informacion sea valiosa o haya cambios importantes**.
+
+- ❌ No sincronizar en cada modificacion menor.
+- ✅ Sincronizar cuando: se crea una skill nueva, se descubre un fix no trivial, se actualiza memoria con datos duraderos (hardware, preferencias del usuario, convenciones de proyecto).
+- ✅ Dejar que el usuario decida cuando es el momento de hacer backup.
+- ✅ Usar los scripts `sync-to-repo.sh` y `sync-from-repo.sh` del repo.
+
 ## Checklist de codigo senior
 
 - [ ] Todas las funciones tienen type hints (sin Any)
-[ ] mypy --strict pasa sin errores
+- [ ] mypy --strict pasa sin errores
 - [ ] Docstrings en todas las funciones publicas
 - [ ] Nombres descriptivos (sin abreviaciones crypticas)
 - [ ] Funciones con una sola responsabilidad (<20 lineas ideal)

@@ -312,6 +312,12 @@ networks:
 
 > **Importante:** Cuando las respuestas son largas, preferir enviar audio resumido. Nelson puede pedir "mandame audio" cuando no quiere leer texto extenso.
 
+## Preferencias de Workflow
+
+- **Paso a paso, sin apuro.** Nelson prefiere ejecutar las tareas "pasito, pasito", confirmando cada etapa antes de avanzar. NO tirar todo el código o todos los pasos de una sola vez. Esperar su aprobación (“dale”, “vamos con el siguiente”, “ok”) antes de ejecutar el próximo paso.
+- **Nadie nos apura.** Si Nelson dice “no hagas nada más hasta que yo te dé la orden”, respetar estrictamente. Quedar en standby.
+- **Audio como canal principal.** A menos que pida explícitamente texto, preferir comunicación por audio (TTS).
+
 ## Reglas del Equipo
 
 1. **Siempre usar spec-driven development** — OpenAPI primero, código después

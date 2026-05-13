@@ -8,11 +8,18 @@ HERMES_SKILLS_DIR="$HOME/.hermes/skills/software-development"
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 SKILLS=(
+  api-design-principles
+  architecture-patterns
+  async-python-patterns
+  debugging-hermes-tui-commands
   equipo-nelson
+  hermes-agent-skill-authoring
   nelson-ai-agents
   nelson-ai-vision
+  nelson-audio-processing
+  nelson-automation-n8n
   nelson-background-jobs
-  nelson-chat-with-documents
+  nelson-brainstorming
   nelson-ci-cd
   nelson-code-quality
   nelson-database
@@ -22,15 +29,35 @@ SKILLS=(
   nelson-document-processing
   nelson-document-qa
   nelson-embeddings
+  nelson-error-review
+  nelson-external-communication
+  nelson-frontend-agent
   nelson-frontend-stack
   nelson-frontend-testing
   nelson-llm-generation
   nelson-observability
+  nelson-os-security
   nelson-project-bootstrap
   nelson-rag-pipeline
+  nelson-scheduled-jobs
   nelson-security
   nelson-senior-practices
   nelson-vector-databases
+  nelson-whatsapp-gateway
+  nelson-workflow-security
+  node-inspect-debugger
+  plan
+  python-debugpy
+  python-design-patterns
+  python-project-structure
+  python-testing-patterns
+  requesting-code-review
+  spec-driven-development
+  spike
+  subagent-driven-development
+  systematic-debugging
+  test-driven-development
+  writing-plans
 )
 
 echo "=== Sync TO repo (export desde Hermes) ==="

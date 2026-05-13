@@ -1,13 +1,15 @@
-GitHub CLI (gh) instalado y autenticado con cuenta aliagenttucuman@gmail.com. Token guardado en keyring. Git configurado con user.name='aliagenttucuman' y user.email='aliagenttucuman@gmail.com'. gh CLI sirve para commits, push, PRs y para descargar skills sin rate limit.
-§
-Nelson tiene NVIDIA GeForce GTX 1650 Mobile/Max-Q con 4GB GDDR5 VRAM (no 6GB). RAM del sistema: 13GB total. Ollama puede correr modelos grandes usando VRAM+RAM automaticamente. Modelos probados y funcionando: llama3.2:3b (2GB, rapido en VRAM, ~5s), qwen2.5:3b (1.9GB, rapido en VRAM, ~6s), llama3.1:8b (4.9GB, usa 43% CPU + 57% GPU, respuesta <2 seg), gemma3:1b (800MB, muy rapido ~2.7s), gemma3:4b (3.3GB, ocupa 2.4GB VRAM, ~6.3s). nomic-embed-text (274MB) para embeddings. Gemma 4 no disponible en Ollama (solo 26B y 31B, no entran en 4GB VRAM). Recomendacion: llama3.2:3b o gemma3:1b para velocidad, gemma3:4b para mas capacidad.
+Nelson tiene GTX 1650 Mobile 4GB VRAM, 13GB RAM. Ollama con VRAM+RAM. Modelos probados: llama3.2:3b (~4s), qwen2.5:3b (~6s), gemma3:4b (~6s, 2.4GB VRAM), gemma4-e2b (~55s, 2.9GB). Gemma4-e4b no entra. nomic-embed-text para embeddings. Recomendación: llama3.2:3b velocidad, gemma3:4b capacidad, gemma4-e2b solo thinking mode.
 §
 Tony Stark (Nelson) prefiere comunicarse por WhatsApp con audios. Es action-oriented, no le gusta leer mucho texto largo. Quiere que le responda con audios concisos. El roleplay es Iron Man / JARVIS.
 §
-Cada vez que se crea o modifica una skill del equipo Nelson, o cuando se actualiza la memoria persistente (MEMORY.md o USER.md) con datos valiosos, se debe ejecutar sync-to-repo.sh + git push para actualizar el repo nelson-hermes-skills en GitHub. Es super importante para no perder ni skills ni memoria. Las skills viven en ~/.hermes/skills/software-development/, la memoria en ~/.hermes/memories/, el repo en ~/repos/nelson-hermes-skills/ con scripts sync-to-repo.sh y sync-from-repo.sh. URL: github.com/aliagenttucuman-byte/nelson-hermes-skills
+Sincronizar skills y memoria al repo nelson-hermes-skills solo cuando haya informacion valiosa o cambios importantes. No en cada modificacion menor. El usuario decide cuando es el momento de hacer backup. Las skills viven en ~/.hermes/skills/software-development/, la memoria en ~/.hermes/memories/, el repo en ~/repos/nelson-hermes-skills/ con scripts sync-to-repo.sh y sync-from-repo.sh. URL: github.com/aliagenttucuman-byte/nelson-hermes-skills
 §
-Skill `nelson-rag-pipeline` actualizada con fix de Qdrant IDs (UUID requerido), seccion Testing y Validacion, y referencia `rag-query-tips.md` con lecciones de formulacion de preguntas.
+Al sincronizar skills al repo nelson-hermes-skills, verificar que TODAS las skills locales esten incluidas, no solo las del prefijo 'nelson-'. Ejemplo: spec-driven-development estaba local pero nunca en el repo. Antes de commitear, listar ~/.hermes/skills/software-development/ y comparar con el repo.
 §
-Docker requiere sudo (usuario 'server' no está en grupo docker). Comando: 'docker compose' (V2). Puerto 3000 ocupado, frontend usa 8080. Google Cloud proyecto: latam-flight-delay, credenciales en ~/.gcp-service-account.json. GCP CLI en ~/google-cloud-sdk/.
+Gino (gestion proyectos, no tecnico) y Luigi (economia/empresas, cuentas, contactos, no tecnico) son asesores externos de la consultora. NO son socios. Socios fundadores: Tony (expertise IA + desarrollo) y Pablo. Equipo tecnico ejecutor: agentes IA (Beto, Ricky, Nico, Diego, Alma).
 §
-Sudo password de usuario 'server': 'srv2026'. Docker requiere sudo.
+Convención brainstorming: Todo doc de proyecto/SDD/spec se guarda en ~/brainstorming/YYYY-MM-DD-nombre-proyecto/ con README.md obligatorio. Templates en ~/brainstorming/templates/. Skill: nelson-brainstorming.
+§
+Credenciales n8n local: email aliagenttucuman@gmail.com, password Aliagent1234.
+§
+Feeds RSS muertos detectados: Anthropic (anthropic.com/blog/rss.xml → 404), Google AI Blog antiguo (ai.googleblog.com → 404). Feed funcional de Google AI: blog.google/technology/ai/rss/. PyTorch blog no tiene feed RSS descubrible fácilmente.

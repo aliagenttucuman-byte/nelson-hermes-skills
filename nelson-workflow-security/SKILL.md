@@ -169,9 +169,24 @@ def sanitize_output(text: str) -> str:
 - [ ] No hay IPs internas
 - [ ] No se repiten credenciales del usuario
 
----
+## Scripts Ejecutables
 
-## 7. Reglas de Negocio del Equipo Nelson
+Los siguientes scripts estan disponibles en `scripts/`:
+- `scripts/check-secrets.sh` — Pre-commit hook para detectar secrets en archivos staged
+- `scripts/validate-safe-to-commit.py` — Valida que un archivo no contenga secrets antes de commitear
+- `scripts/sanitize-response.py` — Sanitiza texto: oculta rutas del sistema, IPs internas, etc.
+
+### Uso rapido
+```bash
+# Pre-commit hook (revisa archivos staged)
+bash scripts/check-secrets.sh
+
+# Validar archivos especificos
+python3 scripts/validate-safe-to-commit.py archivo1.py archivo2.ts
+
+# Sanitizar output antes de entregar
+echo "texto con /home/server y 192.168.1.1" | python3 scripts/sanitize-response.py
+```
 
 ### Información que NUNCA se expone:
 - Credenciales de GCP (`~/.gcp-service-account.json`)

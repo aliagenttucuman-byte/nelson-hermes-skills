@@ -208,9 +208,24 @@ Lo que ES normal:
 - Usuario nuevo creado sin aviso
 - Cron jobs agregados sin autorizacion
 
----
+## Scripts Ejecutables
 
-## 9. Scripts de Auditoría
+Los siguientes scripts estan disponibles en `scripts/`:
+- `scripts/os-audit.sh` — Auditoria completa del sistema (usuarios, puertos, procesos, logs)
+- `scripts/anomaly-check.sh` — Verificacion contra baseline y deteccion de anomalias
+- `scripts/generate-baseline.sh` — Genera hashes MD5 de archivos criticos
+
+### Uso rapido
+```bash
+# Generar baseline (una sola vez)
+bash scripts/generate-baseline.sh
+
+# Audit diario
+bash scripts/os-audit.sh
+
+# Chequeo de anomalias
+bash scripts/anomaly-check.sh
+```
 
 ### os-audit.sh - Revisión completa rapida
 ```bash

@@ -1,5 +1,5 @@
 ---
-skill_name: nelson-error-review
+name: nelson-error-review
 description: >
   Revisión de errores y detección de anomalías en flujos de trabajo,
   APIs y generación de código. Valida salidas, monitorea logs y alerta

@@ -9,7 +9,7 @@ keywords: [rag, document-qa, qa, chat, documents, pdf, qdrant, ollama, fastapi, 
 dependencies: [nelson-rag-pipeline, nelson-document-processing, nelson-embeddings, nelson-vector-databases, nelson-llm-generation]
 ---
 
-# Chat con Documentos - Equipo Nelson
+# Document QA - Equipo Nelson
 
 > Sistema RAG completo y probado: subís documentos, hacés preguntas, recibís respuestas con fuentes.
 
@@ -304,7 +304,24 @@ Usar exactamente el mismo modelo (`nomic-embed-text`) para indexar y para consul
 - `top_k=5`: Balance recomendado
 - `top_k=8+`: Más completo pero puede incluir ruido y exceder ventana de contexto del LLM
 
-## Recomendaciones de LLM según hardware
+### 6. Nomenclatura enterprise para skills y productos
+
+> **Lección:** El nombre inicial propuesto fue "Chat con Documentos". El usuario corrigio: *"No suena a nivel enterprise. Suena medio amateur. Hay que ponerle un nombre más tipo 'Document QA' o 'DocQA'"*.
+
+**Regla del equipo:**
+- **NO** usar nombres descriptivos en español tipo "Chat con X", "Sistema de Y", "Herramienta para Z"
+- **SI** usar nombres técnicos en inglés tipo "Document QA", "RAG Pipeline", "Vector Store", "Embedding Service"
+- Las skills del equipo deben sonar a producto profesional, no a proyecto de fin de semana
+
+**Ejemplos:**
+| ❌ Amateur | ✅ Enterprise |
+|-----------|--------------|
+| Chat con Documentos | Document QA |
+| Sistema de Preguntas | Document QA Engine |
+| Herramienta de PDF | Document Processor |
+| Chatbot de RRHH | HR Assistant |
+
+### 7. Recomendaciones de LLM según hardware
 
 Con 4GB VRAM (GTX 1650):
 

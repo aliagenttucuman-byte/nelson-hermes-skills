@@ -19,16 +19,26 @@ dependencies: [nelson-rag-pipeline]
 
 | Modelo | Tamaño | Uso | VRAM uso | Rendimiento | Comando |
 |--------|--------|-----|----------|-------------|---------|
-| `llama3.2:3b` | 2.0 GB | **Chat general default** | 100% GPU | <1s respuesta | `ollama pull llama3.2:3b` |
-| `qwen2.5:3b` | 1.9 GB | Código, razonamiento | 100% GPU | <1s respuesta | `ollama pull qwen2.5:3b` |
-| `gemma2:2b` | 1.6 GB | Eficiente, Google | 100% GPU | <1s respuesta | `ollama pull gemma2:2b` |
+| `llama3.2:3b` | 2.0 GB | **Chat general default** | 100% GPU | ~5s respuesta | `ollama pull llama3.2:3b` |
+| `qwen2.5:3b` | 1.9 GB | Código, razonamiento | 100% GPU | ~6s respuesta | `ollama pull qwen2.5:3b` |
+| `gemma3:1b` | 800 MB | **Velocidad extrema** | 100% GPU | **~2.7s** respuesta | `ollama pull gemma3:1b` |
+| `gemma3:4b` | 3.3 GB | Alternativa Google | 100% GPU (~2.4GB) | ~6s respuesta | `ollama pull gemma3:4b` |
 | `nomic-embed-text` | 274 MB | Embeddings | 100% GPU | Instantáneo | `ollama pull nomic-embed-text` |
-| `llama3.1:8b` | 4.9 GB | Modelo grande | **43% CPU / 57% GPU** | ~1.8s respuesta | `ollama pull llama3.1:8b` |
+| `llama3.1:8b` | 4.9 GB | Modelo grande | **43% CPU / 57% GPU** | ~2s respuesta | `ollama pull llama3.1:8b` |
 | `llava:7b` | 4.7 GB | **Multimodal** (imágenes) | Mix CPU/GPU | ~2-3s respuesta | `ollama pull llava:7b` |
+| `gemma4-e2b-custom`* | 2.62 GB | **Gemma 4 en 4GB** | 100% GPU (~2.9GB) | **~55s** respuesta | Importar GGUF |
 
+> *`gemma4-e2b-custom` requiere descargar el GGUF cuantizado IQ2_M desde Hugging Face e importarlo manualmente a Ollama. No está disponible via `ollama pull`. Ver sección "Importar GGUF a Ollama" y `references/importar-gguf-ollama.md`.
+>
 > **Comportamiento observado:** Cuando el modelo excede la VRAM disponible, Ollama automáticamente divide la carga entre GPU (lo que entra en VRAM) y CPU (el resto). No es necesario configurar nada. El rendimiento es aceptable para desarrollo (<2s), pero más lento que correr 100% en GPU.
-
+>
 > **Tip:** Para desarrollo rápido con 4GB VRAM, usar `llama3.2:3b` o `qwen2.5:3b`. Para máxima calidad, `llama3.1:8b` funciona bien con el mix CPU/GPU.
+>
+> **Gemma 4:** Disponible en Ollama nativo pero solo en tamaños grandes. La versión `gemma4:e2b` pesa **6.67GB** y no entra en 4GB VRAM. PERO: descargando el GGUF cuantizado `IQ2_M` (2.62GB) desde Hugging Face e importándolo manualmente, **Gemma 4 E2B sí corre en 4GB VRAM** a ~55 segundos por respuesta. Ver `references/gemma4-sizing-discovery.md` y `references/importar-gguf-ollama.md` para el proceso completo.
+>
+> **Gemma 4 E4B:** La variante E4B (4B params efectivos) **NO entra en 4GB VRAM**. La cuantización más agresiva disponible en Hugging Face (Q2_K) pesa **4.46GB**, que en VRAM se expande a ~5GB+. Límite para 4GB: E2B IQ2_M únicamente. Ver `references/gemma4-sizing-discovery.md`.
+>
+> **Benchmarks detallados:** Ver [`references/gemma3-benchmarks-4gb-vram.md`](references/gemma3-benchmarks-4gb-vram.md) para tiempos exactos y comparativa completa.
 
 ### Con 6GB VRAM (RTX 3050, GTX 1660 Ti, RTX 2060)
 
@@ -62,6 +72,50 @@ dependencies: [nelson-rag-pipeline]
 | **Groq** | llama-3.1-70b | Si | $ | Ultra rapido, baja latencia |
 
 > **Default del equipo: OpenAI gpt-4o-mini** para produccion, **Ollama llama3.2** para desarrollo local.
+
+## Importar GGUF a Ollama (modelos personalizados)
+
+Cuando Ollama no tiene la cuantización que necesitás, o querés un modelo que solo existe en Hugging Face como GGUF:
+
+```bash
+# 1. Descargar GGUF desde Hugging Face
+mkdir -p ~/models/mi-modelo && cd ~/models/mi-modelo
+curl -L -o modelo.gguf \
+  "https://huggingface.co/usuario/repo/resolve/main/modelo.gguf?download=true"
+
+# 2. Crear Modelfile
+cat > Modelfile << 'EOF'
+FROM ./modelo.gguf
+
+TEMPLATE """<start_of_turn>user
+{{ .System }}
+{{ .Prompt }}<end_of_turn>
+<start_of_turn>model
+"""
+
+PARAMETER stop <end_of_turn>
+SYSTEM "Sos un asistente util. Responde siempre en espanol."
+EOF
+
+# 3. Importar a Ollama
+ollama create nombre-custom -f Modelfile
+
+# 4. Usar
+ollama run nombre-custom "Hola"
+```
+
+**Cuantizaciones recomendadas por VRAM:**
+
+| VRAM | Cuantización | Tamaño archivo | VRAM real estimada | Nota |
+|------|-------------|---------------|-------------------|------|
+| 4GB | IQ2_M | ~2.6 GB | ~2.9 GB | Lento pero entra (Gemma 4 E2B) |
+| 4GB | Q2_K / Q3_K_S | ~3.0 GB | ~3.3 GB | Balance mejor |
+| 6GB | Q4_K_M | ~3.4 GB | ~3.7 GB | Calidad buena |
+| 8GB | Q5_K_M / Q6_K | ~4-5 GB | ~4.5-5.5 GB | Calidad alta |
+
+> **Regla de VRAM:** El archivo GGUF ocupa aproximadamente su tamaño de archivo en VRAM, con un factor de expansión de ~1.1x. Ejemplo: archivo de 2.62 GB → ~2.9 GB VRAM. Archivo de 4.46 GB → ~5.0 GB VRAM. Siempre dejar margen: necesitás `archivo_GGUF * 1.1 < VRAM_disponible`.
+>
+> **Verificación:** Después de importar, correr `ollama ps` y `nvidia-smi` para confirmar que el modelo cargó en GPU y no hizo spill a CPU.
 
 ## Servicio LLM
 
@@ -341,3 +395,5 @@ pip install openai anthropic groq ollama tenacity
 - Anthropic no acepta `system` en `messages`; va como parametro separado
 - Groq es muy rapido pero rate limits agresivos (usa backoff)
 - Siempre verificar `chunk.choices[0].delta.content` no sea None antes de yield
+- Las tags de Ollama pueden pesar más de lo que sugiere el nombre (ej: `gemma4:e2b` pesa 6.67GB, no 4GB). Si no entra en tu VRAM, buscar cuantizaciones GGUF más agresivas en Hugging Face e importarlas manualmente. Ver `references/importar-gguf-ollama.md`
+- Si el modelo importado responde basura o repite el prompt, el `TEMPLATE` del Modelfile está mal. Buscar el `chat_template` correcto en la página del modelo en Hugging Face
