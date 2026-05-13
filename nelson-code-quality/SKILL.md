@@ -20,6 +20,7 @@ dependencies: [python-project-structure]
 | pre-commit | Git hooks automaticos | ^4.1 |
 | ESLint | Linter (TypeScript/React) | ^9 |
 | TypeScript | Type check (frontend) | ^5.7 |
+| React Doctor | Diagnostico React (useState/useEffect, a11y, performance) | ^2.0 |
 
 ## Ruff (Python)
 

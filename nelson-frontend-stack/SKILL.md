@@ -24,6 +24,7 @@ dependencies: []
 | Routing | React Router DOM | ^7.1 |
 | UI Components | shadcn/ui (opcional) | latest |
 | Iconos | Lucide React | ^0.474 |
+| Diagnostico | React Doctor | ^2.0 |
 
 ## Estructura de Carpetas
 
@@ -203,8 +204,12 @@ npm run preview
 # Type check
 npx tsc --noEmit
 
-# Lint (si configuras ESLint)
+# Lint (ESLint)
 npm run lint
+
+# Diagnostico React Doctor
+npx react-doctor@latest
+npx react-doctor@latest --format json --output report.json
 ```
 
 ## Pitfalls

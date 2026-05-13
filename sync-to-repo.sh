@@ -39,6 +39,7 @@ SKILLS=(
   nelson-os-security
   nelson-project-bootstrap
   nelson-rag-pipeline
+  nelson-react-doctor
   nelson-scheduled-jobs
   nelson-security
   nelson-senior-practices
