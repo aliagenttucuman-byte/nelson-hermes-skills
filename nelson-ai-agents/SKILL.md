@@ -322,7 +322,7 @@ class FunctionCallingAgent:
         return message.content
 ```
 
-## Checklist
+## Verificación
 
 - [ ] Agente tiene objetivo claro y herramientas relevantes
 - [ ] Max iterations para evitar loops infinitos
@@ -332,6 +332,10 @@ class FunctionCallingAgent:
 - [ ] Validar inputs de tools (no ejecutar codigo arbitrario)
 - [ ] Fallback si el agente no puede resolver
 
+## Referencias
+
+- [Extracción de cookies de Epiphany para autenticación de agentes](references/epiphany-cookie-extraction.md) — cómo extraer sesiones de GNOME Web para Playwright y herramientas que requieren auth de Google.
+
 ## Pitfalls
 
 - Nunca ejecutar `eval()` con input del usuario (riesgo de injection)
@@ -340,3 +344,41 @@ class FunctionCallingAgent:
 - Memoria crece sin limite; resumir o truncar periodicamente
 - Tools lentas bloquean al agente; usar async cuando sea posible
 - Costos: cada iteracion es una llamada al LLM; monitorizar tokens
+
+## Orquestacion Multi-Agente con Frameworks Externos
+
+Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencia comparativa en `references/multi-agent-frameworks.md`.
+
+### Decision rapida
+
+| Si necesitas... | Usa... |
+|-----------------|--------|
+| Control total del flujo, estados, loops | **LangGraph** |
+| Type-safety, APIs, resultados estructurados | **PydanticAI** |
+| Hardware modesto (4GB VRAM), open-source total | **Custom ReAct + FastAPI** |
+| Equipo de agents con roles, brainstorming | **CrewAI** (probar con locales primero) |
+| RAG complejo, pipelines de documentos | **LlamaIndex Workflows** |
+| Automatizaciones, notificaciones, integraciones | **n8n** (complementario) |
+
+### Arquitectura hibrida recomendada (Equipo Nelson)
+
+```
+Layer 1: LangGraph → orquesta flujo general
+Layer 2: Custom ReAct → ejecuta tareas con Ollama local
+Layer 3: n8n → triggers, WhatsApp, conexiones externas
+Layer 4: Ollama + Qdrant + FastAPI → infraestructura
+```
+
+**Regla:** Empezar con custom ReAct (ya operativo) y migrar a LangGraph solo cuando el flujo requiera estados complejos o ciclos.
+
+## Scripts
+
+- `scripts/run-multi-agent-spike.sh` — crea estructura estandar para evaluar un framework multi-agente (LangGraph, CrewAI, PydanticAI, etc.)
+- `scripts/test-notebooklm-podcast.py` — spike minimo para generar podcast con NotebookLM y enviarlo por WhatsApp
+
+## References
+
+- `references/multi-agent-frameworks.md` — comparativa de 9 frameworks (LangGraph, CrewAI, AutoGen, Swarm, PydanticAI, LlamaIndex, Temporal, n8n, Custom)
+- `references/notebooklm-evaluation.md` — evaluacion de notebooklm-py para generar podcasts/infografias/quizzes desde documentos (ideal para I+D+i)
+- `scripts/run-multi-agent-spike.sh` — script para crear spike de evaluacion de framework
+- `scripts/test-notebooklm-podcast.py` — script de spike para NotebookLM + WhatsApp

@@ -70,6 +70,23 @@ Stack: Python (FastAPI) + React (Vite) + Docker + IA.
   - Visión por computadora (OCR, detección)
   - Testing E2E y validación de calidad
 
+## Infraestructura de Comunicación
+
+### WhatsApp Gateway (Baileys)
+El equipo cuenta con un gateway propio basado en Baileys que permite enviar mensajes de WhatsApp a cualquier número desde scripts Python/Node.js, independientemente de la conexión nativa de Hermes.
+
+**Usos del equipo:**
+- **AI News Aggregator**: envía resúmenes de novedades IA automáticamente a socios (Pablo Terian)
+- **Notificaciones de sistemas**: alertas de CI/CD, errores de producción, reportes de Alma
+- **Broadcasts**: mensajes a múltiples números del equipo desde un solo script
+
+**Contactos configurados:**
+| Nombre | Número | Rol |
+|--------|--------|-----|
+| Pablo Terian | 5493816240691 | Socio |
+
+Ver skill `nelson-whatsapp-gateway` para setup, troubleshooting y API.
+
 ## Entorno de Nelson (Este Servidor)
 
 - **OS:** Linux (Ubuntu/Debian)

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # sync-to-repo.sh — Exportar skills desde ~/.hermes/skills/ al repo
 # Uso: ./sync-to-repo.sh
 

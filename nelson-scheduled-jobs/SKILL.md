@@ -72,9 +72,10 @@ def send_whatsapp(to: str, message: str):
 
 - `templates/rss-aggregator.py` — script base para monitorear feeds RSS/Atom con filtro de keywords. Ver comentarios inline para adaptar FEEDS y HIGHLIGHT_KEYWORDS.
 
-## Referencias
+## References
 
 - `references/hermes-cron-setup.md` — paso a paso para registrar cron jobs nativos de Hermes, formatos de schedule, y troubleshooting.
+- `references/ai-news-aggregator-case.md` — caso real completo: RSS aggregator de IA con envío automático por WhatsApp Gateway, estructura de archivos, cron job, y lecciones aprendidas.
 
 ## Comandos útiles
 

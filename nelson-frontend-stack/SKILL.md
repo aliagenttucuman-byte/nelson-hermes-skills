@@ -220,3 +220,15 @@ npx react-doctor@latest --format json --output report.json
 - Invalidar queries despues de mutaciones
 - **Verificar existencia de versiones antes de implementar:** el usuario puede pedir versiones que aun no existen (ej: React 22 no existe, la ultima estable es React 19). Siempre confirmar en npm/registry antes de actualizar.
 - **Tailwind CSS v4 breaking changes:** no usa `tailwind.config.js` ni `postcss.config.js`. La configuracion se hace directamente en CSS via `@import "tailwindcss"` y `@theme`. Ver referencia `references/tailwind-v4-migration.md`.
+- **NUNCA usar templates server-side (Jinja2, etc.) para UI cuando React esta disponible.** Para PoCs, demos o cualquier interfaz grafica, usar React desde el inicio. El backend debe exponer solo API REST (JSON), nunca HTML renderizado. Esta es la convencion del equipo Nelson.
+- **Vite `allowedHosts` al exponer via tunnel (cloudflared/ngrok/serveo):** El dev server de Vite bloquea hosts desconocidos con `403 Blocked request`. Si se usa un tunel para demos remotas, agregar `allowedHosts: true` en `vite.config.ts`:
+  ```ts
+  export default defineConfig({
+    server: {
+      host: '0.0.0.0',
+      allowedHosts: true,  // Permite cualquier host (cloudflared, ngrok, etc.)
+    },
+  });
+  ```
+  Alternativa mas restrictiva: listar los hosts explicitos con `allowedHosts: ['xxxx.trycloudflare.com']`.
+  Ver referencia `references/tunneling-demos.md` para patrones de exposicion remota.

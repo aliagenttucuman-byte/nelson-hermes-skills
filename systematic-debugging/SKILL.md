@@ -61,6 +61,18 @@ You MUST complete each phase before proceeding to the next.
 
 **BEFORE attempting ANY fix:**
 
+### 0. Clarify the User's Report FIRST (Critical)
+
+**When the user says "X doesn't work" or "X is broken" without specifics:**
+- **STOP.** Do NOT start checking logs, restarting services, or verifying configs blindly.
+- Ask the user: **"What exactly do you see?"** — error message, blank page, timeout, wrong response, etc.
+- Ask: **"What were you doing when it failed?"** — which URL, which button, which file.
+- Ask: **"What did you expect vs what happened?"**
+
+**Why this matters:** "It doesn't work" is not a diagnostic. Blindly verifying health endpoints, CORS, logs, and restarting containers wastes time when the real issue might be a 404, a CORS block in the browser, a wrong URL, or a missing PDF. Five minutes of targeted questions save thirty minutes of shotgun debugging.
+
+**If the user is unavailable or unresponsive:** perform ONE quick triage — hit the most likely entry point (e.g., the frontend URL or the main API endpoint) and report back exactly what response you get (status code, body, error). Use that as your starting symptom.
+
 ### 1. Read Error Messages Carefully
 
 - Don't skip past errors or warnings

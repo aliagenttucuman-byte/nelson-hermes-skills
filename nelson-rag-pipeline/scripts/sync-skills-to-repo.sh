@@ -1,11 +1,17 @@
-#!/bin/bash
-# sync-to-repo.sh — Exportar skills desde ~/.hermes/skills/ al repo
-# Uso: ./sync-to-repo.sh
+#!/usr/bin/env bash
+# sync-skills-to-repo.sh — Script para sincronizar skills locales al repo
+# Uso: ./scripts/sync-skills-to-repo.sh
+# 
+# PITFALL: Siempre verificar que TODAS las skills locales esten en la lista SKILLS.
+# Comando de verificacion:
+#   ls ~/.hermes/skills/software-development/ | sort > /tmp/local.txt
+#   ls ~/repos/nelson-hermes-skills/ | grep -v "^\." | grep -v "^memories$" | grep -v "^README" | grep -v "^sync" | sort > /tmp/repo.txt
+#   comm -23 /tmp/local.txt /tmp/repo.txt
 
 set -e
 
 HERMES_SKILLS_DIR="$HOME/.hermes/skills/software-development"
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="${REPO_DIR:-$HOME/repos/nelson-hermes-skills}"
 
 SKILLS=(
   api-design-principles

@@ -174,6 +174,46 @@ When two approaches answer the same question (002a / 002b), build them **back to
 **Winner:** pdfjs for our use case. Camelot if we need table-first extraction later.
 ```
 
+## Special case: evaluating unofficial/third-party APIs
+
+When spiking a wrapper, unofficial SDK, or community project that reverse-engineers a proprietary service (e.g. `notebooklm-py` for Google NotebookLM), add these specific checks to the standard loop:
+
+| Check | Why it matters | How to test |
+|-------|---------------|-------------|
+| **Auth durability** | Unofficial APIs often rely on scraped cookies or undocumented OAuth flows that expire quickly. | Verify the auth survives >1 hour and multiple API calls. Log the exact expiry behavior. |
+| **Rate limits / throttling** | Reverse-engineered endpoints usually have hidden, undocumented limits. | Hammer the endpoint gently: 5-10 sequential calls, observe any `429`, `403`, or sudden `302` redirects. |
+| **ToS / legal risk** | Using unofficial APIs may violate the provider's terms. | Document the ToS clause explicitly in the verdict; flag if client-facing. |
+| **Single point of failure** | If the provider changes one endpoint, the wrapper breaks with no notice. | Check when the wrapper's last commit was, how active maintainers are, and whether the project has a track record of fast fixes. |
+| **Production readiness** | A spike that works once is not production-ready. | Require the spike to run end-to-end twice, with a clean re-auth in between. |
+
+### Verdict format for unofficial-API spikes
+
+```markdown
+## Verdict: VALIDATED | PARTIAL | INVALIDATED
+
+### Auth durability
+- Cookie/session lifetime: X minutes/hours/days
+- Re-auth required every: ...
+- Headless login possible: yes/no
+
+### API stability
+- Endpoints tested: ...
+- Failures observed: ...
+- Rate limit hit at: ...
+
+### Production risk
+- Provider can break this tomorrow: yes/no
+- Wrapper maintenance status: active/stale/abandoned
+- Recommended use: production / internal-only / manual-only / do not use
+
+### Surprises
+- ...
+```
+
+**Example:** The NotebookLM spike (`references/notebooklm-spike.md`) invalidated production use because Google invalidated scraped cookies after ~30 minutes, and the wrapper relied on undocumented internal endpoints.
+
+---
+
 ## Frontier mode (picking what to spike next)
 
 If spikes already exist and the user says "what should I spike next?", walk the existing directories and look for:

@@ -266,6 +266,11 @@ pip install pdfplumber python-docx markdown beautifulsoup4
 
 ## Pitfalls
 
+- **PDFs generados con ReportLab no son text-extractables**: ReportLab renderiza el texto como gráficos vectoriales (paths) en lugar de objetos de texto reales. pdfplumber, PyPDF2 y otras librerías estándar devuelven texto vacío (`""`) al procesar estos PDFs. El pipeline de RAG los indexa como "0 chunks" sin error visible.
+  - **Síntoma**: Upload exitoso, pero `process_pdf` extrae `text = ""` y no se indexan chunks. Las preguntas sobre ese documento responden "No tengo información".
+  - **Fix**: Generar PDFs con texto seleccionable usando `reportlab.platypus` (Paragraph) con `wordWrap='CJK'` que sí crea objetos de texto, o usar `fpdf2`/`weasyprint` que generan PDFs con texto real.
+  - **Detección temprana**: después de upload, verificar que `stats.points_count` aumentó. Si no aumentó, el PDF probablemente no tiene texto extractable.
+  - **Alternativa para testing**: usar PDFs reales exportados desde Word/Google Docs o descargados de internet, nunca generados dinámicamente con ReportLab Canvas puro.
 - PDFs escaneados (imagenes) no tienen texto: necesitan OCR (Tesseract / pytesseract)
 - pdfplumber necesita libgl1 en Docker (imagen slim no lo tiene)
 - Archivos Word con muchas imagenes pueden ser muy pesados en memoria

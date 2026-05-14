@@ -317,6 +317,31 @@ Regla de oro: **solo sincronizar cuando la informacion sea valiosa o haya cambio
 - ✅ Dejar que el usuario decida cuando es el momento de hacer backup.
 - ✅ Usar los scripts `sync-to-repo.sh` y `sync-from-repo.sh` del repo.
 
+## Regla de los 3 intentos (Workflow con Nelson)
+
+> Frase guia de Nelson: **"Si no podes, no sigas"**. Y: **"Vos tenes que parar solo, y hablar conmigo para que lo revaluemos."**
+
+Cuando un proceso tecnico falla repetidamente, **parar despues de 2-3 intentos y consultar al usuario para revaluar**. No insistir indefinidamente en un approach que no funciona.
+
+```
+Intento 1 -> Falla
+Intento 2 -> Falla  
+Intento 3 -> Aun falla -> PARAR. Informar al usuario y revaluar juntos.
+```
+
+**NO hacer:**
+- Seguir reintentando el mismo comando 4+ veces sin cambiar el approach
+- Probar variaciones infinitas de la misma solucion
+- Ocultar los errores o resumirlos demasiado
+
+**SI hacer:**
+- Parar solo antes de que el usuario tenga que decirlo
+- Informar claramente: que se intento, que fallo, por que se detuvo
+- Proponer 1-2 alternativas concretas y pedir decision del usuario
+- Dejar que Nelson decida si cambiar de estrategia o seguir
+
+Esto aplica a: builds, deploys, configuraciones de infra, debugging, cualquier proceso que se atasca. Nelson prefiere revaluar a perder tiempo en loops infinitos. La frase "nadie nos apura" aplica: pasito a pasito, con OK explicito en cada etapa significativa.
+
 ## Checklist de codigo senior
 
 - [ ] Todas las funciones tienen type hints (sin Any)

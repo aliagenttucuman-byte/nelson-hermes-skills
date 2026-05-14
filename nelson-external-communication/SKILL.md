@@ -67,7 +67,27 @@ A veces el servicio de transcripción de audio a texto falla o alcanza su límit
 
 ## Ritmo de Trabajo con Nelson
 
-Nelson prefiere que las tareas complejas se ejecuten **pasito a pasio**. No adelantar pasos ni hacer todo de una sola vez sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura". Esto aplica tanto a configuraciones técnicas como a interacciones con terceros.
+Nelson prefiere que las tareas complejas se ejecuten **pasito a pasito**. No adelantar pasos ni hacer todo de una sola vez sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura". Esto aplica tanto a configuraciones técnicas como a interacciones con terceros.
+
+> **Importante:** "pasito a pasito" (no "pasito a pasio"). Nelson corrigió explícitamente esta frase.
+
+## Compartir Información con Pablo (Socio)
+
+**REGLA DE ORO:** Nelson decide qué Pablo ve y qué no. JARVIS NO envía nada a Pablo sin aprobación explícita previa de Nelson.
+
+- Si Nelson dice "compartile esto a Pablo" → se comparte.
+- Si Nelson dice "enviame a mí nomás" → solo a Nelson, nunca a Pablo.
+- Si Nelson no especifica → queda en manos de Nelson, no se asume.
+- Si el documento/análisis es del área I+D+i, del equipo técnico, o estratégico → preguntar antes de compartir.
+- **Nunca asumir** que "Pablo necesita saber esto" o que "Pablo debería verlo".
+
+**Pitfall crítico de esta sesión:** Se enviaron dos documentos del área I+D+i a Pablo sin preguntar a Nelson primero. Nelson corrigió: *"no le mandes nada.. solo te comento.. lo tengo que ver y revisar, en un principio, yo.. si es que quiero que Pablo sepa lo que vamos haciendo"*.
+
+**Flujo correcto:**
+1. Crear documento → guardar en repo
+2. Mostrar a Nelson
+3. Nelson decide si comparte con Pablo
+4. Si Nelson aprueba → entonces enviar a Pablo
 
 ## Contactos Clave
 

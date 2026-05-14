@@ -23,14 +23,36 @@ Todo brainstorming, SDD, spec o documento de proyecto se guarda en:
 │   ├── financiero.md          # Modelos VAN/TIR/costos (si aplica)
 │   ├── diagramas/             # PNG/SVG/Excalidraw
 │   ├── notas/                 # Ideas sueltas, links, referencias
+│   ├── spike-nombre/          # Spikes / experimentos (si aplica)
+│   │   ├── SPIKE-CONCLUSION.md  # Verdict del spike (VALIDATED/PARTIAL/INVALIDATED)
+│   │   └── test_*.py          # Script de prueba del spike
 │   └── decisiones.md          # Decisiones clave tomadas
 │
 └── templates/
     ├── sdd-template.md
     ├── brainstorming-README.md
-    └── openapi-template.yaml
+    └── spike-conclusion-template.md
 ```
 
+## Spikes dentro de un Brainstorming
+
+Cuando un brainstorming incluye spikes (experimentos throwaway), se guardan en subcarpetas:
+
+```
+~/brainstorming/2025-05-13-idi-consultora/
+├── README.md
+├── spike-notebooklm/
+│   ├── SPIKE-CONCLUSION.md   # Verdict: INVALIDATED + razones
+│   └── test_notebooklm.py    # Script reproducible
+└── arduino-iot-opciones.md
+```
+
+Cada spike DEBE tener:
+- `SPIKE-CONCLUSION.md` con verdict claro (VALIDATED / PARTIAL / INVALIDATED)
+- Script reproducible que permita re-ejecutar o entender el experimento
+- Referencia en el README principal del proyecto
+
+## Reglas de Oro
 ## Reglas de Oro
 
 1. **UNA CARPETA POR SESIÓN/PROYECTO** — Nunca archivos sueltos en `~/`
@@ -75,4 +97,6 @@ cd ~/brainstorming/$(ls -t ~/brainstorming/ | head -1)
 
 - `templates/brainstorming-README.md` — Template copiable para README de cada sesión
 - `templates/sdd-template.md` — Template para Software Design Documents
+- `templates/spike-conclusion-template.md` — Template para documentar verdict de spikes
 - `references/fleet-optimizer-example.md` — Ejemplo concreto de SDD completo con VAN/TIR y OpenAPI
+- `references/cookie-extraction-epiphany.md` — Técnica para extraer cookies de GNOME Web/Epiphany y convertir a formato Playwright (emergió en spike NotebookLM)

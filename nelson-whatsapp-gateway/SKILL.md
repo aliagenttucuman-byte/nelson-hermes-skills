@@ -57,7 +57,17 @@ POST /send
 
 ## Pitfalls
 
-- **Códigos expiran en ~40 segundos**. El usuario debe ingresarlo inmediatamente. Si expira, hay que matar el proceso, limpiar `auth/` y reiniciar.
+- **Bridge nativo de Hermes no envía a contactos nuevos**: El tool `send_message` de Hermes (que usa el bridge de WhatsApp) solo puede enviar a números que ya están en los contactos de la sesión del bot. Si intenta enviar a un número nuevo (ej. Pablo, 5493816240691), da error:
+  ```
+  {"error":"Cannot destructure property 'user' of 'jidDecode(...)' as it is undefined."}
+  ```
+  **Solución**: Usar el gateway directo de Baileys (API en `http://localhost:3001`):
+  ```bash
+  curl -s -X POST http://localhost:3001/send \
+    -H "Content-Type: application/json" \
+    -d '{"to": "5493816240691", "message": "Hola Pablo"}'
+  ```
+  El gateway usa la sesión persistida de Baileys (MultiFileAuthState en `auth/`) que ya tiene a Pablo como contacto conocido desde interacciones previas. Esta es la forma preferida para enviar mensajes automatizados a socios/asesores del equipo.
 - **WhatsApp tiene límite de 4 dispositivos vinculados**. Si el usuario ya tiene 4, debe desvincular alguno antes de intentar de nuevo.
 - **Si falla el código de emparejamiento, hacer fallback a QR**. Algunas cuentas no admiten pairing code y requieren QR.
 - **No usar `printQRInTerminal` en Baileys moderno**. Está deprecado. Escuchar el evento `connection.update` con `qr` y generar la imagen manualmente con `qrcode`.
@@ -187,3 +197,4 @@ Ejemplo de uso: el AI News Aggregator genera un resumen y al finalizar llama `se
 - `references/connect-example.js` — Script Node.js completo de conexión con QR + código de emparejamiento.
 - `references/whatsapp-api-server.js` — Servidor Express completo con endpoints `/send` y `/send-batch`.
 - `references/send_whatsapp.py` — Script Python helper para consumir la API sin dependencias.
+- `references/session-troubleshooting.md` — Problemas reales encontrados durante setup (pairing code fallando, health check "disconnected", port conflicts, proceso zombie). Incluye secuencia paso a paso validada.

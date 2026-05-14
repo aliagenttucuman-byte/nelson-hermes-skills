@@ -2,8 +2,10 @@ Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack:
 §
 Nelson usa metodología spec-driven development (OpenAPI primero). Es action-oriented: ve el plan y quiere ejecutar. Preiere skills custom a medida de su flujo.
 §
-Nelson armando consultora software con socio Pablo Terian (WhatsApp: 5493816240691). Equipo agentes: Beto (Arq), Ricky (Backend), Diego (DevOps), Alma (QA). JARVIS revisa errores y detecta anomalías proactivamente.
+Nelson quiere revisar TODO antes de compartir con Pablo. JARVIS no envía nada a Pablo sin aprobación explícita de Nelson. Nelson decide qué Pablo ve y qué no. No asumir que Pablo necesita saber todo.
 §
-Nelson valida RAG con documentos reales. La formulación exacta de la pregunta afecta drásticamente resultados (ej: 'licencia por paternidad' falló, 'padre por nacimiento de hijo' funcionó). Quiere resúmenes de sesión al finalizar tareas. Sync a repo nelson-hermes-skills.
+Nelson valida RAG con docs reales. Quiere resúmenes de sesión. Sync repo cuando haya cambios importantes. Nuevo interés: Arduino/IoT/robótica para I+D+i. Para demos prefiere UI gráfica (web), no solo CLI.
 §
-Nelson prefiere trabajo pasito a pasio en tareas complejas. No quiere que yo adelante pasos ni haga todo de una sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura".
+Nelson prefiere trabajo pasito a pasito en tareas complejas. No quiere que yo adelante pasos ni haga todo de una sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura".
+§
+Nelson trabaja en YPF como Líder Técnico en I+D+I (Innovación y Desarrollo). Está armando un área de I+D+I para la consultora de software. Contexto dual: emprendimiento + corporativo en energía.

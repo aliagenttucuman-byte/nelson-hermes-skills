@@ -439,6 +439,8 @@ docker compose up --build -d
 - Si el puerto 8000 o 8080 estan ocupados, cambiar en docker-compose.yml
 - Alembic necesita `DATABASE_URL` seteada para crear la primera migracion
 - En Windows, los paths de volumen en docker-compose pueden necesitar ajustes
+- **Windows + Python Microsoft Store:** `pip install` no agrega Scripts al PATH. Si `comando` no se encuentra, usar `python -m comando` o agregar manualmente: `C:\Users\<Usuario>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_...\LocalCache\local-packages\Python312\Scripts`. Ver referencia `references/windows-python-path.md`.
 - Tailwind 4 no usa `tailwind.config.js`; la config va en CSS con `@theme`
 - Para 4GB VRAM, usar `llama3.2:3b` o `qwen2.5:3b` en dev (entran enteros en GPU)
 - Para modelos grandes (>4GB), Ollama usa mix CPU/GPU automaticamente
+- **S3 local:** Si floci/localstack fallan por auth del registry, usar MinIO como alternativa liviana y publica. Ver referencia `references/minio-s3-local.md`.
