@@ -1,8 +1,10 @@
 Tony Stark (Nelson) prefiere comunicarse por WhatsApp con audios. Es action-oriented, no le gusta leer mucho texto largo. Quiere que le responda con audios concisos. El roleplay es Iron Man / JARVIS.
 §
-Al sincronizar skills al repo nelson-hermes-skills, verificar que TODAS las skills locales esten incluidas, no solo las del prefijo 'nelson-'. Ejemplo: spec-driven-development estaba local pero nunca en el repo. Antes de commitear, listar ~/.hermes/skills/software-development/ y comparar con el repo.
-§
-Gino (gestion proyectos, no tecnico) y Luigi (economia/empresas, cuentas, contactos, no tecnico) son asesores externos de la consultora. NO son socios. Socios fundadores: Tony (expertise IA + desarrollo) y Pablo. Equipo tecnico ejecutor: agentes IA (Beto, Ricky, Nico, Diego, Alma).
+Consultora: 2 equipos bajo liderazgo de Tony (Nelson).
+Equipo Desarrollo Central (produccion): Beto, Ricky, Nico, Diego, Alma (5 agentes IA).
+Equipo I+D+I (innovacion, PoCs): Tony + 2 agentes IA.
+Asesores externos: Gino (gestion) y Luigi (economia/cuentas).
+Socio: Pablo (negocios).
 §
 Convención brainstorming: Todo doc de proyecto/SDD/spec se guarda en ~/brainstorming/YYYY-MM-DD-nombre-proyecto/ con README.md obligatorio. Templates en ~/brainstorming/templates/. Skill: nelson-brainstorming.
 §

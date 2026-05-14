@@ -16,7 +16,39 @@ metadata:
 Skill maestra para el equipo de desarrollo de Nelson Acosta.
 Stack: Python (FastAPI) + React (Vite) + Docker + IA.
 
-## Los Agentes
+## Estructura de la Consultora
+
+La consultora tiene **2 equipos** bajo liderazgo de Tony (Nelson). Cada equipo tiene su foco y sus agentes asignados.
+
+### Equipo Desarrollo Central (Producción)
+**Líder:** Tony (Nelson) — decide qué proyectos entra, revisa specs, aprueba entregas
+**Agentes:** 5 agentes IA especializados
+- **Beto** — Arquitecto Backend (FastAPI, OpenAPI specs, diseño de APIs)
+- **Ricky** — Backend Developer (implementación, ORM, integraciones, Celery)
+- **Nico** — Frontend Developer (React 19, Vite, Tailwind, consumo de APIs)
+- **Diego** — DevOps/Docker (Docker, CI/CD, deploy, observabilidad)
+- **Alma** — AI Integration / QA (RAG, embeddings, LLMs, testing E2E)
+
+**Foco:** Proyectos de clientes, código en producción, entregables estables, calidad enterprise.
+
+### Equipo I+D+I (Innovación y Desarrollo)
+**Líder:** Tony (Nelson) — experimenta, valida tecnologías, hace PoCs antes de que el equipo central las adopte
+**Agentes:** 2 agentes IA especializados en innovación
+- **Agente I+D+I Backend** — experimentos con nuevas arquitecturas, modelos, herramientas
+- **Agente I+D+I Frontend** — prototipos rápidos, validación de UI/UX, demos
+
+**Foco:** PoCs, experimentos, validación de tecnologías, demos para stakeholders. Velocidad > perfección. No código de producción directo.
+
+**Diferencia clave:** El equipo I+D+I prueba cosas y **si funcionan**, el equipo Central las adopta y las lleva a producción. I+D+I no entrega a clientes directamente.
+
+### Asesores Externos (NO socios, NO empleados)
+- **Gino** — Gestión de proyectos, no técnico. Coordina timelines con clientes.
+- **Luigi** — Economía/empresas, cuentas, contactos. No técnico. Networking y negocios.
+
+### Socio Fundador
+- **Pablo Terian** — Negocios, ejecutivo. No técnico. Nelson decide qué información compartir con él. Contacto WhatsApp: 5493816240691.
+
+## Los Agentes del Equipo Central
 
 ### 1. Arquitecto-Backend ("Beto")
 - **Rol:** Arquitectura de APIs REST con FastAPI, base de datos, lógica de negocio, integración con modelos de IA
