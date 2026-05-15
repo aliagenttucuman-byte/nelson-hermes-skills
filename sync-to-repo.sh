@@ -40,11 +40,14 @@ SKILLS=(
   nelson-observability
   nelson-os-security
   nelson-project-bootstrap
+  nelson-project-constitution
   nelson-rag-pipeline
   nelson-react-doctor
   nelson-scheduled-jobs
   nelson-security
   nelson-senior-practices
+  nelson-spec-analyzer
+  nelson-spec-driven-workflow
   nelson-vector-databases
   nelson-whatsapp-gateway
   nelson-workflow-security

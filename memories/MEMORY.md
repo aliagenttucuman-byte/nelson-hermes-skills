@@ -5,6 +5,8 @@ Equipo Desarrollo Central (produccion): Beto, Ricky, Nico, Diego, Alma (5 agente
 Equipo I+D+I (innovacion, PoCs): Tony + 2 agentes IA.
 Asesores externos: Gino (gestion) y Luigi (economia/cuentas).
 Socio: Pablo (negocios).
+
+Monitoreo activo: cronjob cada 5 min revisa salud de los 3 RAGs (FLoCI-AWS, MinIO, FLoCI-Azure). Auto-reinicio + alerta si no responden. Script: nelson-rag-pipeline/scripts/rag-health-monitor.sh.
 §
 Convención brainstorming: Todo doc de proyecto/SDD/spec se guarda en ~/brainstorming/YYYY-MM-DD-nombre-proyecto/ con README.md obligatorio. Templates en ~/brainstorming/templates/. Skill: nelson-brainstorming.
 §
@@ -16,4 +18,4 @@ Nelson usa PC con Windows + servidor Linux con Gnome/Epiphany como navegador. GT
 §
 Nelson: si técnica falla 2-3 veces, parar y consultar para revaluar. No insistir en loops.
 §
-RAG PoC con 3 backends en paralelo desplegados 2026-05-14: FLoCI-AWS (memoria, S3 emulado), MinIO (disco, S3 real), FLoCI-Azure (hybrid, Azure Blob emulado). Demo Package para Pablo en ~/brainstorming/2026-05-14-rag-floci-azure/README.md. URLs publicas via Cloudflare. MinIO es la opcion mas estable para produccion on-premise. FLoCI-Azure tiene startup ~100ms ideal para demos. Flujo end-to-end documentado en skill nelson-cloud-storage-comparison.
+Nelson quiere la consultora como 'maquina de automatizacion': todo sincronizado (skills, memoria, workflows, deploys), procesos repetitivos automaticos, equipo humano en decisiones estrategicas. Si algo se repite 2+ veces por semana, debe automatizarse. Monitoreo activo de servicios. 3 RAGs deployados para comparativa. Interes en MCP (Model Context Protocol) para futura adopcion via equipo I+D+I.

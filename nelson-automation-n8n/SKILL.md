@@ -130,6 +130,78 @@ Las APIs FastAPI del equipo se acceden desde n8n via:
 - `http://host.docker.internal:8000` (backend)
 - `http://host.docker.internal:8080` (frontend)
 
+## Plan de Automatización de la Consultora (Workfows Prioritarios)
+
+Este plan documenta los workflows clave para transformar la consultora en una máquina de automatización. Principio: si una tarea se repite más de 2 veces por semana, debe estar automatizada.
+
+### Workflows Prioritarios
+
+#### 1. Onboarding de Nuevo Proyecto
+**Trigger:** Tony dice "empezamos proyecto X" o email con subject "[NUEVO PROYECTO]"
+**Acciones:**
+1. Crear carpeta `~/brainstorming/YYYY-MM-DD-nombre-proyecto/`
+2. Generar `README.md` con template estándar
+3. Crear repo en GitHub (si aplica)
+4. Generar scaffold con `nelson-project-bootstrap`
+5. Enviar confirmación a Tony por WhatsApp
+**Tiempo ahorrado:** ~30 min/proyecto
+
+#### 2. Reporte Semanal Automático
+**Trigger:** Lunes 9:00 AM (America/Argentina)
+**Acciones:**
+1. Contar commits de la semana
+2. Listar proyectos activos
+3. Verificar estado de servicios (RAGs, Ollama, n8n)
+4. Generar resumen breve
+5. Enviar a Pablo por WhatsApp
+**Tiempo ahorrado:** ~45 min/semana
+
+#### 3. Monitoreo de Servicios + Alerta
+**Trigger:** Cada 5 minutos (ya implementado como cronjob `rag-health-monitor`)
+**Acciones:**
+1. Revisar /health de cada RAG
+2. Si caído: reiniciar contenedor automáticamente
+3. Si sigue caído: alerta escalonada (Tony → Pablo)
+**Mejoras con n8n:** Dashboard visual, historial de uptime, MTTR
+
+#### 4. Nuevo Lead/Prospecto
+**Trigger:** Formulario web o email a contacto
+**Acciones:**
+1. Extraer datos del lead
+2. Guardar en Airtable/Notion (CRM)
+3. Notificar a Luigi
+4. Enviar auto-reply al prospecto
+
+#### 5. Backup Automático de Skills y Memoria
+**Trigger:** Sábados 2:00 AM
+**Acciones:**
+1. Ejecutar `sync-to-repo.sh`
+2. Ejecutar `git push`
+3. Si falla: reintentar o notificar a Tony
+
+#### 6. Recolección de Tech News
+**Trigger:** Diario 9:00 AM y 6:00 PM
+**Acciones:**
+1. Scrapear fuentes IA
+2. Generar resumen con TTS
+3. Enviar a Tony por WhatsApp
+**Estado:** ✅ Ya implementado (cronjob `ai-news-aggregator`)
+
+#### 7. Recordatorio de Pagos
+**Trigger:** 5 días antes de vencimiento
+**Acciones:**
+1. Revisar Airtable/Notion de facturación
+2. Enviar recordatorio al cliente
+3. Si vence sin pago: escalar a Luigi y Pablo
+
+### Roadmap de Implementación
+
+| Fase | Workflows | Esfuerzo | Impacto |
+|------|-----------|----------|---------|
+| Fase 1 (esta semana) | Monitoreo + Reporte semanal | 2-3h | Alto |
+| Fase 2 (próxima semana) | Onboarding + Backup auto | 3-4h | Alto |
+| Fase 3 (próximo mes) | Leads + Facturación + Dashboard | 5-6h | Medio |
+
 ## Buenas practicas
 
 - **Siempre** usar error handlers en cada workflow

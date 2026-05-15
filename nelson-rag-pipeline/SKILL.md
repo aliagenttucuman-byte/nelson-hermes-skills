@@ -727,5 +727,6 @@ Cuando se retoma un proyecto RAG despues de dias/semanas, seguir este checklist 
 - `references/floci-az-overview.md` — FLoCI-az: emulador local de Azure Storage + Functions, connection strings, Docker Compose, comparativa con Azurite
 - `templates/docker-compose.minio.yml` — Template Docker Compose para stack RAG con MinIO (puertos alternativos, persistente en disco)
 - `scripts/verify-rag-deployment.sh` — Script de verificacion rapida para detectar frontend apuntando a localhost, CORS fallido, o backend sin documentos
+- `scripts/rag-health-monitor.sh` — Monitoreo de salud de RAGs en paralelo. Cada 5 min revisa si los backends responden, reinicia automaticamente si estan caidos, y envia alerta si no se recuperan.
 - `scripts/sync-skills-to-repo.sh` — Script de sincronizacion de skills locales al repo. Incluye verificacion de que todas las skills esten listadas (usa `comm -23` para detectar faltantes)
 - `scripts/sync-to-repo.sh` — Alias corto del script de sincronizacion

@@ -151,6 +151,38 @@ Agregar al `docker-compose.yml`:
 - [ ] Contract tests pasan contra mock
 - [ ] Review de Beto (arquitecto) aprobado
 
+## Adaptación: Spec Kit (GitHub)
+
+Analizamos el toolkit **Spec Kit** de GitHub y mapeamos sus 8 fases a nuestras skills existentes + 3 skills nuevas por crear.
+
+**Resumen del mapeo:**
+- `/speckit.constitution` → `nelson-project-constitution` (nueva)
+- `/speckit.specify` → `spec-driven-development` (ya existe)
+- `/speckit.clarify` → integrar en `spec-driven-development`
+- `/speckit.plan` → `writing-plans` (ya existe)
+- `/speckit.analyze` → `nelson-spec-analyzer` (nueva)
+- `/speckit.tasks` → `subagent-driven-development` (ya existe)
+- `/speckit.checklist` → `requesting-code-review` + `nelson-code-quality` (ya existen)
+- `/speckit.implement` → `subagent-driven-development` (ya existe)
+
+Ver `references/spec-kit-adaptation.md` para el mapeo completo, lecciones a adoptar, y roadmap de implementación.
+
+## Adaptación: Spec Kit (GitHub)
+
+Analizamos el toolkit **Spec Kit** de GitHub y mapeamos sus 8 fases a nuestras skills existentes + 3 skills nuevas por crear.
+
+**Resumen del mapeo:**
+- `/speckit.constitution` → `nelson-project-constitution` (nueva)
+- `/speckit.specify` → `spec-driven-development` (ya existe)
+- `/speckit.clarify` → integrar en `spec-driven-development`
+- `/speckit.plan` → `writing-plans` (ya existe)
+- `/speckit.analyze` → `nelson-spec-analyzer` (nueva)
+- `/speckit.tasks` → `subagent-driven-development` (ya existe)
+- `/speckit.checklist` → `requesting-code-review` + `nelson-code-quality` (ya existen)
+- `/speckit.implement` → `subagent-driven-development` (ya existe)
+
+Ver `references/spec-kit-adaptation.md` para el mapeo completo, lecciones a adoptar, y roadmap de implementación.
+
 ## Pitfalls
 
 - No mezclar hand-written y generated models en el mismo archivo

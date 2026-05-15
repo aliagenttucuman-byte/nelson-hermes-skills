@@ -188,6 +188,31 @@ python3 scripts/validate-safe-to-commit.py archivo1.py archivo2.ts
 echo "texto con /home/server y 192.168.1.1" | python3 scripts/sanitize-response.py
 ```
 
+## 7. GitHub Push Protection (Secret Scanning)
+
+GitHub tiene **Push Protection** activado por defecto en repos públicos. Detecta secrets en commits y bloquea el push.
+
+### Keys dummy conocidas que GitHub detecta
+Algunas keys de emuladores locales son públicas/documentadas pero GitHub no lo sabe:
+- **Azure DevStore AccountKey:** `Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMh0==` (key dummy de Azurite/FLoCI-Azure)
+
+### Solución
+Reemplazar la key dummy con un placeholder antes de commitear:
+```python
+# En vez de:
+"AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMh0=="
+
+# Usar:
+"AccountKey=<AZURE_DEVSTORE_DUMMY_KEY>"
+```
+
+Otra opción: bypass de emergencia (solo si se sabe que no es un secret real):
+```bash
+git push --push-option=secret_scanning_push_protection_bypass=true
+```
+
+**Regla del equipo:** Siempre usar placeholder para keys dummy de emuladores. Nunca dejar la key real en el código commiteado.
+
 ### Información que NUNCA se expone:
 - Credenciales de GCP (`~/.gcp-service-account.json`)
 - Password del sistema (`srv2026`)
