@@ -23,6 +23,18 @@ Load this when the user says things like "let me try this", "I want to see if X 
 - The work is production path — use `writing-plans` / `plan` instead
 - The idea is already validated — jump straight to implementation
 
+## Regla de oro: Validar antes de integrar (Nelson)
+
+**Antes de incorporar cualquier librería de terceros a un proyecto**, hacer un spike de 15 minutos en el entorno REAL donde va a correr (host o Docker, según el proyecto).
+
+Checklist mínimo del spike de validación:
+- [ ] La librería está disponible en el entorno target (pip install funciona)
+- [ ] La llamada básica devuelve datos reales (no solo "no da error")
+- [ ] No hay bloqueo de red (especialmente si corre en Docker)
+- [ ] El entorno (host vs container) es el correcto para el tipo de llamada
+
+Esto ahorra 1-2 horas de debugging en caliente. Si el spike falla, evaluar con Nelson antes de continuar (regla de los 3 intentos).
+
 ## If the user has the full GSD system installed
 
 If `gsd-spike` shows up as a sibling skill (installed via `npx get-shit-done-cc --hermes`), prefer **`gsd-spike`** when the user wants the full GSD workflow: persistent `.planning/spikes/` state, MANIFEST tracking across sessions, Given/When/Then verdict format, and commit patterns that integrate with the rest of GSD. This skill is the lightweight standalone version for users who don't have (or don't want) the full system.

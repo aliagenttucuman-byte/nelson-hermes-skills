@@ -16,11 +16,11 @@ Spec Kit es un toolkit open-source de GitHub para Spec-Driven Development. En ve
 
 | # | Fase Spec Kit | Qué hace | Skill Nelson equivalente | Estado |
 |---|---------------|----------|-------------------------|--------|
-| 1 | `/speckit.constitution` | Principios del proyecto, calidad, stack, reglas de negocio | **`nelson-project-constitution`** (nueva) | ❌ No existe |
+| 1 | `/speckit.constitution` | Principios del proyecto, calidad, stack, reglas de negocio | `nelson-project-constitution` | ✅ Creada |
 | 2 | `/speckit.specify` | Definir QUÉ construir (user stories, reqs) | `spec-driven-development` (OpenAPI primero) | ✅ Existe |
-| 3 | `/speckit.clarify` | Clarificar requerimientos vagos | Integrar en `spec-driven-development` | ❌ Parcial |
+| 3 | `/speckit.clarify` | Clarificar requerimientos vagos | Integrado en `spec-driven-development` | ✅ Hecho |
 | 4 | `/speckit.plan` | Plan técnico con stack elegido | `writing-plans` + `nelson-project-bootstrap` | ✅ Existe |
-| 5 | `/speckit.analyze` | Revisar coherencia spec→plan→tasks | **`nelson-spec-analyzer`** (nueva) | ❌ No existe |
+| 5 | `/speckit.analyze` | Revisar coherencia spec→plan→tasks | `nelson-spec-analyzer` | ✅ Creada |
 | 6 | `/speckit.tasks` | Breakdown de tareas accionables | `subagent-driven-development` (2-stage review) | ✅ Existe |
 | 7 | `/speckit.checklist` | Quality checklist antes de implementar | `requesting-code-review` + `nelson-code-quality` | ✅ Existe |
 | 8 | `/speckit.implement` | Ejecutar el plan | `subagent-driven-development` (delegate_task) | ✅ Existe |
@@ -118,17 +118,17 @@ Spec Kit permite extensiones (nuevos comandos) y presets (customizar templates).
 
 ---
 
-## Roadmap de adopción sugerido
+## Roadmap de adopción
 
-| Fase | Acción | Equipo | Tiempo |
+| Fase | Acción | Equipo | Estado |
 |------|--------|--------|--------|
-| 1 | Crear `nelson-spec-driven-workflow` (skill maestra) | JARVIS + Tony | 1h |
-| 2 | Crear `nelson-project-constitution` | JARVIS + Tony | 1h |
-| 3 | Probar flujo completo con un PoC de I+D+I | I+D+I | 1 proyecto |
-| 4 | Refinar según feedback | JARVIS + Tony | 30min |
-| 5 | Integrar `nelson-spec-analyzer` | JARVIS | 1h |
-| 6 | Adoptar en equipo Central para proyectos reales | Central | Proyecto 1 |
-| 7 | Documentar lecciones y actualizar skills | JARVIS | 30min |
+| 1 | Crear `nelson-spec-driven-workflow` (skill maestra) | JARVIS + Tony | ✅ Hecho |
+| 2 | Crear `nelson-project-constitution` | JARVIS + Tony | ✅ Hecho |
+| 3 | Probar flujo completo con un PoC de I+D+I | I+D+I | 🔄 Pendiente |
+| 4 | Refinar según feedback | JARVIS + Tony | 🔄 Pendiente |
+| 5 | Crear `nelson-spec-analyzer` | JARVIS | ✅ Hecho |
+| 6 | Adoptar en equipo Central para proyectos reales | Central | 🔄 Pendiente |
+| 7 | Documentar lecciones y actualizar skills | JARVIS | 🔄 Pendiente |
 
 ---
 

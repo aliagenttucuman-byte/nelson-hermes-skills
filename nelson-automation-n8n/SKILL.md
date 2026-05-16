@@ -202,6 +202,21 @@ Este plan documenta los workflows clave para transformar la consultora en una m�
 | Fase 2 (próxima semana) | Onboarding + Backup auto | 3-4h | Alto |
 | Fase 3 (próximo mes) | Leads + Facturación + Dashboard | 5-6h | Medio |
 
+## Cuándo usar n8n vs cronjobs de Hermes
+
+**Regla práctica:** Si el workflow conecta 3 o más sistemas distintos, usar n8n. Si es un script simple con un trigger de tiempo, usar cronjob de Hermes — es más directo y sin overhead.
+
+| Tarea | Herramienta correcta | Motivo |
+|-------|---------------------|--------|
+| Backup semanal de skills a GitHub | Cronjob Hermes | Script simple, un solo sistema |
+| Monitoreo de servicios + reinicio | Cronjob Hermes | Script bash, no requiere integraciones |
+| Tech news diario | Cronjob Hermes | Ya implementado, funciona |
+| Reporte semanal para Pablo | n8n | GitHub + WhatsApp + estado servicios = 3+ sistemas |
+| Gestión de leads | n8n | Email + CRM + WhatsApp + cliente = 4+ sistemas |
+| Onboarding de proyecto | n8n | GitHub + WhatsApp + filesystem + Gino = multi-sistema |
+
+**Pitfall:** No usar n8n para tareas que un cronjob Hermes resuelve en 30 minutos. El overhead de configurar un workflow visual no se justifica para automatizaciones simples.
+
 ## Buenas practicas
 
 - **Siempre** usar error handlers en cada workflow

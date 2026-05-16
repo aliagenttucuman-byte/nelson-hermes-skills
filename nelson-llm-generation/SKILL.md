@@ -1,12 +1,12 @@
 ---
 name: nelson-llm-generation
-title: LLM Generation - OpenAI, Ollama, Anthropic, Groq
-description: Integracion con LLMs para el equipo Nelson. Generacion de texto, streaming, manejo de errores, retry con backoff, tracking de tokens/costos. OpenAI, Ollama local, Anthropic Claude, Groq.
+title: LLM Generation - OpenCode Zen, OpenAI, Ollama, Anthropic, Groq
+description: Integracion con LLMs para el equipo Nelson. Generacion de texto, streaming, manejo de errores, retry con backoff, tracking de tokens/costos. OpenCode Zen (via OpenRouter), OpenAI, Ollama local, Anthropic Claude, Groq.
 skill: nelson-llm-generation
 author: equipo-nelson
-version: 1.0.0
-keywords: [llm, openai, ollama, anthropic, claude, groq, streaming, generation, tokens]
-dependencies: [nelson-rag-pipeline]
+version: 1.1.0
+keywords: [llm, opencode, openrouter, openai, ollama, anthropic, claude, groq, streaming, generation, tokens, kimi, minimax]
+dependencies: [nelson-rag-pipeline, nelson-optillm]
 ---
 
 # LLM Generation - Equipo Nelson
@@ -65,13 +65,19 @@ dependencies: [nelson-rag-pipeline]
 
 | Proveedor | Modelo tipico | Streaming | Costo | Uso ideal |
 |-----------|---------------|-----------|-------|-----------|
+| **OpenCode Zen** | kimi-k2.6, minimax-m2.7 | Si | $ | **Produccion del equipo** (default) |
+| **OpenCode Zen** | claude-3.5-sonnet, gpt-4o | Si | $$-$$$ | Produccion, calidad maxima |
 | **OpenAI** | gpt-4o-mini | Si | $$ | Produccion, balance calidad/precio |
 | **OpenAI** | gpt-4o | Si | $$$ | Produccion, calidad maxima |
 | **Ollama** | llama3.2, qwen2.5 | Si | Gratis | Desarrollo local, privacidad |
 | **Anthropic** | claude-3-5-sonnet | Si | $$$ | Razonamiento complejo, coding |
 | **Groq** | llama-3.1-70b | Si | $ | Ultra rapido, baja latencia |
 
-> **Default del equipo: OpenAI gpt-4o-mini** para produccion, **Ollama llama3.2** para desarrollo local.
+> **Default del equipo: OpenCode Zen** para produccion (acceso a 356+ modelos via OpenRouter), **Ollama llama3.2** para desarrollo local.
+>
+> **OpenCode Zen** es un proxy OpenAI-compatible con BYOK. Da acceso a modelos como Kimi K2.6, MiniMax M2.7, Claude, GPT-4o, etc. La API key funciona via OpenRouter (`https://openrouter.ai/api/v1`). Ver [`references/opencode-zen-setup.md`](references/opencode-zen-setup.md) para detalles completos.
+>
+> **Nota:** Para la skill de proxy de inferencia local (OptiLLM), ver `nelson-optillm`.
 
 ## Importar GGUF a Ollama (modelos personalizados)
 
@@ -148,6 +154,13 @@ class LLMService:
             from openai import OpenAI
             self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
+        elif self.provider == "opencode-zen":
+            from openai import OpenAI
+            self.client = OpenAI(
+                api_key=settings.OPENCODE_API_KEY,
+                base_url="https://openrouter.ai/api/v1",
+            )
+
         elif self.provider == "anthropic":
             import anthropic
             self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
@@ -169,7 +182,7 @@ class LLMService:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        if self.provider == "openai":
+        if self.provider in ("openai", "opencode-zen"):
             resp = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -240,7 +253,7 @@ class LLMService:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        if self.provider == "openai":
+        if self.provider in ("openai", "opencode-zen"):
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -332,8 +345,10 @@ COSTS_PER_1K_TOKENS = {
     "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
     "claude-3-5-sonnet": {"input": 0.003, "output": 0.015},
     "llama-3.1-70b": {"input": 0.00059, "output": 0.00079},
+    "moonshotai/kimi-k2.6": {"input": 0.000002, "output": 0.000010},
+    "minimax/minimax-m2.7": {"input": 0.000002, "output": 0.000010},
 }
-
+```
 def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     rates = COSTS_PER_1K_TOKENS.get(model, {"input": 0, "output": 0})
     input_cost = (prompt_tokens / 1000) * rates["input"]
@@ -344,22 +359,26 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
 ## Configuracion
 
 ```
+# .env (produccion - OpenCode Zen)
+LLM_PROVIDER=opencode-zen
+LLM_MODEL=moonshotai/kimi-k2.6
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=2048
+OPENCODE_API_KEY=sk-...
+
 # .env (produccion - OpenAI)
 LLM_PROVIDER=openai
 LLM_MODEL=gpt-4o-mini
 LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=2048
-
 OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...
 
 # .env (desarrollo local - Ollama, 4GB VRAM)
 LLM_PROVIDER=ollama
 LLM_MODEL=llama3.2:3b
 LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=2048
-
+```
 # .env (desarrollo local - alternativa codigo)
 LLM_PROVIDER=ollama
 LLM_MODEL=qwen2.5:3b
@@ -369,9 +388,9 @@ LLM_MODEL=qwen2.5:3b
 
 | VRAM | Modelo dev | Modelo prod |
 |------|-----------|-------------|
-| 4GB | `llama3.2:3b` o `qwen2.5:3b` | OpenAI gpt-4o-mini |
-| 6GB | `llama3.1:8b` | OpenAI gpt-4o |
-| 8GB+ | `llama3.1:8b` o `mistral:7b` | OpenAI gpt-4o |
+| 4GB | `llama3.2:3b` o `qwen2.5:3b` | **OpenCode Zen** kimi-k2.6 / minimax-m2.7 |
+| 6GB | `llama3.1:8b` | **OpenCode Zen** kimi-k2.6 / minimax-m2.7 |
+| 8GB+ | `llama3.1:8b` o `mistral:7b` | **OpenCode Zen** kimi-k2.6 / minimax-m2.7 |
 
 ## Dependencias
 
@@ -397,3 +416,6 @@ pip install openai anthropic groq ollama tenacity
 - Siempre verificar `chunk.choices[0].delta.content` no sea None antes de yield
 - Las tags de Ollama pueden pesar más de lo que sugiere el nombre (ej: `gemma4:e2b` pesa 6.67GB, no 4GB). Si no entra en tu VRAM, buscar cuantizaciones GGUF más agresivas en Hugging Face e importarlas manualmente. Ver `references/importar-gguf-ollama.md`
 - Si el modelo importado responde basura o repite el prompt, el `TEMPLATE` del Modelfile está mal. Buscar el `chat_template` correcto en la página del modelo en Hugging Face
+- **OpenCode Zen / OpenRouter:** Si recibís 401 "Missing Authentication header", verificar que el header `Authorization: Bearer <key>` esté presente. Algunas keys de OpenCode Zen funcionan via OpenRouter (`https://openrouter.ai/api/v1`) pero pueden requerir headers adicionales (`HTTP-Referer`, `X-Title`). Ver `references/opencode-zen-setup.md`
+- **OpenCode Zen / OpenRouter:** El listado de modelos (`/v1/models`) puede funcionar mientras que `/v1/chat/completions` da 401 si la key no tiene créditos o permisos. Verificar en el dashboard de OpenCode Zen.
+- **OpenCode Zen / OpenRouter:** Los model IDs son del formato `provider/model` (ej: `moonshotai/kimi-k2.6`, `minimax/minimax-m2.7`). No usar nombres cortos.

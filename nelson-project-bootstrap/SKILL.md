@@ -6,7 +6,7 @@ skill: nelson-project-bootstrap
 author: equipo-nelson
 version: 1.0.0
 keywords: [bootstrap, scaffold, template, new-project, generator]
-dependencies: [equipo-nelson, spec-driven-development, nelson-frontend-stack, nelson-database, nelson-security, nelson-code-quality, nelson-ci-cd, nelson-observability, nelson-deploy-gcp, nelson-frontend-testing]
+dependencies: [equipo-nelson, nelson-project-constitution, nelson-spec-driven-workflow, spec-driven-development, nelson-frontend-stack, nelson-database, nelson-security, nelson-code-quality, nelson-ci-cd, nelson-observability, nelson-deploy-gcp, nelson-frontend-testing, nelson-spec-analyzer]
 ---
 
 # Project Bootstrap - Equipo Nelson
@@ -21,6 +21,39 @@ El template base esta publico en:
 ## Scripts incluidos
 
 - `scripts/nelson-new-project.py` — Agente automatico de bootstrap. Clona template, inicializa git, ajusta nombres, crea .env.
+
+## Regla de Oro del Stack
+
+- **Backend:** Siempre **Python**
+- **Frontend:** Siempre **React**
+
+El lenguaje y framework base son **innegociables** para todos los equipos (Central e I+D+I). Lo que puede variar son librerías y frameworks *dentro* de ese stack.
+
+## Flujo de Bootstrap (actualizado 2026-05-14)
+
+```
+FASE 0: Tony dice "Nuevo proyecto"
+    ↓
+FASE 1: `nelson-project-constitution` → Crear CONSTITUTION.md
+    ↓
+FASE 2: `spec-driven-development` → Escribir OpenAPI spec
+    ↓
+FASE 3: Clarificar con Tony
+    ↓
+FASE 4: `writing-plans` → Plan técnico
+    ↓
+FASE 5: `nelson-spec-analyzer` → Revisar coherencia
+    ↓
+FASE 6: `subagent-driven-development` → Breakdown de tareas
+    ↓
+FASE 7: `requesting-code-review` → Checklist de calidad
+    ↓
+FASE 8: Implementar con agentes (Beto, Ricky, Nico, Diego, Alma)
+    ↓
+DONE: Proyecto en producción
+```
+
+**Gobernado por:** `nelson-spec-driven-workflow` (skill maestra del flujo SDD completo)
 
 ## Como usar
 
@@ -393,33 +426,37 @@ docker compose up --build -d
 
 | Orden | Skill | Que aporta |
 |-------|-------|-----------|
-| 1 | `equipo-nelson` | Define roles y responsabilidades |
-| 2 | `spec-driven-development` | Estructura specs/ y OpenAPI base |
-| 3 | `nelson-database` | Models, SQLAlchemy, Alembic setup |
-| 4 | `nelson-security` | Auth JWT, middleware, deps |
-| 5 | `nelson-frontend-stack` | React 19, Vite 6, Tailwind 4 |
-| 6 | `nelson-code-quality` | Ruff, mypy, pre-commit config |
-| 7 | `nelson-frontend-testing` | Vitest, Playwright setup |
-| 8 | `nelson-observability` | Logging, health, metrics |
-| 9 | `nelson-ci-cd` | GitHub Actions workflows |
-| 10 | `nelson-deploy-gcp` | Config de deploy lista |
-| 11 | `docker-management` | Dockerfiles y compose |
-| 12 | `api-design-principles` | Convenciones de API |
-| 13 | `python-testing-patterns` | Tests backend |
-| 14 | `nelson-embeddings` | Servicio de embeddings |
-| 15 | `nelson-vector-databases` | Qdrant config |
-| 16 | `nelson-rag-pipeline` | Pipeline RAG completa |
-| 17 | `nelson-llm-generation` | LLM streaming, OpenAI/Ollama |
-| 18 | `nelson-document-processing` | PDF/Word parsing |
-| 19 | `nelson-background-jobs` | Celery + Redis async |
-| 20 | `nelson-ai-vision` | OCR, image analytics |
-| 21 | `nelson-ai-agents` | Agentes autonomos con herramientas |
-| 22 | `nelson-senior-practices` | Type hints estrictos, clean code, SOLID |
-| 23 | `nelson-documentation` | README, API docs, MkDocs |
-| 24 | `nelson-data-science` | ML, XGBoost, Optuna, feature engineering |
+| 0 | `nelson-spec-driven-workflow` | Flujo maestro SDD de 8 fases |
+| 1 | `nelson-project-constitution` | Principios, stack, reglas del proyecto |
+| 2 | `equipo-nelson` | Define roles y responsabilidades |
+| 3 | `spec-driven-development` | Estructura specs/ y OpenAPI base |
+| 4 | `nelson-spec-analyzer` | Revisa coherencia spec vs plan |
+| 5 | `nelson-database` | Models, SQLAlchemy, Alembic setup |
+| 6 | `nelson-security` | Auth JWT, middleware, deps |
+| 7 | `nelson-frontend-stack` | React 19, Vite 6, Tailwind 4 |
+| 8 | `nelson-code-quality` | Ruff, mypy, pre-commit config |
+| 9 | `nelson-frontend-testing` | Vitest, Playwright setup |
+| 10 | `nelson-observability` | Logging, health, metrics |
+| 11 | `nelson-ci-cd` | GitHub Actions workflows |
+| 12 | `nelson-deploy-gcp` | Config de deploy lista |
+| 13 | `docker-management` | Dockerfiles y compose |
+| 14 | `api-design-principles` | Convenciones de API |
+| 15 | `python-testing-patterns` | Tests backend |
+| 16 | `nelson-embeddings` | Servicio de embeddings |
+| 17 | `nelson-vector-databases` | Qdrant config |
+| 18 | `nelson-rag-pipeline` | Pipeline RAG completa |
+| 19 | `nelson-llm-generation` | LLM streaming, OpenAI/Ollama |
+| 20 | `nelson-document-processing` | PDF/Word parsing |
+| 21 | `nelson-background-jobs` | Celery + Redis async |
+| 22 | `nelson-ai-vision` | OCR, image analytics |
+| 23 | `nelson-ai-agents` | Agentes autonomos con herramientas |
+| 24 | `nelson-senior-practices` | Type hints estrictos, clean code, SOLID |
+| 25 | `nelson-documentation` | README, API docs, MkDocs |
+| 26 | `nelson-data-science` | ML, XGBoost, Optuna, feature engineering |
 
 ## Checklist post-bootstrap
 
+- [ ] `CONSTITUTION.md` creado y aprobado por Tony (Fase 1)
 - [ ] `docker compose up --build -d` levanta sin errores
 - [ ] `curl http://localhost:8000/api/v1/health` devuelve OK
 - [ ] Frontend accesible en `http://localhost:8080`
@@ -444,3 +481,4 @@ docker compose up --build -d
 - Para 4GB VRAM, usar `llama3.2:3b` o `qwen2.5:3b` en dev (entran enteros en GPU)
 - Para modelos grandes (>4GB), Ollama usa mix CPU/GPU automaticamente
 - **S3 local:** Si floci/localstack fallan por auth del registry, usar MinIO como alternativa liviana y publica. Ver referencia `references/minio-s3-local.md`.
+- **Web scraping / búsqueda desde Docker:** DuckDuckGo y SearXNG públicos bloquean requests desde IPs de containers Docker (rate limit 202, 403 bot detection). SearXNG local tampoco ayuda — el bot detection de SearXNG da 403 incluso con `pass_ip: 0.0.0.0/0` y `limiter.toml`. **Fix probado:** correr el backend como proceso en el HOST con un venv local (`python3 -m venv venv && ./venv/bin/pip install ddgs fastapi uvicorn ollama`), no en Docker. DuckDuckGo acepta requests desde la IP real del servidor. Ver `references/web-search-docker-pitfall.md`.

@@ -97,8 +97,17 @@ blob_service = BlobServiceClient.from_connection_string(conn_str)
 2. **MinIO sin credenciales:** Sin `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, no inicia
 3. **FLoCI-Azure + SDK Python:** Nunca uses `BlobServiceClient(account_url=..., credential=...)` con el emulador; siempre `from_connection_string()`
 4. **Puertos duplicados:** Cada stack necesita sus propios puertos (backend 8000/8001/8002, frontend 8080/8081/8082, qdrant 6333/6335/6337)
-5. **Frontend apuntando a localhost:** En despliegues con túneles (Cloudflare), `VITE_API_URL` debe apuntar a la URL pública del backend, no a `http://localhost`
-6. **Olvidar agregar skills nuevas al sync script:** Cuando se crea una skill nueva (como esta), hay que agregarla al array `SKILLS` de `sync-to-repo.sh` antes de commitear, o nunca se sincroniza al repo. Siempre listar `~/.hermes/skills/software-development/` y comparar con `~/repos/nelson-hermes-skills/` antes de push.
+5. **Frontend apuntando a localhost con Cloudflare:** `VITE_API_URL` se hornea en el build. El orden CORRECTO es:
+   a. Levantar backend primero (`docker compose up -d backend`)
+   b. Crear túnel Cloudflare para el backend y capturar su URL pública
+   c. Buildear el frontend con esa URL: `docker compose build --build-arg VITE_API_URL=https://XXX.trycloudflare.com frontend`
+   d. Levantar el frontend y crear su túnel
+   Si se buildea el frontend antes de tener la URL del backend, hay que rebuildearlo con `--no-cache`.
+6. **Olvidar agregar skills nuevas al sync script:** Cuando se crea una skill nueva, hay que agregarla al array `SKILLS` de `sync-to-repo.sh` antes de commitear.
+7. **`vite-env.d.ts` faltante:** Sin este archivo, el build falla con `Property 'env' does not exist on type 'ImportMeta'`. Siempre incluir en `frontend/src/`:
+   ```typescript
+   /// <reference types="vite/client" />
+   ```
 
 ## Demo para Stakeholders (Flujo End-to-End)
 
@@ -219,4 +228,5 @@ docker exec CONTAINER mc ls local/BUCKET
 - MinIO: https://min.io/
 - Demo Package: `~/brainstorming/2026-05-14-rag-floci-azure/README.md`
 - `templates/demo-package-README.md` — Template reutilizable para armar demo packages de comparativas (con variables {{NOMBRE_PROYECTO}}, {{VARIANTE_A}}, etc.)
+- `templates/ai-search-assistant-poc.md` — Template completo: PoC asistente IA con búsqueda web (DuckDuckGo + Ollama + React). Incluye secuencia correcta de deploy con Cloudflare.
 - `references/parallel-backend-comparison-mayo-2026.md` (en nelson-rag-pipeline) — Detalles completos del deploy triple con URLs, puertos, problemas encontrados y fixes

@@ -20,26 +20,25 @@ triggers:
 
 # Audio Processing para el Equipo Nelson
 
-## Transcripcion de Audios de WhatsApp (fallback cuando el servicio falla)
+## Transcripcion Automatica de Audios de WhatsApp (Bridge + Whisper Daemon)
 
-Cuando la plataforma de WhatsApp muestra `[audio received]` sin transcribir el texto, los archivos de audio se almacenan localmente en:
+El bridge de WhatsApp ahora transcribe audios automaticamente antes de entregarlos al agente.
 
-```
-/home/server/.hermes/audio_cache/aud_<hash>.ogg
-```
+**Arquitectura:**
+- `bridge.js` recibe audio → descarga → conecta al daemon Whisper en `127.0.0.1:5001` → transcribe → entrega texto al agente
+- El daemon mantiene el modelo `base` cargado en GPU para transcripciones <1s
 
-**Para transcribirlos:**
+**Componentes:**
+- Daemon: `/home/server/whisper_daemon.py` (debe estar siempre corriendo como servicio)
+- Script CLI legacy: `/home/server/transcribir.py` (para uso manual/debug)
+
+**Arranque del daemon (systemd o manual):**
 ```bash
-# 1. Listar los audios mas recientes
-ls -lt /home/server/.hermes/audio_cache/aud_*.ogg | head -5
+# Verificar que esta corriendo
+python3 -c "import socket; s=socket.socket(); s.connect(('127.0.0.1',5001)); s.close(); print('OK')"
 
-# 2. Transcribir el mas reciente
-python3 /home/server/transcribir.py /home/server/.hermes/audio_cache/aud_ULTIMO.ogg
-```
-
-**One-liner para transcribir el audio mas reciente automaticamente:**
-```bash
-python3 /home/server/transcribir.py $(ls -t /home/server/.hermes/audio_cache/aud_*.ogg | head -1)
+# Si no esta corriendo, arrancarlo:
+python3 /home/server/whisper_daemon.py &
 ```
 
 ## Transcripcion Local con OpenAI Whisper
@@ -76,10 +75,12 @@ El script usa el modelo `base` (139MB) que transcribe en espanol automaticamente
 | Modelo | Tamano | VRAM | Uso Recomendado |
 |--------|--------|------|-----------------|
 | tiny | 39MB | ~1GB | Pruebas rapidas, menor precision |
-| base | 139MB | ~1GB | **Default recomendado** para espanol |
-| small | 461MB | ~2GB | Mejor precision, mas lento |
+| base | 139MB | ~1GB | Desarrollo/testing |
+| small | 461MB | ~2GB | **Recomendado para produccion** - mejor precision en espanol argentino |
 | medium | 1.5GB | ~5GB | Alta precision, requiere mas VRAM |
 | large | 2.9GB | ~10GB | Maxima precision, muy lento en CPU |
+
+**Nota de precision:** El modelo `base` tiene precision insuficiente para espanol argentino y nombres propios (ej: transcribe "JARVIS" como "les llavis"). Para produccion usar `small` como minimo. Una GTX 1650 4GB banca `small` sin problemas.
 
 ### Deteccion Automatica de GPU vs CPU
 
@@ -161,9 +162,12 @@ async def generar_audio(texto, ruta_salida):
 1. **pip no disponible**: En algunos entornos Python, `pip` no esta instalado. Solucion: `python3 -m ensurepip --upgrade`.
 2. **ffmpeg no instalado**: Whisper depende de ffmpeg para decodificar audio. Si falla con errores de formato, instalar: `sudo apt-get install -y ffmpeg`.
 3. **Driver NVIDIA vs PyTorch CUDA**: Si `torch.cuda.is_available()` devuelve `False` a pesar de tener GPU, verificar que la version de CUDA de PyTorch coincida con la del driver. Ver seccion "Solucion de Problemas CUDA" arriba.
-4. **Modelo descargado por primera vez**: La primera vez que se usa un modelo, se descarga desde internet (~139MB para `base`). Guardar en cache local en `~/.cache/whisper/`.
+4. **Modelo descargado por primera vez**: La primera vez que se usa un modelo, se descarga desde internet (~139MB para `base`, ~461MB para `small`). Guardar en cache local en `~/.cache/whisper/`.
 5. **Archivos muy largos**: Para audios de mas de 30 minutos, usar `whisper.load_model("base").transcribe()` con `condition_on_previous_text=True` (default) para mantener coherencia.
 6. **Transcripcion del sistema falla**: Cuando la plataforma solo muestra `[audio received]` sin texto, los audios de WhatsApp se guardan en `/home/server/.hermes/audio_cache/aud_*.ogg` y pueden transcribirse localmente con Whisper.
+7. **Bridge falla al descargar audio tras reconexion**: Si el bridge de WhatsApp (Baileys) se reconecto recientemente, puede aparecer `Failed to download audio: fetch failed`. Baileys necesita completar el sync inicial antes de poder descargar media. Solucion: esperar ~30-60s a que se estabilice la conexion, o reintentar el audio.
+8. **Daemon debe estar siempre corriendo**: El daemon de Whisper (`whisper_daemon.py`) no debe arrancarse bajo demanda desde el bridge. Debe mantenerse como proceso persistente. Si el bridge intenta arrancarlo durante una reconexion, puede fallar por race condition.
+9. **Precision del modelo `base` insuficiente**: Para espanol argentino, el modelo `base` comete errores frecuentes en nombres propios y vocabulario tecnico. Usar `small` como minimo en produccion.
 
 ## Verificacion
 
@@ -175,5 +179,7 @@ python3 -c "import whisper; m = whisper.load_model('base'); print('OK')"
 
 ## Referencias
 
-- `scripts/transcribir.py` — Script CLI reutilizable para transcripcion de audio
-- `scripts/transcribir.py` se puede invocar directamente: `python3 /home/server/.hermes/skills/software-development/nelson-audio-processing/scripts/transcribir.py <audio>`
+- `scripts/transcribir.py` — Script CLI reutilizable para transcripcion de audio manual
+- `references/bridge-whisper-integration.md` — Documentacion completa de la integracion WhatsApp Bridge + Whisper Daemon, con codigo, problemas conocidos y flujo de datos
+- Daemon en produccion: `/home/server/whisper_daemon.py`
+- Bridge modificado: `/home/server/.hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js`

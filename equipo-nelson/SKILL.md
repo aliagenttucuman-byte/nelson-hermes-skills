@@ -34,8 +34,8 @@ La consultora tiene **2 equipos** bajo liderazgo de Tony (Nelson). Cada equipo t
 ### Equipo I+D+I (Innovación y Desarrollo)
 **Líder:** Tony (Nelson) — experimenta, valida tecnologías, hace PoCs antes de que el equipo central las adopte
 **Agentes:** 2 agentes IA especializados en innovación
-- **Agente I+D+I Backend** — experimentos con nuevas arquitecturas, modelos, herramientas
-- **Agente I+D+I Frontend** — prototipos rápidos, validación de UI/UX, demos
+- **Julián** — I+D+I Backend — experimentos con nuevas arquitecturas, modelos, herramientas. Python. Velocidad > perfección.
+- **Mercedes** — I+D+I Frontend — prototipos rápidos, validación de UI/UX, demos para stakeholders. React. Velocidad > perfección.
 
 **Foco:** PoCs, experimentos, validación de tecnologías, demos para stakeholders. Velocidad > perfección. No código de producción directo.
 
@@ -130,14 +130,17 @@ Ver skill `nelson-whatsapp-gateway` para setup, troubleshooting y API.
 - **GPU:** NVIDIA GeForce GTX 1650 Mobile/Max-Q con **4GB GDDR5 VRAM**
 - **RAM:** 13GB total
 - **Ollama:** Instalado en `/usr/local/bin/ollama`, modelos descargados en `~/.ollama`
+- **Tailscale:** IP `100.110.8.13`, cuenta `aliagenttucuman@gmail.com`, hostname `ai-server`
 
 Ver `references/docker-setup.md` para comandos exactos y troubleshooting de Docker.
 Ver `references/google-cloud-deploy.md` para deploy a Google Cloud.
+Ver `references/tailscale-ssh-access.md` para acceso remoto SSH desde Windows y Android.
 
 ## Referencias y Templates
 
 | Archivo | Qué contiene |
 |---------|--------------|
+| `references/tailscale-acceso-remoto.md` | IP, hostname, estado, alerta cuenta de Pablo |
 | `references/docker-setup.md` | Comandos Docker, permisos, puertos, troubleshooting |
 | `references/docker-pitfalls.md` | Problemas comunes de Docker en este stack |
 | `references/github-cli-setup.md` | Instalar y loguear gh CLI para commits/push/skills |

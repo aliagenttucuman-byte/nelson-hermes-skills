@@ -8,7 +8,7 @@ platforms: [linux]
 metadata:
   hermes:
     tags: [spec-driven-development, sdd, workflow, nelson, fastapi, react, docker]
-    related_skills: [nelson-project-constitution, spec-driven-development, writing-plans, subagent-driven-development, requesting-code-review, nelson-code-quality, nelson-project-bootstrap]
+    related_skills: [nelson-project-constitution, spec-driven-development, writing-plans, subagent-driven-development, requesting-code-review, nelson-code-quality, nelson-project-bootstrap, nelson-pricing-model]
 ---
 
 # Nelson Spec-Driven Workflow
@@ -29,10 +29,11 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 │  2. SPECIFICAR    ──→  Qué construir (OpenAPI)                │
 │  3. CLARIFICAR    ──→  Revisar ambigüedades                   │
 │  4. PLANEAR       ──→  Cómo construir (tech stack)            │
-│  5. ANALIZAR      ──→  Coherencia spec→plan                   │
-│  6. TAREAS        ──→  Breakdown para agentes                 │
-│  7. CHECKLIST     ──→  Validar antes de codear                │
-│  8. IMPLEMENTAR   ──→  Ejecutar con agentes                   │
+│  5. ESTIMAR       ──→  Costos reales antes de codear         │
+│  6. ANALIZAR      ──→  Coherencia spec→plan→estimación       │
+│  7. TAREAS        ──→  Breakdown para agentes                 │
+│  8. CHECKLIST     ──→  Validar antes de codear                │
+│  9. IMPLEMENTAR   ──→  Ejecutar con agentes                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -100,25 +101,50 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 
 ---
 
-### 5. ANALIZAR → `nelson-spec-analyzer`
+### 5. ESTIMAR → `nelson-pricing-model`
+
+**Quién:** JARVIS genera, Tony valida, Pablo usa para negociar
+
+**Qué hace:** Define los costos reales del proyecto antes de tocar código.
+
+**Salida:** `ESTIMACION.md` con:
+- Costo de desarrollo (horas × personas × $30/hora)
+- Costo de infraestructura cloud mensual
+- Costo de LLM (tokens)
+- Suscripción mensual recurrente
+- Plan de pagos por hitos
+
+> **Para proyectos RAG (PoC → Producción):** Usar los 3 paquetes estándar del equipo (Essential $21.600, Professional $26.400, Enterprise $30.000) como punto de partida en vez de estimar desde cero. Ver `nelson-pricing-model` → "Paquetes Estándar para RAG".
+
+**Regla de Nelson:** Sin ESTIMACION.md aprobada, no se implementa. Tony decide si los números son viables antes de gastar horas de desarrollo.
+
+**Modelo de negocio:**
+- **Desarrollo:** se cobra one-time ($30/hora)
+- **Software:** incluido en desarrollo, sin costo de licencia
+- **Suscripción mensual:** infra + soporte + mantenimiento
+
+---
+
+### 6. ANALIZAR → `nelson-spec-analyzer`
 
 **Quién:** JARVIS (o Alma en modo QA)
 
-**Qué hace:** Revisa coherencia entre spec y plan.
+**Qué hace:** Revisa coherencia entre spec, plan y estimación.
 
 **Chequeos:**
 - ¿El plan cubre TODAS las user stories del spec?
 - ¿Hay funcionalidades en el plan que NO están en el spec? (over-engineering)
 - ¿Faltan endpoints en el OpenAPI para alguna user story?
 - ¿El data model soporta todas las entidades del spec?
+- ¿La estimación cubre TODO el plan? ¿Hay tareas sin estimar?
 
-**Salida:** Reporte de gaps. Si hay gaps, volver a fase 2 o 4.
+**Salida:** Reporte de gaps. Si hay gaps, volver a fase 2, 4 o 5.
 
 **Regla:** Si el analyzer encuentra gaps, NO se pasa a implementación.
 
 ---
 
-### 6. TAREAS → `subagent-driven-development`
+### 7. TAREAS → `subagent-driven-development`
 
 **Quién:** JARVIS orquesta, agentes ejecutan
 
@@ -132,7 +158,7 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 
 ---
 
-### 7. CHECKLIST → `requesting-code-review` + `nelson-code-quality`
+### 8. CHECKLIST → `requesting-code-review` + `nelson-code-quality`
 
 **Quién:** Alma (QA) + JARVIS
 
@@ -145,12 +171,14 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 - [ ] ¿La seguridad está considerada (auth, CORS, rate limiting)?
 - [ ] ¿La documentación está planificada?
 - [ ] ¿El stack elegido es compatible con nuestro entorno (GPU 4GB, 13GB RAM)?
+- [ ] ¿La estimación está aprobada por Tony?
+- [ ] ¿Pablo tiene los números para cotizar al cliente?
 
 **Regla:** Si falta algún check, se completa antes de implementar.
 
 ---
 
-### 8. IMPLEMENTAR → `subagent-driven-development`
+### 9. IMPLEMENTAR → `subagent-driven-development`
 
 **Quién:** Todos los agentes en paralelo
 
@@ -278,9 +306,10 @@ Tony: "Me gusta. 30% menos código. Anoten esto para evaluar en producción."
 
 ## Próximas Skills a Crear
 
-1. `nelson-project-constitution` — Fase 1
-2. `nelson-spec-analyzer` — Fase 5
-3. `nelson-sdd-templates` — Templates de spec, plan, tasks
+1. `nelson-project-constitution` — Fase 1 ✅
+2. `nelson-pricing-model` — Fase 5 ✅
+3. `nelson-spec-analyzer` — Fase 6
+4. `nelson-sdd-templates` — Templates de spec, plan, tasks, estimación
 
 ## Ejemplo de Uso
 
@@ -291,12 +320,13 @@ JARVIS:
   1. Carga `nelson-spec-driven-workflow`
   2. Fase 1: Genera CONSTITUTION.md con stack, calidad, reglas
   3. Fase 2: Beto escribe OpenAPI spec (user stories, endpoints, data model)
-  4. Fase 3: Clarificar con Tony ("`¿Qué pasa si cancelan?"`)
+  4. Fase 3: Clarificar con Tony ("¿Qué pasa si cancelan?")
   5. Fase 4: Planear con stack FastAPI + React + PostgreSQL
-  6. Fase 5: Analizar coherencia spec→plan
-  7. Fase 6: Tareas para cada agente
-  8. Fase 7: Checklist de calidad
-  9. Fase 8: Implementar en paralelo
+  6. Fase 5: Estimar costos con `nelson-pricing-model` (dev + infra + suscripción)
+  7. Fase 6: Analizar coherencia spec→plan→estimación
+  8. Fase 7: Tareas para cada agente
+  9. Fase 8: Checklist de calidad
+  10. Fase 9: Implementar en paralelo
 ```
 
 ## Notas

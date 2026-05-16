@@ -73,6 +73,24 @@ No es un documento técnico detallado. Es un acuerdo de principios que guía tod
 - **Vector DB:** Qdrant (si aplica RAG)
 - **Local LLM:** Ollama (modelos 3B para dev, 8B+ para prod si aplica)
 
+### Regla de red: Docker vs Host
+
+**Definir ANTES de arrancar** si el backend necesita llamar a servicios externos (APIs de terceros, buscadores, scraping).
+
+- Si hace llamadas externas → correr en **host** (`network_mode: host` en compose, o proceso directo con venv del host). Las IPs de Docker están bloqueadas por muchos servicios (DuckDuckGo, Google, etc.).
+- Si solo habla con servicios internos (DB, Redis, otros containers) → Docker normal.
+- Documentar la decisión en la CONSTITUTION bajo "Restricciones de red".
+
+### Demos rápidas (I+D+I)
+
+Para mostrar un proyecto sin deploy real, usar túneles Cloudflare:
+
+```bash
+cloudflared tunnel --url http://localhost:PUERTO
+```
+
+Genera una URL pública temporal. Patrón estándar para demos en I+D+I. No usar en producción.
+
 ## 3. Estándares de Calidad
 
 ### Código
@@ -201,20 +219,22 @@ proyecto/
 ## Variantes
 
 ### Proyecto I+D+I (experimentación)
-- Stack puede variar (se prueban tecnologías nuevas)
+- **Stack base fijo:** Backend Python, Frontend React (innegociable)
+- **Variaciones permitidas:** Frameworks y librerías *dentro* de Python/React (FastAPI vs Flask, Vite vs Next.js, Zustand vs React Query, etc.)
 - Calidad: "funciona para demo" es suficiente
 - Tests: mínimos, solo para validar hipótesis
 - Documentación: README.md básico, sin ADRs
+- Tiempo: 2-3 días máximo por experimento
 
 ### Proyecto Cliente (producción)
-- Stack rígido (nuestro estándar)
+- Stack rígido: Python (FastAPI) + React (Vite) — innegociable
 - Calidad enterprise (100% type hints, 80%+ cobertura)
 - Tests completos
 - Documentación completa + ADRs
 - Definition of Done incluye aprobación del cliente
 
 ### Proyecto Interno (herramienta propia)
-- Stack estándar pero flexible
+- Stack estándar: Python (FastAPI) + React (Vite)
 - Calidad: "producción interna" (type hints, tests core)
 - Documentación: README + API docs
 - Definition of Done: aprobación de Tony

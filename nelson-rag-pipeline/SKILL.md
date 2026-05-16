@@ -330,6 +330,35 @@ volumes:
   ollama_data:
 ```
 
+## Capa de optimización: OptiLLM (opcional)
+
+Para mejorar la calidad de respuestas en queries complejas, se puede
+interponer **OptiLLM** entre el backend y Ollama. OptiLLM aplica técnicas
+de inferencia-time compute (MCTS, MOA, PlanSearch, etc.) sin cambiar
+código del cliente.
+
+```
+[RAG FastAPI] --OpenAI API--> [OptiLLM :18000] --OpenAI compatible--> [Ollama :11434/v1]
+```
+
+### Cambio mínimo en el backend
+
+```python
+# ANTES — directo a Ollama
+requests.post("http://ollama:11434/api/generate", json={"model": "llama3.2:3b", ...})
+
+# DESPUÉS — via OptiLLM (drop-in)
+from openai import OpenAI
+client = OpenAI(base_url="http://optillm:18000/v1", api_key="sk-dummy")
+client.chat.completions.create(
+    model="moa-llama3.2:3b",  # prefijo = técnica activada
+    messages=[{"role": "user", "content": prompt}]
+)
+```
+
+Ver skill `nelson-optillm` para deploy completo y técnicas disponibles.
+
+
 **IMPORTANTE — Docker en Linux:** `host.docker.internal` **no funciona por defecto** en Docker Engine para Linux. Usar la IP del bridge `docker0`:
 ```bash
 ip addr show docker0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1

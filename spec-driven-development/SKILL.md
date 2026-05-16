@@ -151,37 +151,38 @@ Agregar al `docker-compose.yml`:
 - [ ] Contract tests pasan contra mock
 - [ ] Review de Beto (arquitecto) aprobado
 
+## Regla de Oro del Stack
+
+- **Backend:** Siempre **Python** (FastAPI, Flask, Django, Litestar, etc.)
+- **Frontend:** Siempre **React** (Vite, Next.js, Remix, etc.)
+
+El lenguaje y framework base son **innegociables** para todos los equipos (Central e I+D+I). Solo varían las librerías y frameworks *dentro* de ese stack.
+
+## Contexto: Fase 2 del Nelson SDD
+
+Esta skill cubre la **Fase 2 (Specify)** del flujo `nelson-spec-driven-workflow`. Antes de usar esta skill, asegurarse de que:
+
+1. `nelson-project-constitution` (Fase 1) ya esté aprobada → `CONSTITUTION.md` existe
+2. El stack esté definido en la constitución
+3. Se conozca el alcance del proyecto
+
+**Flujo completo:** `nelson-spec-driven-workflow` → Fase 1 (Constitution) → **Fase 2 (Specify, esta skill)** → Fase 3 (Clarify) → Fase 4 (Plan) → Fase 5 (Analyze) → ...
+
 ## Adaptación: Spec Kit (GitHub)
 
-Analizamos el toolkit **Spec Kit** de GitHub y mapeamos sus 8 fases a nuestras skills existentes + 3 skills nuevas por crear.
+Analizamos el toolkit **Spec Kit** de GitHub y mapeamos sus 8 fases a nuestras skills:
 
-**Resumen del mapeo:**
-- `/speckit.constitution` → `nelson-project-constitution` (nueva)
-- `/speckit.specify` → `spec-driven-development` (ya existe)
-- `/speckit.clarify` → integrar en `spec-driven-development`
-- `/speckit.plan` → `writing-plans` (ya existe)
-- `/speckit.analyze` → `nelson-spec-analyzer` (nueva)
-- `/speckit.tasks` → `subagent-driven-development` (ya existe)
-- `/speckit.checklist` → `requesting-code-review` + `nelson-code-quality` (ya existen)
-- `/speckit.implement` → `subagent-driven-development` (ya existe)
+**Mapeo completo:**
+- `/speckit.constitution` → `nelson-project-constitution` (Fase 1)
+- `/speckit.specify` → `spec-driven-development` (Fase 2, esta skill)
+- `/speckit.clarify` → integrado en esta skill (Fase 3)
+- `/speckit.plan` → `writing-plans` (Fase 4)
+- `/speckit.analyze` → `nelson-spec-analyzer` (Fase 5)
+- `/speckit.tasks` → `subagent-driven-development` (Fase 6)
+- `/speckit.checklist` → `requesting-code-review` + `nelson-code-quality` (Fase 7)
+- `/speckit.implement` → `subagent-driven-development` (Fase 8)
 
-Ver `references/spec-kit-adaptation.md` para el mapeo completo, lecciones a adoptar, y roadmap de implementación.
-
-## Adaptación: Spec Kit (GitHub)
-
-Analizamos el toolkit **Spec Kit** de GitHub y mapeamos sus 8 fases a nuestras skills existentes + 3 skills nuevas por crear.
-
-**Resumen del mapeo:**
-- `/speckit.constitution` → `nelson-project-constitution` (nueva)
-- `/speckit.specify` → `spec-driven-development` (ya existe)
-- `/speckit.clarify` → integrar en `spec-driven-development`
-- `/speckit.plan` → `writing-plans` (ya existe)
-- `/speckit.analyze` → `nelson-spec-analyzer` (nueva)
-- `/speckit.tasks` → `subagent-driven-development` (ya existe)
-- `/speckit.checklist` → `requesting-code-review` + `nelson-code-quality` (ya existen)
-- `/speckit.implement` → `subagent-driven-development` (ya existe)
-
-Ver `references/spec-kit-adaptation.md` para el mapeo completo, lecciones a adoptar, y roadmap de implementación.
+Ver `references/spec-kit-adaptation.md` para detalles.
 
 ## Pitfalls
 

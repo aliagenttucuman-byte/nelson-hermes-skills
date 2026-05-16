@@ -33,6 +33,7 @@ SKILLS=(
   nelson-embeddings
   nelson-error-review
   nelson-external-communication
+  nelson-external-integrations
   nelson-frontend-agent
   nelson-frontend-stack
   nelson-frontend-testing

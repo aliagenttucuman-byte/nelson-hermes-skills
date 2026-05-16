@@ -1,4 +1,4 @@
-Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack: Python/FastAPI, React/Vite, Docker, IA/ML. Linux. Spec-driven dev. Action-oriented. WhatsApp + audio es-AR-TomasNeural. Es runner: entrena 4-5K durante semana, carrera 10K domingos, preparándose para 21K (media maratón).
+Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack: Python/FastAPI, React/Vite, Docker, IA/ML. Linux. Spec-driven dev. Action-oriented. WhatsApp + audio es-AR-TomasNeural. Runner: 4-5K semana, 10K domingo, preparando 21K. Valora muchisimo precision en transcripciones de audio (modelo Whisper `base` no le alcanza, quiere fidelidad total).
 §
 Nelson usa metodología spec-driven development (OpenAPI primero). Es action-oriented: ve el plan y quiere ejecutar. Preiere skills custom a medida de su flujo.
 §

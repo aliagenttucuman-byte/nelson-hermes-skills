@@ -68,6 +68,7 @@ POST /send
     -d '{"to": "5493816240691", "message": "Hola Pablo"}'
   ```
   El gateway usa la sesión persistida de Baileys (MultiFileAuthState en `auth/`) que ya tiene a Pablo como contacto conocido desde interacciones previas. Esta es la forma preferida para enviar mensajes automatizados a socios/asesores del equipo.
+- **Bridge de Hermes se cae con SIGTERM (`code -15`)**: El puente nativo de Hermes (puerto 3000) se cae repetidamente con `code -15` (SIGTERM), mientras que el gateway standalone (puerto 3001) permanece estable. Posible causa: conflicto de sesión entre dos procesos de Baileys compartiendo el mismo state de WhatsApp Web, o systemd matando el cgroup cuando el adaptador Python detecta el bridge caído. Ver `references/hermes-bridge-sigterm-crash.md` para diagnóstico completo, monitoreo temporal y soluciones.
 - **WhatsApp tiene límite de 4 dispositivos vinculados**. Si el usuario ya tiene 4, debe desvincular alguno antes de intentar de nuevo.
 - **Si falla el código de emparejamiento, hacer fallback a QR**. Algunas cuentas no admiten pairing code y requieren QR.
 - **No usar `printQRInTerminal` en Baileys moderno**. Está deprecado. Escuchar el evento `connection.update` con `qr` y generar la imagen manualmente con `qrcode`.
@@ -75,6 +76,7 @@ POST /send
 - **El QR se guarda en archivo PNG** porque el usuario puede no estar mirando la terminal (GNOME, otras apps abiertas). Abrir automáticamente con `xdg-open` si es posible.
 - **NO usar `&` o `nohup` en comandos de terminal Hermes**. Hermes bloquea backgrounding en foreground commands. Usar `execute_code` con `subprocess.Popen(..., start_new_session=True)` para levantar el servidor, luego verificar con health checks separados.
 - **Health check con Python `urllib`** en vez de `curl` desde terminal cuando el servidor corre en background — más fiable dentro del entorno de Hermes.
+- **"Connected" pero mensajes no llegan**: El gateway (puerto 3001) puede estar conectado y responder bien a `/send` manual, pero si los mensajes automatizados dejaron de llegar, el problema suele estar en el **script emisor** (cronjob caído, script con error) o en el **bridge de Hermes** (puerto 3000) con `queueLength > 0` (mensajes atascados esperando consumo). Ver `references/troubleshooting-messages-not-arriving.md` para flujo de diagnóstico completo.
 
 ## API HTTP completa (Express)
 
@@ -194,6 +196,8 @@ Ejemplo de uso: el AI News Aggregator genera un resumen y al finalizar llama `se
 
 ## Referencias
 
+- `references/hermes-bridge-sigterm-crash.md` — Problema recurrente: el bridge nativo de Hermes (puerto 3000) se cae con SIGTERM (`code -15`) mientras el gateway standalone (3001) permanece estable. Diagnóstico, hipótesis de causa raíz, y solución temporal de monitoreo.
+- `references/troubleshooting-messages-not-arriving.md` — Guía paso a paso para cuando los mensajes dejan de llegar aunque el gateway diga "connected". Diferencia gateway (3001) vs bridge (3000) vs origen del mensaje.
 - `references/connect-example.js` — Script Node.js completo de conexión con QR + código de emparejamiento.
 - `references/whatsapp-api-server.js` — Servidor Express completo con endpoints `/send` y `/send-batch`.
 - `references/send_whatsapp.py` — Script Python helper para consumir la API sin dependencias.
