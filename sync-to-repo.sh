@@ -34,6 +34,7 @@ SKILLS=(
   nelson-error-review
   nelson-external-communication
   nelson-external-integrations
+  nvidia-nim-free-api
   nelson-frontend-agent
   nelson-frontend-stack
   nelson-frontend-testing

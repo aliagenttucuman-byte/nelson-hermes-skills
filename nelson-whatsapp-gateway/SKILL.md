@@ -55,6 +55,27 @@ POST /send
 }
 ```
 
+## Enviar audio via gateway (workaround)
+
+El gateway Baileys expone `/send` para texto y no tiene `/send-media` implementado (devuelve 404). Para enviar un audio generado con TTS a un número externo, dos opciones:
+
+1. **Enviar el texto del mensaje como texto plano** via `/send` — funciona siempre, sin fricción.
+2. **Transcribir el audio a texto** y enviarlo como mensaje de texto.
+
+El endpoint `/send-media` NO existe en la implementación actual del gateway. No intentarlo.
+
+```bash
+# ✅ Funciona
+curl -X POST http://localhost:3001/send \
+  -H 'Content-Type: application/json' \
+  -d '{"to": "5493816240691", "message": "Texto del mensaje"}'
+
+# ❌ No existe
+curl -X POST http://localhost:3001/send-media ...  # 404
+```
+
+Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el servidor Node.js del gateway usando `sock.sendMessage(jid, { audio: fs.readFileSync(path), mimetype: 'audio/ogg; codecs=opus', ptt: true })`.
+
 ## Pitfalls
 
 - **Bridge nativo de Hermes no envía a contactos nuevos**: El tool `send_message` de Hermes (que usa el bridge de WhatsApp) solo puede enviar a números que ya están en los contactos de la sesión del bot. Si intenta enviar a un número nuevo (ej. Pablo, 5493816240691), da error:

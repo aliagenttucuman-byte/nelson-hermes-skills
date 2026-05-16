@@ -71,6 +71,18 @@ Nelson prefiere que las tareas complejas se ejecuten **pasito a pasito**. No ade
 
 > **Importante:** "pasito a pasito" (no "pasito a pasio"). Nelson corrigió explícitamente esta frase.
 
+## Flujo de envío cuando Nelson ya aprobó explícitamente
+
+Cuando Nelson dice "mandále a Pablo" con un contexto claro, **no re-confirmar ni preguntar qué quiere enviar**. El pedido ya es explícito. Ejecutar directamente:
+
+1. Generar el contenido (resumen, audio, texto)
+2. Enviarlo via gateway
+3. Reportar el resultado
+
+Re-confirmar cuando Nelson YA dijo qué enviar es fricción innecesaria y frustra a Nelson, que es action-oriented.
+
+**Re-confirmar SOLO cuando:** el pedido es ambiguo ("mandále algo a Pablo"), no hay contexto claro de qué enviar, o el contenido podría ser sensible/incorrecto.
+
 ## Compartir Información con Pablo (Socio)
 
 **REGLA DE ORO:** Nelson decide qué Pablo ve y qué no. JARVIS NO envía nada a Pablo sin aprobación explícita previa de Nelson.

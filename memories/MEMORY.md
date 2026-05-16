@@ -6,9 +6,7 @@ Convención brainstorming: Todo doc de proyecto/SDD/spec se guarda en ~/brainsto
 §
 Nelson prefiere probar cosas solo primero antes de compartir con Pablo/equipo ("envíamelo a mí nomás"). Es proactive con recursos del sistema (avisó sobre limpieza de disco). Interesado en consumir tech news via audio/podcast (runner, manos libres).
 §
-PC Windows + servidor Linux. GTX 1650 4GB VRAM. Whisper daemon:127.0.0.1:5001, OptiLLM proxy:18000 → Ollama:11434. OptiLLM benchmark: MOA/MCTS no mejoran 3B-8B.
-
-OpenCode Zen (prod + I+D+I): URL https://opencode.ai/zen/v1. Key en ~/secrets/opencode.env. 41 modelos. Top: claude-sonnet-4, gpt-5.4-nano (barato), kimi-k2.6 (262K ctx). Modelos -free fallaron. Langfuse telemetría en roadmap.
+Servidor Linux. GTX 1650 4GB VRAM. Whisper:5001, OptiLLM:18000→Ollama:11434. OpenCode Zen: https://opencode.ai/zen/v1, key ~/secrets/opencode.env. Top modelos: claude-sonnet-4, gpt-5.4-nano, kimi-k2.6. NVIDIA NIM keys: ~/secrets/nvidia_nim_keys.env (mistral-medium-3.5-128b, gemma-4-31b, qwen3-coder-480b, glm-5.1, minimax-m2.7). Skill: nvidia-nim-free-api.
 §
 Nelson: si técnica falla 2-3 veces, parar y consultar para revaluar. No insistir en loops.
 §
