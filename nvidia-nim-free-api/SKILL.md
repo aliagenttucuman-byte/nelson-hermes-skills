@@ -128,7 +128,7 @@ for chunk in completion:
 import requests
 
 headers = {
-    "Authorization": "Bearer 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",
+    "Authorization": "Bearer $NVIDIA_API_KEY",
     "Accept": "text/event-stream"
 }
 
@@ -160,7 +160,7 @@ for line in response.iter_lines():
 import requests
 
 headers = {
-    "Authorization": "Bearer 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",
+    "Authorization": "Bearer $NVIDIA_API_KEY",
     "Accept": "text/event-stream"
 }
 
@@ -261,7 +261,7 @@ for chunk in completion:
 import requests
 
 headers = {
-    "Authorization": "Bearer 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",
+    "Authorization": "Bearer $NVIDIA_API_KEY",
     "Accept": "text/event-stream"
 }
 
@@ -295,7 +295,7 @@ def read_b64(path):
         return base64.b64encode(f.read()).decode()
 
 headers = {
-    "Authorization": "Bearer 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",
+    "Authorization": "Bearer $NVIDIA_API_KEY",
     "Accept": "text/event-stream"
 }
 
