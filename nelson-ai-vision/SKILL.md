@@ -18,6 +18,7 @@ dependencies: [nelson-llm-generation]
 - Detectar objetos en imagenes (inventario, seguridad, etc.)
 - Analizar imagenes con LLM multimodal (GPT-4V, Claude, Gemini)
 - Preprocesamiento de imagenes para mejorar OCR
+- **Detección de personas en riesgo en tiempo real** (piletas, piscinas, seguridad pública) — ver `references/drowning-detection-market.md`
 
 ## Stack
 
@@ -304,12 +305,78 @@ pip install openai       # Para vision LLM
 ## Checklist
 
 - [ ] Imagen preprocesada (grayscale, denoise, threshold, deskew)
+
+## Casos de Uso I+D+I
+
+### Detección de Ahogamiento en Piletas
+
+Idea de producto validada en Mayo 2026. Stack: YOLOv8 + MediaPipe Pose + ByteTrack + FastAPI + React. Mercado local virgen en Argentina. Ver `references/drowning-detection-market.md` para investigación competitiva completa, estimativo económico y plan de 3 fases.
 - [ ] OCR con idioma correcto (spa+eng para latam)
 - [ ] Bounding boxes guardadas si se necesita verificacion visual
 - [ ] LLM multimodal para extraccion estructurada (facturas, forms)
 - [ ] Limitar tamaño de imagen antes de procesar (resize si >4K)
 - [ ] Resultados cacheados por hash de imagen
 - [ ] Solo usuarios autenticados pueden subir imagenes
+
+## Detección de personas en tiempo real (piletas / seguridad)
+
+Caso de uso validado para producto en Argentina: sistema de detección de ahogamiento
+en piletas públicas, privadas, countries y hoteles. No existe competidor local con IA.
+
+### Stack recomendado
+
+| Componente | Herramienta | Rol |
+|-----------|-------------|-----|
+| Detección de personas | YOLOv8 / YOLOv11 (Ultralytics) | Detectar cuerpos en frame |
+| Estimación de pose | MediaPipe Pose | Detectar postura de peligro (horizontal, inmóvil) |
+| Tracking multi-persona | ByteTrack | Saber si persona lleva >20s sin moverse |
+| Lógica temporal | LSTM o reglas simples | "Inmóvil >20s bajo agua = alerta" |
+| Backend | FastAPI | API de alertas y panel |
+| Alertas real-time | WebSocket + Push notifications | Guardavidas / encargado |
+
+### Flujo básico de detección
+
+```python
+# Lógica central de detección de ahogamiento
+import cv2
+from ultralytics import YOLO
+import mediapipe as mp
+from collections import defaultdict
+import time
+
+model = YOLO("yolov8n.pt")
+pose = mp.solutions.pose.Pose()
+
+# Tracking: persona_id -> timestamp primera vez inmóvil
+immobile_since = defaultdict(lambda: None)
+ALERT_THRESHOLD_SECONDS = 20
+
+def analyze_frame(frame, track_results):
+    alerts = []
+    for box in track_results[0].boxes:
+        person_id = int(box.id) if box.id is not None else -1
+        # Detectar si está inmóvil bajo agua con pose estimation
+        # (simplificado: comparar posición con frame anterior)
+        # Si immobile_since[person_id] hace >20s → alerta
+        if immobile_since[person_id]:
+            elapsed = time.time() - immobile_since[person_id]
+            if elapsed > ALERT_THRESHOLD_SECONDS:
+                alerts.append({"person_id": person_id, "seconds": elapsed})
+    return alerts
+```
+
+### Datasets y referencias open source
+
+- Roboflow Universe: buscar "drowning detection" — datasets anotados disponibles
+- GitHub: buscar "drowning detection YOLO" — proyectos universitarios de base
+- Papers: IEEE "Drowning Detection Using Computer Vision and Deep Learning" (2021-2023)
+- arXiv: "Real-time Drowning Detection in Swimming Pools Using Pose Estimation"
+
+### Competidores internacionales
+
+Ver `references/drowning-detection-market.md` para análisis completo de mercado.
+
+---
 
 ## Pitfalls
 

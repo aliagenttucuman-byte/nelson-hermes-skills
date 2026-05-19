@@ -16,7 +16,7 @@ from openai import OpenAI
 
 nvidia_client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="<NVIDIA_API_KEY_REDACTED>"
+    api_key="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"
 )
 MODEL = "mistralai/mistral-medium-3.5-128b"
 

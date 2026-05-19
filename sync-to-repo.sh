@@ -40,6 +40,7 @@ SKILLS=(
   nelson-frontend-testing
   nelson-llm-generation
   nelson-observability
+  nelson-pricing-model
   nelson-os-security
   nelson-project-bootstrap
   nelson-project-constitution

@@ -14,6 +14,26 @@ dependencies: []
 
 # Nelson - Workflow Security & Leak Prevention
 
+## LECCIÓN CRÍTICA (2026-05-16): Nunca hardcodear secrets en código o skills
+
+Cualquier archivo que se suba a GitHub (skills, código, referencias) NO puede contener keys reales:
+- API keys (nvapi-*, ghp_*, sk-*, etc.)
+- Tokens de acceso o contraseñas
+- Connection strings con credenciales
+
+**Los secrets viven ÚNICAMENTE en `~/secrets/*.env`** (fuera del repo, permisos 600).
+Los snippets en skills/código usan SIEMPRE: `os.getenv("NOMBRE_VAR")`
+
+**Si se detecta una key en el historial:**
+1. `git filter-repo --replace-text /tmp/keys.txt --force` (limpiar historial completo)
+2. `git push --force` (sobreescribir el repo remoto)
+3. Revocar la key comprometida en el proveedor (NVIDIA: build.nvidia.com → API Keys)
+4. Generar keys nuevas
+
+GitGuardian detecta keys en minutos. No asumir que "nadie lo va a ver".
+
+
+
 ## Objetivo
 Garantizar que **nada del trabajo del equipo Nelson se filtre** al exterior de forma accidental: secrets en repos, passwords en logs, datos sensibles en outputs de IA, información interna de negocio expuesta.
 

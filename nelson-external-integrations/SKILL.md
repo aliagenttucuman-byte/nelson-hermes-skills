@@ -187,6 +187,211 @@ Genera URLs públicas temporales (duran hasta que se cierra el proceso). Ideal p
 
 ---
 
+## 7. Datos abiertos de energía Argentina (para spikes tipo YPF)
+
+Cuando se necesita un spike con datos reales de energía sin depender de credenciales corporativas, usar la API pública de datos.gob.ar. Tiene datasets oficiales de la Secretaría de Energía de Argentina con datos de producción de petróleo, gas, electricidad, y más.
+
+**API base:** `https://www.datos.gob.ar/api/3/action/`
+
+```python
+import urllib.request, json
+
+# Buscar datasets
+resp = urllib.request.urlopen("https://www.datos.gob.ar/api/3/action/package_search?q=produccion+petroleo+gas&rows=5")
+data = json.loads(resp.read())
+for r in data["result"]["results"]:
+    print(r["title"], "|", r["name"])
+
+# Ver recursos de un dataset
+resp = urllib.request.urlopen("https://www.datos.gob.ar/api/3/action/package_show?id=energia-produccion-petroleo-gas-sesco")
+pkg = json.loads(resp.read())["result"]
+for r in pkg["resources"]:
+    if r.get("format") == "CSV":
+        print(r["name"], "|", r["url"])
+```
+
+**Datasets clave para contexto YPF:**
+- `energia-produccion-petroleo-gas-sesco` → producción petróleo/gas por empresa, yacimiento, cuenca, provincia. Incluye YPF. Series diarias, mensuales, históricas.
+- `energia-generacion-electrica---centrales-generacion` → generación eléctrica por central
+- `energia-reservas-petroleo-gas` → reservas certificadas por empresa
+
+**CSV directo de producción de petróleo por empresa (el más útil para YPF):**
+```
+https://datos.energia.gob.ar/dataset/590d1284.../download/produccin-petrleo-sesco-tight-y-shale-captulo-iv-por-empresa.csv
+```
+
+**Flow completo PoC: datos abiertos → LLM → WhatsApp:**
+1. Descargar CSV desde datos.gob.ar
+2. Filtrar últimos N meses, calcular KPIs (producción YPF, market share, variación)
+3. Pasar datos + contexto al LLM → interpretación en lenguaje natural
+4. Generar imagen del reporte con matplotlib/reportlab
+5. Enviar imagen + texto analítico por WhatsApp Gateway
+
+Este es el patrón para la PoC antes de conectar al PowerBI real de YPF.
+
+---
+
+## 8. PowerBI → WhatsApp (integración corporativa YPF)
+
+**Contexto:** Nelson lidera I+D+I en YPF. Los tableros PowerBI pueden exponerse como URLs públicas o autenticadas. La PoC consiste en acceder a esos tableros, extraer KPIs, y distribuir reportes por WhatsApp.
+
+**Dos escenarios técnicos:**
+
+### Escenario A: URL pública (sin login) — Técnica WABI Network Intercept ✅ VALIDADA
+
+**Técnica correcta:** NO es screenshot del DOM. Power BI público usa la API interna WABI (Windows Azure BI) para transferir datos al JS. Playwright puede interceptar esas llamadas y capturar los datos reales en formato DSR (comprimido interno de PBI).
+
+**Flow completo validado:**
+1. Decodificar el token base64 de la URL `?r=BASE64` → obtener `reportId`, `groupId`, `key`, `tenantId`
+2. Lanzar Playwright headless, interceptar respuestas de `analysis.windows.net`
+3. Capturar `/public/reports/{key}/modelsAndExploration` → schema de entidades y columnas
+4. Capturar `/public/reports/querydata` (múltiples POSTs) → datos en formato DSR
+5. Parsear DSR con Python → DataFrames de pandas → procesar KPIs
+6. Generar reporte matplotlib → enviar por WhatsApp
+
+```python
+import asyncio, json, os
+
+async def capture_pbi_data(embed_url: str, output_dir: str):
+    from playwright.async_api import async_playwright
+    
+    data_files = []
+    query_count = [0]
+    
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        )
+        context = await browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120',
+            locale='es-AR',
+        )
+        page = await context.new_page()
+        
+        async def on_response(response):
+            if 'querydata' in response.url:
+                try:
+                    body = await response.body()
+                    query_count[0] += 1
+                    fpath = f'{output_dir}/qd_{query_count[0]}.json'
+                    with open(fpath, 'wb') as f:
+                        f.write(body)
+                    data_files.append(fpath)
+                except: pass
+        
+        page.on('response', on_response)
+        
+        try:
+            await page.goto(embed_url, wait_until='networkidle', timeout=45000)
+        except: pass
+        
+        await asyncio.sleep(8)  # esperar queries lazy
+        await browser.close()
+    
+    return data_files
+```
+
+**Parser DSR (formato comprimido interno de Power BI):**
+```python
+def parse_dsr(dsr_data: dict, col_names: list) -> pd.DataFrame:
+    """Convierte formato DSR comprimido → DataFrame."""
+    ds = dsr_data.get('DS', [])
+    if not ds: return pd.DataFrame()
+    ph = ds[0].get('PH', [])
+    if not ph: return pd.DataFrame()
+    dm = ph[0].get('DM0', [])
+    if not dm: return pd.DataFrame()
+    
+    rows, last_values = [], [None] * len(col_names)
+    for item in dm:
+        c = item.get('C', [])
+        r = item.get('R', 0)  # bitmask: bit i=1 → repetir valor anterior de col i
+        
+        # PITFALL: algunos items tienen el valor en M0, M1... no en C
+        if not c:
+            c = [item[f'M{i}'] for i in range(len(col_names)) if f'M{i}' in item]
+        
+        current = list(last_values)
+        ci = 0
+        for i in range(len(col_names)):
+            if r and (r >> i) & 1: pass  # repetir anterior
+            elif ci < len(c):
+                current[i] = c[ci]; ci += 1
+        
+        last_values = current
+        rows.append(dict(zip(col_names, current)))
+    
+    return pd.DataFrame(rows)
+```
+
+**Cargar querydata capturado:**
+```python
+def load_query_files(data_files: list) -> list:
+    datasets = []
+    for fpath in sorted(data_files):
+        with open(fpath) as f:
+            d = json.load(f)
+        results = d.get('results', [])
+        if not results: continue
+        result_data = results[0].get('result', {}).get('data', {})
+        if not result_data: continue
+        descriptor = result_data.get('descriptor', {})
+        selects = descriptor.get('Select', [])
+        col_names = [s.get('Name', f'col_{i}') for i, s in enumerate(selects)]
+        dsr = result_data.get('dsr', {})
+        df = parse_dsr(dsr, col_names)
+        if not df.empty:
+            datasets.append({'columns': col_names, 'df': df})
+    return datasets
+```
+
+- Pro: datos reales (no screenshot), parseable con pandas, sin Azure AD ni credenciales
+- Con: depende de que el embed sea público y de la estructura interna de Power BI (puede cambiar)
+- **Playwright ya instalado en el servidor:** `python3 -m playwright --version` → 1.59.0, chromium en `~/.cache/ms-playwright/`
+- **Referencia técnica completa:** `references/powerbi-public-embed-wabi.md`
+
+### Escenario B: URL con login corporativo (cuenta YPF + Azure AD)
+- Registrar App en Azure AD del tenant de YPF con permisos: `Report.Read.All`, `Dataset.Read.All`
+- Autenticar con `msal` (Microsoft Authentication Library)
+- Usar Power BI REST API v2 para listar reportes, exportar páginas (PDF/PNG), leer datasets
+- Pro: oficial, robusto, programático
+- Con: requiere acceso al Azure Portal del tenant YPF + aprobación de permisos
+
+```python
+import msal, requests
+
+# 1. Obtener token
+app = msal.ConfidentialClientApplication(
+    client_id=CLIENT_ID,
+    client_credential=CLIENT_SECRET,
+    authority=f"https://login.microsoftonline.com/{TENANT_ID}"
+)
+token = app.acquire_token_for_client(scopes=["https://analysis.windows.net/powerbi/api/.default"])
+access_token = token["access_token"]
+
+# 2. Listar reportes
+headers = {"Authorization": f"Bearer {access_token}"}
+reports = requests.get("https://api.powerbi.com/v1.0/myorg/reports", headers=headers).json()
+
+# 3. Exportar página como PNG
+export_url = f"https://api.powerbi.com/v1.0/myorg/reports/{REPORT_ID}/ExportTo"
+body = {"format": "PNG", "powerBIReportConfiguration": {"pages": [{"pageName": "ReportSection"}]}}
+# Export es async — necesita polling en /exports/{exportId}
+```
+
+**Pregunta clave antes de arrancar el spike:** ¿Las URLs son públicas (no requieren login) o requieren cuenta corporativa YPF? Define qué escenario usar.
+
+**Criterio de éxito de la PoC:**
+- [ ] Acceder al tablero (público o autenticado)
+- [ ] Extraer al menos 3 KPIs o una imagen del tablero
+- [ ] Enviarlo por WhatsApp a un número de prueba
+
+**References:** `references/powerbi-whatsapp-poc.md` — diseño inicial de la PoC
+
+---
+
 ## Pitfalls
 
 - **DuckDuckGo desde Docker:** Bloquea por IP de datacenter. Correr desde host.

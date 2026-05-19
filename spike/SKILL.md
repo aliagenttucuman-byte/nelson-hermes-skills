@@ -186,6 +186,57 @@ When two approaches answer the same question (002a / 002b), build them **back to
 **Winner:** pdfjs for our use case. Camelot if we need table-first extraction later.
 ```
 
+## Special case: APIs de datos gubernamentales (Argentina)
+
+APIs como `datos.gob.ar` (Secretaría de Energía) tienen quirks específicos:
+
+1. **SSL roto** — certificado inválido. `curl`/`wget`/`requests` fallan por defecto. Usar `--no-check-certificate` o `verify=False`.
+2. **Último período siempre incompleto** — el mes/año más reciente suele tener solo 1-5 registros mientras el resto tienen 40-70. Calcular market shares o totales sobre ese período da resultados absurdos (>100%).
+
+   **Fix obligatorio:**
+   ```python
+   counts = df.groupby('fecha').size()
+   fecha_completa = counts[counts >= 20].index.max()  # umbral según dataset
+   ```
+
+3. **Encoding UTF-8 con BOM** — leer siempre con `pd.read_csv(..., encoding='utf-8-sig')`.
+
+Ver `nelson-brainstorming/references/datos-energia-argentina.md` para endpoints y pipeline completo del spike de energía (petróleo/gas por empresa, 2009-presente).
+
+## Special case: servicios que usan APIs internas (Power BI, Looker, etc.)
+
+Cuando el spike necesita extraer datos de un servicio SaaS que los muestra en browser pero no expone una API pública directa, usar **Playwright network interception** para capturar las llamadas internas que hace el JS del servicio.
+
+**Patrón general:**
+```python
+async def intercept_api_calls(url: str, filter_fn):
+    from playwright.async_api import async_playwright
+    captured = []
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox'])
+        page = await (await browser.new_context()).new_page()
+        
+        async def on_response(response):
+            if filter_fn(response.url):
+                body = await response.body()
+                captured.append({'url': response.url, 'body': json.loads(body)})
+        
+        page.on('response', on_response)
+        try:
+            await page.goto(url, wait_until='networkidle', timeout=45000)
+        except: pass
+        await asyncio.sleep(8)  # lazy queries
+        await browser.close()
+    return captured
+```
+
+**Aplicado a Power BI público:** filtrar `querydata` en `analysis.windows.net` → captura datos en formato DSR. Ver `nelson-external-integrations` → `references/powerbi-public-embed-wabi.md` para parser DSR completo y ejemplo validado con datos del gobierno argentino.
+
+**Por qué urllib/requests directo NO funciona:** estos servicios hacen fingerprinting de TLS + headers + cookies. Sin el handshake de browser real, devuelven `403` o `Remote end closed`.
+
+---
+
 ## Special case: evaluating unofficial/third-party APIs
 
 When spiking a wrapper, unofficial SDK, or community project that reverse-engineers a proprietary service (e.g. `notebooklm-py` for Google NotebookLM), add these specific checks to the standard loop:

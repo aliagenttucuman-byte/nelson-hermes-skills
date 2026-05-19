@@ -4,7 +4,7 @@ Nelson usa metodología spec-driven development (OpenAPI primero). Es action-ori
 §
 Nelson quiere revisar TODO antes de compartir con Pablo. JARVIS no envía nada a Pablo sin aprobación explícita de Nelson. Nelson decide qué Pablo ve y qué no. No asumir que Pablo necesita saber todo.
 §
-Nelson valida RAG con docs reales. Quiere resúmenes de sesión. Sync repo cuando haya cambios importantes. Nuevo interés: Arduino/IoT/robótica para I+D+i. Para demos prefiere UI gráfica (web), no solo CLI.
+Nelson valida RAG. Nuevo interés: Arduino/IoT. Demos prefiere UI web. Amigos: Apo, Juli, Faku ("el chancho", WA: 5493813022552 — suscripto al canal IA).
 §
 Nelson prefiere trabajo pasito a pasito en tareas complejas. No quiere que yo adelante pasos ni haga todo de una sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura".
 §

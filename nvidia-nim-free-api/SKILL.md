@@ -26,17 +26,15 @@ Compatible con OpenAI SDK — solo cambiás `base_url` y `api_key`.
 
 ### Chat / Razonamiento general
 
-| Modelo | Key env var | Notas |
-|--------|-------------|-------|
-| `deepseek-ai/deepseek-v4-pro` | `NVIDIA_KEY_DEEPSEEK_V4_PRO` | Chat fluido, sin thinking. Excelente calidad general |
-| `minimaxai/minimax-m2.7` | `NVIDIA_KEY_MINIMAX_M2_7` | Chat rápido, 8K output |
+| Modelo | Notas |
+|--------|-------|
+| `minimaxai/minimax-m2.7` | Chat rápido, 8K output |
 
 ### Razonamiento avanzado / Thinking mode
 
-| Modelo | Key env var | Thinking param | Notas |
-|--------|-------------|----------------|-------|
-| `deepseek-ai/deepseek-v4-flash` | `NVIDIA_KEY_DEEPSEEK_V4_FLASH` | `extra_body={"chat_template_kwargs":{"thinking":True,"reasoning_effort":"high"}}` | Rápido + thinking |
-| `qwen/qwen3.5-397b-a17b` | `NVIDIA_KEY_QWEN35_397B` | `"chat_template_kwargs":{"enable_thinking":True}` via requests | MoE 397B, potentísimo |
+| Modelo | Thinking param | Notas |
+|--------|----------------|-------|
+| `qwen/qwen3.5-397b-a17b` | `"chat_template_kwargs":{"enable_thinking":True}` via requests | MoE 397B, potentísimo |
 | `google/gemma-4-31b-it` | `NVIDIA_KEY_GEMMA4_31B` | `"chat_template_kwargs":{"enable_thinking":True}` via requests | 16K output |
 | `z-ai/glm-5.1` | `NVIDIA_KEY_GLM5` | `extra_body={"chat_template_kwargs":{"enable_thinking":True,"clear_thinking":False}}` | Muestra reasoning |
 | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning` | `NVIDIA_KEY_NEMOTRON_OMNI` | `extra_body={"chat_template_kwargs":{"enable_thinking":True},"reasoning_budget":16384}` | 65K output |
@@ -70,7 +68,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="<NVIDIA_API_KEY_REDACTED>"  # DeepSeek V4 Pro
+    api_key="os.getenv("NVIDIA_API_KEY")"  # DeepSeek V4 Pro
 )
 
 completion = client.chat.completions.create(
@@ -96,7 +94,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="<NVIDIA_API_KEY_REDACTED>"
+    api_key="os.getenv("NVIDIA_API_KEY")"
 )
 
 completion = client.chat.completions.create(
@@ -128,7 +126,7 @@ for chunk in completion:
 import requests
 
 headers = {
-    "Authorization": "Bearer $NVIDIA_API_KEY",
+    "Authorization": "Bearer os.getenv("NVIDIA_API_KEY")",
     "Accept": "text/event-stream"
 }
 
@@ -160,7 +158,7 @@ for line in response.iter_lines():
 import requests
 
 headers = {
-    "Authorization": "Bearer $NVIDIA_API_KEY",
+    "Authorization": "Bearer os.getenv("NVIDIA_API_KEY")",
     "Accept": "text/event-stream"
 }
 
@@ -196,7 +194,7 @@ _R = "\033[0m" if sys.stdout.isatty() else ""
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="<NVIDIA_API_KEY_REDACTED>"
+    api_key="os.getenv("NVIDIA_API_KEY")"
 )
 
 completion = client.chat.completions.create(
@@ -227,7 +225,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="<NVIDIA_API_KEY_REDACTED>"
+    api_key="os.getenv("NVIDIA_API_KEY")"
 )
 
 completion = client.chat.completions.create(
@@ -261,7 +259,7 @@ for chunk in completion:
 import requests
 
 headers = {
-    "Authorization": "Bearer $NVIDIA_API_KEY",
+    "Authorization": "Bearer os.getenv("NVIDIA_API_KEY")",
     "Accept": "text/event-stream"
 }
 
@@ -295,7 +293,7 @@ def read_b64(path):
         return base64.b64encode(f.read()).decode()
 
 headers = {
-    "Authorization": "Bearer $NVIDIA_API_KEY",
+    "Authorization": "Bearer os.getenv("NVIDIA_API_KEY")",
     "Accept": "text/event-stream"
 }
 
@@ -384,6 +382,23 @@ def get_client(model_key: str) -> tuple[OpenAI, str]:
 3. Click "Generate API Key"
 4. Guardar en `~/secrets/nvidia_nim_keys.env`
 5. Actualizar esta skill
+
+---
+
+## REGLA DE ORO — Nunca hardcodear keys en código
+
+Las keys NUNCA van hardcodeadas en snippets, skills, ni archivos de código que se suban a un repo.
+Siempre usar variables de entorno:
+
+```python
+import os
+api_key = os.getenv("NVIDIA_API_KEY")  # cargada desde ~/secrets/nvidia_nim_keys.env
+```
+
+Las keys reales viven ÚNICAMENTE en `~/secrets/nvidia_nim_keys.env` (permisos 600, fuera del repo).
+
+**Pitfall real:** En la sesión 2026-05-16 se hardcodearon 9 keys en la skill y se pushearon a GitHub.
+GitGuardian lo detectó en minutos. Se debió limpiar el historial con git-filter-repo y revocar todas las keys. Costo: 30 minutos de trabajo y keys comprometidas.
 
 ---
 
