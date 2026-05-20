@@ -1,0 +1,9 @@
+{
+  "last_report_path": "/home/server/.hermes/logs/curator/20260518-132054",
+  "last_run_at": "2026-05-18T13:20:54.295132+00:00",
+  "last_run_duration_seconds": 276.881106,
+  "last_run_summary": "auto: no changes; llm: ## Human summary\n\nScanned all 7 agent-created skills and grouped them by domain keyword:\n\n**Prefix cluster: `nelson-*`** — all 7 share the team prefix, but they fall into 6 distinct domains. A single “nelson-everything” umbrella would harm …\narchived 1 skill(s):\n  • nelson-openvoice → nelson-audio-processing\nfull report: hermes curator status\nkeep an umbrella stable: hermes curator pin nelson-audio-processing",
+  "last_run_summary_shown_at": null,
+  "paused": false,
+  "run_count": 1
+}
