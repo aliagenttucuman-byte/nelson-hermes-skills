@@ -183,6 +183,15 @@ CRITERIOS DE ACEPTACIÓN:
 
 ---
 
+### 5b. BUSINESS PLAN → `nelson-business-plan` *(si hay equity o inversores)*
+
+**Cuándo:** Cuando el proyecto involucra socios estratégicos, inversores o negociación de participación.
+**Input:** ESTIMACION.md + BENCHMARKING.md (de nelson-startup-benchmarking) + PARTICIPACION-SOCIETARIA.md
+**Output:** BUSINESS-PLAN.md (completo) + BUSINESS-PLAN-EXEC.md (solo Executive Summary para reuniones)
+**Aprobación:** Tony (técnico) + Pablo (comercial) antes de cualquier distribución externa.
+
+---
+
 ### 6. ANALIZAR → `nelson-spec-analyzer`
 
 **Quién:** JARVIS (o Alma en modo QA)
