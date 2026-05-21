@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-multipart
+boto3
+pdfplumber
+langchain
+langchain-community
+langchain-ollama
+langchain-text-splitters
+qdrant-client
+requests
+openai>=1.0.0

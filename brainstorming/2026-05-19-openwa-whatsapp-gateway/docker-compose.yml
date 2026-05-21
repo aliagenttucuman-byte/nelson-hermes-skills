@@ -1,0 +1,192 @@
+# docker-compose.yml — WAHA WhatsApp API Gateway
+# PoC: Datos Energéticos Argentina → Reporte Imagen → WhatsApp
+# Equipo I+D+I Consultora — 2026-05-19
+#
+# USO:
+#   docker compose up -d
+#   docker compose ps                   (verificar que todo está UP)
+#   docker compose logs -f waha         (ver logs en tiempo real)
+#   docker compose down                 (bajar todo)
+#   docker compose down -v              (bajar + borrar volúmenes)
+
+version: "3.9"
+
+networks:
+  waha-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  waha_sessions:
+  waha_media:
+
+services:
+
+  # ─────────────────────────────────────────────────────
+  # WAHA — WhatsApp HTTP API
+  # Docs: http://localhost:3000/
+  # Dashboard: http://localhost:3001/ (si WAHA_DASHBOARD=true)
+  # ─────────────────────────────────────────────────────
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # REST API + Swagger UI
+    environment:
+      # ── Seguridad ──────────────────────────────────────────
+      WHATSAPP_API_KEY: "${WAHA_API_KEY:-changeme-in-production}"
+
+      # ── Engine WhatsApp ────────────────────────────────────
+      # NOWEB = Baileys (recomendado, gratuito)
+      # WEBJS = whatsapp-web.js (requiere WAHA Plus)
+      WHATSAPP_DEFAULT_ENGINE: "NOWEB"
+
+      # ── Base de datos ──────────────────────────────────────
+      # Usar SQLite para desarrollo (simple, sin deps)
+      # Cambiar a DATABASE_URL para PostgreSQL en producción
+      # DATABASE_URL: "postgresql://waha:wahapassword@postgres:5432/wahadb"
+
+      # ── Almacenamiento de sesiones ─────────────────────────
+      # LOCAL = archivos en WHATSAPP_FILES_FOLDER
+      # REMOTE = MongoDB/PostgreSQL para multi-instance
+      WHATSAPP_SESSIONS_STORE: "LOCAL"
+
+      # ── Media files ────────────────────────────────────────
+      WHATSAPP_FILES_FOLDER: "/tmp/whatsapp-files"
+      WHATSAPP_FILES_LIFETIME: "86400"   # 24hs en segundos
+
+      # ── Dashboard UI (incluido en la misma imagen) ─────────
+      WAHA_DASHBOARD_ENABLED: "true"
+      WAHA_DASHBOARD_USERNAME: "${WAHA_DASHBOARD_USER:-admin}"
+      WAHA_DASHBOARD_PASSWORD: "${WAHA_DASHBOARD_PASS:-admin123}"
+
+      # ── Logging ────────────────────────────────────────────
+      LOG_LEVEL: "info"   # debug | info | warn | error
+
+      # ── Redis (opcional, para rate limiting y cache) ───────
+      # REDIS_URL: "redis://redis:6379"
+
+    volumes:
+      - waha_sessions:/tmp/.sessions      # persistencia de sesiones WA
+      - waha_media:/tmp/whatsapp-files    # media recibida/enviada
+
+    networks:
+      - waha-net
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    depends_on:
+      - redis
+
+  # ─────────────────────────────────────────────────────
+  # REDIS — Cache y gestión de rate limiting
+  # ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: waha-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - waha-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────
+  # POSTGRESQL — Base de datos (comentado para dev simple)
+  # Descomentar para producción o si se quiere persistencia avanzada
+  # ─────────────────────────────────────────────────────
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: waha-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: wahadb
+  #     POSTGRES_USER: waha
+  #     POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-wahapassword}"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - waha-net
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U waha -d wahadb"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ─────────────────────────────────────────────────────
+  # TU APP FastAPI (PoC Energía Argentina)
+  # Descomentar cuando el código esté listo
+  # ─────────────────────────────────────────────────────
+  # energy-poc:
+  #   build:
+  #     context: ./app
+  #     dockerfile: Dockerfile
+  #   container_name: energy-poc
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     WAHA_BASE_URL: "http://waha:3000/api"
+  #     WAHA_API_KEY: "${WAHA_API_KEY:-changeme-in-production}"
+  #     WAHA_SESSION: "default"
+  #     OPENAI_API_KEY: "${OPENAI_API_KEY}"
+  #     DATOS_GOB_AR_BASE_URL: "https://datos.gob.ar/api/3/action"
+  #     ENERGY_RESOURCE_ID: "${ENERGY_RESOURCE_ID}"
+  #     WA_CONTACTS: "${WA_CONTACTS}"
+  #   volumes:
+  #     - ./app:/app
+  #   networks:
+  #     - waha-net
+  #   depends_on:
+  #     waha:
+  #       condition: service_healthy
+
+# ─────────────────────────────────────────────────────────────
+# COMANDOS ÚTILES POST-DEPLOY
+# ─────────────────────────────────────────────────────────────
+#
+# 1. Iniciar sesión WhatsApp:
+#    curl -X POST http://localhost:3000/api/sessions \
+#      -H "Content-Type: application/json" \
+#      -H "X-Api-Key: changeme-in-production" \
+#      -d '{"name": "default"}'
+#
+# 2. Obtener QR para escanear:
+#    curl http://localhost:3000/api/default/auth/qr.png \
+#      -H "X-Api-Key: changeme-in-production" \
+#      --output qr.png && open qr.png
+#
+#    O abrir en navegador:
+#    http://localhost:3000/api/default/auth/qr.png
+#    (con header X-Api-Key configurado o deshabilitando auth en dev)
+#
+# 3. Verificar estado:
+#    curl http://localhost:3000/api/sessions \
+#      -H "X-Api-Key: changeme-in-production"
+#
+# 4. Enviar mensaje de prueba:
+#    curl -X POST http://localhost:3000/api/sendText \
+#      -H "Content-Type: application/json" \
+#      -H "X-Api-Key: changeme-in-production" \
+#      -d '{
+#        "chatId": "5491167890123@c.us",
+#        "text": "Hola desde WAHA PoC! 🔋",
+#        "session": "default"
+#      }'
+#
+# 5. Ver Swagger UI (documentación interactiva):
+#    http://localhost:3000/
+#
+# ─────────────────────────────────────────────────────────────

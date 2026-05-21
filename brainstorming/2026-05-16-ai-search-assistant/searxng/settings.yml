@@ -1,0 +1,28 @@
+use_default_settings: true
+
+server:
+  secret_key: "ai-search-assistant-secret-key-2026"
+  bind_address: "0.0.0.0"
+  port: 8080
+  base_url: false
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  default_lang: "es"
+  ban_time_on_fail: 0
+  max_ban_time_on_fail: 0
+
+ui:
+  default_locale: "es"
+
+outgoing:
+  request_timeout: 10.0
+
+botdetection:
+  ip_limit:
+    link_token: false
+  ip_lists:
+    pass_ip:
+      - 0.0.0.0/0

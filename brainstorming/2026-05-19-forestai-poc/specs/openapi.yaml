@@ -1,0 +1,509 @@
+openapi: 3.1.0
+info:
+  title: ForestAI PoC API
+  description: |
+    API para inventario forestal automático desde ortofotos de drones.
+    Detecta árboles individuales, estima especie, biomasa y edad
+    usando image analytics (sin machine learning).
+  version: 0.1.0
+  contact:
+    name: Equipo I+D+I — Nelson Acosta
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Desarrollo local
+
+tags:
+  - name: analyses
+    description: Gestión de análisis de ortofotos
+  - name: trees
+    description: Datos de árboles individuales
+  - name: export
+    description: Exportación de inventarios
+
+paths:
+
+  /api/analyses:
+    get:
+      tags: [analyses]
+      summary: Listar análisis
+      description: Devuelve todos los análisis realizados, ordenados por fecha descendente.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Lista de análisis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AnalysisSummaryItem"
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      tags: [analyses]
+      summary: Crear nuevo análisis
+      description: |
+        Sube una ortofoto GeoTIFF y encola el procesamiento asincrónico.
+        Devuelve un analysis_id para seguimiento.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Ortofoto en formato GeoTIFF (.tif / .tiff)
+                name:
+                  type: string
+                  description: Nombre opcional del análisis
+      responses:
+        "202":
+          description: Análisis encolado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisCreated"
+        "413":
+          description: Archivo demasiado grande (límite 500MB)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Archivo inválido o no es GeoTIFF
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/analyses/{analysis_id}:
+    get:
+      tags: [analyses]
+      summary: Estado del análisis
+      description: Devuelve el estado actual, progreso y paso en curso del análisis.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Estado del análisis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisStatus"
+        "404":
+          description: Análisis no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/analyses/{analysis_id}/geojson:
+    get:
+      tags: [analyses]
+      summary: GeoJSON de árboles detectados
+      description: |
+        Devuelve un FeatureCollection GeoJSON con todos los árboles detectados.
+        Solo disponible cuando el análisis está en estado `completed`.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: FeatureCollection GeoJSON
+          content:
+            application/geo+json:
+              schema:
+                $ref: "#/components/schemas/TreeFeatureCollection"
+        "409":
+          description: Análisis todavía en progreso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Análisis no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/analyses/{analysis_id}/summary:
+    get:
+      tags: [analyses]
+      summary: Resumen ejecutivo del inventario
+      description: Estadísticas agregadas del inventario completo.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Resumen del inventario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventorySummary"
+        "409":
+          description: Análisis todavía en progreso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/analyses/{analysis_id}/trees/{tree_id}:
+    get:
+      tags: [trees]
+      summary: Detalle de un árbol individual
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tree_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Métricas del árbol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TreeDetail"
+        "404":
+          description: Árbol o análisis no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/analyses/{analysis_id}/export:
+    get:
+      tags: [export]
+      summary: Exportar inventario
+      description: Descarga el inventario completo en CSV o GeoJSON.
+      parameters:
+        - name: analysis_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, geojson]
+      responses:
+        "200":
+          description: Archivo descargable
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/geo+json:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Formato no soportado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Análisis todavía en progreso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+
+    AnalysisCreated:
+      type: object
+      required: [analysis_id, status, created_at]
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        status:
+          type: string
+          enum: [pending]
+        created_at:
+          type: string
+          format: date-time
+        filename:
+          type: string
+          example: "parcela-norte-2026.tif"
+
+    AnalysisStatus:
+      type: object
+      required: [analysis_id, status, progress, created_at]
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Porcentaje de avance (0-100)
+        current_step:
+          type: string
+          description: Descripción del paso actual
+          example: "Segmentando copas de árboles..."
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        tree_count:
+          type: integer
+          nullable: true
+          description: Disponible solo cuando status es completed
+        error:
+          type: string
+          nullable: true
+          description: Mensaje de error si status es failed
+
+    AnalysisSummaryItem:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        name:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        tree_count:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    TreeFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreeFeature"
+
+    TreeFeature:
+      type: object
+      required: [type, geometry, properties]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        geometry:
+          type: object
+          description: Polígono GeoJSON de la copa del árbol (EPSG:4326)
+          properties:
+            type:
+              type: string
+              enum: [Polygon]
+            coordinates:
+              type: array
+        properties:
+          $ref: "#/components/schemas/TreeProperties"
+
+    TreeProperties:
+      type: object
+      required: [tree_id, species, crown_area_m2, height_m, biomass_kg, age_years, confidence]
+      properties:
+        tree_id:
+          type: string
+          example: "tree-0042"
+        species:
+          type: string
+          example: "eucalipto"
+          enum: [eucalipto, pino, quebracho, algarrobo, araucaria, desconocida]
+        crown_area_m2:
+          type: number
+          format: float
+          description: Área de la copa en metros cuadrados
+          example: 18.5
+        height_m:
+          type: number
+          format: float
+          description: Altura estimada del árbol en metros
+          example: 12.3
+        biomass_kg:
+          type: number
+          format: float
+          description: Biomasa estimada en kilogramos
+          example: 456.7
+        age_years:
+          type: integer
+          description: Edad estimada en años
+          example: 15
+        confidence:
+          type: string
+          enum: [bajo, medio, alto]
+          description: Confianza en la clasificación de especie
+        centroid_lat:
+          type: number
+          format: double
+        centroid_lon:
+          type: number
+          format: double
+        allometric_source:
+          type: string
+          description: Fuente de la tabla alométrica usada
+          example: "INTA 2019 - Eucalyptus globulus"
+
+    TreeDetail:
+      allOf:
+        - $ref: "#/components/schemas/TreeProperties"
+        - type: object
+          properties:
+            color_profile:
+              type: object
+              description: Histograma de color de la copa (R, G, B medios)
+              properties:
+                r_mean:
+                  type: number
+                g_mean:
+                  type: number
+                b_mean:
+                  type: number
+            texture_score:
+              type: number
+              description: Score de textura de la copa (0-1)
+            polygon_geojson:
+              type: object
+              description: Geometría GeoJSON del polígono completo
+
+    InventorySummary:
+      type: object
+      required: [analysis_id, total_trees, total_biomass_tons, total_crown_area_ha, species_distribution]
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        total_trees:
+          type: integer
+          example: 342
+        total_biomass_tons:
+          type: number
+          format: float
+          description: Biomasa total del inventario en toneladas
+          example: 87.4
+        total_crown_area_ha:
+          type: number
+          format: float
+          description: Área total de copas en hectáreas (sin solapamiento)
+          example: 1.23
+        average_height_m:
+          type: number
+          format: float
+          example: 11.2
+        average_age_years:
+          type: number
+          format: float
+          example: 14.5
+        species_distribution:
+          type: array
+          items:
+            type: object
+            properties:
+              species:
+                type: string
+              count:
+                type: integer
+              percentage:
+                type: number
+                format: float
+              total_biomass_kg:
+                type: number
+                format: float
+          example:
+            - species: eucalipto
+              count: 180
+              percentage: 52.6
+              total_biomass_kg: 45230.5
+            - species: pino
+              count: 102
+              percentage: 29.8
+              total_biomass_kg: 28100.0
+        analyzed_at:
+          type: string
+          format: date-time
+        source_filename:
+          type: string
+
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: Mensaje de error legible para el usuario
+        code:
+          type: string
+          description: Código de error interno (opcional)

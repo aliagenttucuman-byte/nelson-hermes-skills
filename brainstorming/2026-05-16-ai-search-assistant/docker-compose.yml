@@ -1,0 +1,45 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888
+    restart: unless-stopped
+
+  floci:
+    image: localstack/localstack:latest
+    ports:
+      - "4567:4566"
+    environment:
+      - SERVICES=s3
+    volumes:
+      - floci-data:/var/lib/localstack
+
+  backend:
+    build: ./backend
+    ports:
+      - "8004:8000"
+    environment:
+      - OLLAMA_HOST=http://host-gateway:11434
+      - SEARXNG_URL=http://searxng:8080
+    extra_hosts:
+      - "host-gateway:host-gateway"
+    depends_on:
+      - floci
+      - searxng
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=https://larry-pledge-mountains-electro.trycloudflare.com
+    ports:
+      - "8003:80"
+    depends_on:
+      - backend
+
+volumes:
+  floci-data:
