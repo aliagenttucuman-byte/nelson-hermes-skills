@@ -472,13 +472,29 @@ docker compose up --build -d
 
 ## Pitfalls
 
+## Pitfalls
+
+- **`zip` binary no disponible en el servidor:** Usar siempre `python3 -c "import zipfile, os; ..."` para comprimir. Patrón: `with zipfile.ZipFile('out.zip', 'w', zipfile.ZIP_DEFLATED) as zf: [zf.write(f, arcname) for f in files]`.
 - No olvidar crear `.env` real desde `.env.example` despues del bootstrap
-- Si el puerto 8000 o 8080 estan ocupados, cambiar en docker-compose.yml
+- Si el puerto 8000 o 8080 estan ocupados, cambiar en docker-compose.yml. El servidor ya tiene ocupados: 8000 (rag-poc), 8001, 8002, 5678 (n8n). Usar 8010+ para proyectos nuevos.
 - Alembic necesita `DATABASE_URL` seteada para crear la primera migracion
 - En Windows, los paths de volumen en docker-compose pueden necesitar ajustes
-- **Windows + Python Microsoft Store:** `pip install` no agrega Scripts al PATH. Si `comando` no se encuentra, usar `python -m comando` o agregar manualmente: `C:\Users\<Usuario>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_...\LocalCache\local-packages\Python312\Scripts`. Ver referencia `references/windows-python-path.md`.
+- **Windows + Python Microsoft Store:** `pip install` no agrega Scripts al PATH. Si `comando` no se encuentra, usar `python -m comando` o agregar manualmente: `C:\\Users\\<Usuario>\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.12_...\\LocalCache\\local-packages\\Python312\\Scripts`. Ver referencia `references/windows-python-path.md`.
 - Tailwind 4 no usa `tailwind.config.js`; la config va en CSS con `@theme`
 - Para 4GB VRAM, usar `llama3.2:3b` o `qwen2.5:3b` en dev (entran enteros en GPU)
 - Para modelos grandes (>4GB), Ollama usa mix CPU/GPU automaticamente
 - **S3 local:** Si floci/localstack fallan por auth del registry, usar MinIO como alternativa liviana y publica. Ver referencia `references/minio-s3-local.md`.
+- **Web scraping / búsqueda desde Docker:** DuckDuckGo y SearXNG públicos bloquean requests desde IPs de containers Docker (rate limit 202, 403 bot detection). SearXNG local tampoco ayuda — el bot detection de SearXNG da 403 incluso con `pass_ip: 0.0.0.0/0` y `limiter.toml`. **Fix probado:** correr el backend como proceso en el HOST con un venv local (`python3 -m venv venv && ./venv/bin/pip install ddgs fastapi uvicorn ollama`), no en Docker. DuckDuckGo acepta requests desde la IP real del servidor. Ver `references/web-search-docker-pitfall.md`.
+- **`@types/maplibre-gl` no existe para v3+:** Desde maplibre-gl v3 los tipos vienen dentro del paquete principal. No agregar `@types/maplibre-gl` a devDependencies — da `ETARGET` en npm ci.
+- **Alias `@/` requiere configuración explícita:** El template usa `@/lib/utils` y `@/lib/api` pero el alias no está configurado en Vite ni tsconfig. En Docker el build falla con `Cannot find module '@/lib/api'`. Fix en `vite.config.ts`: `resolve: { alias: { "@": path.resolve(__dirname, "./src") } }` y en `tsconfig.json`: `"paths": { "@/*": ["./src/*"] }`.
+- **MSW no viene en el template:** `src/test/mocks/handlers.ts` importa `msw` que no está instalado. En PoC reemplazar por `export const handlers: unknown[] = [];`
+- **`src/test/` rompe el build de producción TypeScript:** Los `@types/chai` y `@types/vitest` en node_modules generan errores si `src/test/` está incluido en la compilación de producción. Agregar `"exclude": ["src/test", "node_modules"]` en `tsconfig.json`.
+- **`clsx` no viene en el template base:** `src/lib/utils.ts` importa `clsx` pero no está en `package.json`. Reemplazar por: `export function cn(...inputs: (string|undefined|null|false)[]) { return inputs.filter(Boolean).join(" "); }`
+- **`useAuth.ts` del template importa `@/lib/api`:** El hook de auth del template usa la API interna del template. En proyectos que no usan auth, reemplazar por stub: `export function useAuth() { return { data: null, isLoading: false }; }`
+  - `src/hooks/useAuth.ts` importa `@/lib/api` (alias no configurado) → reemplazar por stub
+  - `src/test/mocks/handlers.ts` importa `msw` (no en package.json) → reemplazar por `export const handlers: unknown[] = [];`
+  - `src/lib/utils.ts` importa `clsx` (no en dependencies) → reemplazar por `inputs.filter(Boolean).join(" ")`
+  - Agregar `"exclude": ["src/test"]` en `tsconfig.json` para que `@types/chai` no rompa el build de producción
+- **`@types/maplibre-gl` no existe para v4:** maplibre-gl v3+ incluye tipos propios. No agregar `@types/maplibre-gl` a devDependencies — da error `ETARGET notarget` en `npm ci`.
+- **Alias `@/` requiere config explícita:** Si se usan imports `@/lib/...` hay que declarar el alias en `vite.config.ts` (`resolve.alias`) Y en `tsconfig.json` (`compilerOptions.paths`). Sin ambos, `npm run build` falla con `Cannot find module`.
 - **Web scraping / búsqueda desde Docker:** DuckDuckGo y SearXNG públicos bloquean requests desde IPs de containers Docker (rate limit 202, 403 bot detection). SearXNG local tampoco ayuda — el bot detection de SearXNG da 403 incluso con `pass_ip: 0.0.0.0/0` y `limiter.toml`. **Fix probado:** correr el backend como proceso en el HOST con un venv local (`python3 -m venv venv && ./venv/bin/pip install ddgs fastapi uvicorn ollama`), no en Docker. DuckDuckGo acepta requests desde la IP real del servidor. Ver `references/web-search-docker-pitfall.md`.

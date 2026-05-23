@@ -78,6 +78,23 @@ Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el s
 
 ## Pitfalls
 
+- **Gateway de Hermes falla con `whatsapp-session_lock` tras reboot/restart**: Si el gateway anterior se cayó sin limpiar su lock, el nuevo proceso muere con `gateway_state: startup_failed` y error `WhatsApp session already in use (PID XXXX). Stop the other gateway first.` — aunque el PID ya no exista. El lock está en `~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock`. Diagnóstico y fix:
+  ```bash
+  # 1. Confirmar el problema
+  cat ~/.hermes/gateway_state.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('exit_reason',''))"
+  # 2. Ver el lock file
+  ls ~/.local/state/hermes/gateway-locks/
+  cat ~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock
+  # 3. Eliminar el lock stale (solo si el PID listado no existe)
+  ps aux | grep <PID_DEL_LOCK>  # verificar que no existe
+  rm ~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock
+  # 4. Reiniciar el gateway
+  systemctl --user restart hermes-gateway
+  # 5. Verificar
+  curl -s http://localhost:3000/health
+  ```
+  El código de Hermes debería detectar el PID stale automáticamente, pero con `--replace` a veces el lock no se limpia si el proceso anterior terminó de forma abrupta entre arranques del sistema.
+
 - **Bridge nativo de Hermes no envía a contactos nuevos**: El tool `send_message` de Hermes (que usa el bridge de WhatsApp) solo puede enviar a números que ya están en los contactos de la sesión del bot. Si intenta enviar a un número nuevo (ej. Pablo, 5493816240691), da error:
   ```
   {"error":"Cannot destructure property 'user' of 'jidDecode(...)' as it is undefined."}
@@ -98,6 +115,8 @@ Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el s
 - **NO usar `&` o `nohup` en comandos de terminal Hermes**. Hermes bloquea backgrounding en foreground commands. Usar `execute_code` con `subprocess.Popen(..., start_new_session=True)` para levantar el servidor, luego verificar con health checks separados.
 - **Health check con Python `urllib`** en vez de `curl` desde terminal cuando el servidor corre en background — más fiable dentro del entorno de Hermes.
 - **"Connected" pero mensajes no llegan**: El gateway (puerto 3001) puede estar conectado y responder bien a `/send` manual, pero si los mensajes automatizados dejaron de llegar, el problema suele estar en el **script emisor** (cronjob caído, script con error) o en el **bridge de Hermes** (puerto 3000) con `queueLength > 0` (mensajes atascados esperando consumo). Ver `references/troubleshooting-messages-not-arriving.md` para flujo de diagnóstico completo.
+- **ai_news_collector_v2.py NO envía por WA**: El script solo genera el digest en disco. El envío por WhatsApp está en el prompt del cron job (04bdd6e154a3), no en el script Python. Si los mensajes no llegan, revisar el prompt del cron primero, no el script.
+- **Secuencia de diagnóstico validada (mayo 2026)**: 1) `systemctl --user status whatsapp-gateway` → 2) `curl -s http://localhost:3001/health` → 3) test manual `curl -X POST http://localhost:3001/send` con número propio → 4) revisar journalctl en la ventana horaria del cron → 5) revisar prompt del cron job en Hermes.
 
 ## API HTTP completa (Express)
 
@@ -198,6 +217,29 @@ CONTACTS = {
 
 Cuando Tony agregue un nuevo contacto del equipo, sumarlo a este diccionario y guardar en memoria de usuario el nombre + número.
 
+## Patrón: delivery híbrido desde cron jobs
+
+Cuando un cron job de Hermes necesita entregar a Nelson + contactos externos:
+
+- **Nelson** → `deliver: origin` en el cron (Hermes lo maneja)
+- **Externos (Gabi, Pablo, Faku, etc.)** → el propio prompt del cron llama al gateway Baileys vía `send_whatsapp.py`
+
+El cron NO debe listar números externos en `deliver:` — el bridge nativo falla con `jidDecode` para contactos que no están en la sesión del bot de Hermes.
+
+Patrón en el prompt del cron:
+
+```
+python3 /home/server/.hermes/skills/software-development/nelson-whatsapp-gateway/references/send_whatsapp.py \
+  --to "5491132438887,5493816240691,5493813022552" \
+  --batch --delay 3000 \
+  --message "MENSAJE_COMPLETO"
+```
+
+Números del equipo para broadcasts:
+- Gabi: 5491132438887
+- Pablo: 5493816240691
+- Faku: 5493813022552
+
 ## Integración: envío automático desde scripts Python
 
 Cualquier script Python puede enviar mensajes integrando la función `send_whatsapp`:
@@ -219,6 +261,7 @@ Ejemplo de uso: el AI News Aggregator genera un resumen y al finalizar llama `se
 
 ## Referencias
 
+- `references/ai-news-aggregator-delivery.md` — Patrón completo de delivery híbrido, fuentes del script v2, formato del mensaje externo, cron job ID.
 - `references/hermes-bridge-sigterm-crash.md` — Problema recurrente: el bridge nativo de Hermes (puerto 3000) se cae con SIGTERM (`code -15`) mientras el gateway standalone (3001) permanece estable. Diagnóstico, hipótesis de causa raíz, y solución temporal de monitoreo.
 - `references/troubleshooting-messages-not-arriving.md` — Guía paso a paso para cuando los mensajes dejan de llegar aunque el gateway diga "connected". Diferencia gateway (3001) vs bridge (3000) vs origen del mensaje.
 - `references/connect-example.js` — Script Node.js completo de conexión con QR + código de emparejamiento.

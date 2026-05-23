@@ -2,7 +2,7 @@ Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack:
 §
 Nelson usa metodología spec-driven development (OpenAPI primero). Es action-oriented: ve el plan y quiere ejecutar. Preiere skills custom a medida de su flujo.
 §
-Nelson quiere revisar TODO antes de compartir con Pablo. JARVIS no envía nada a Pablo sin aprobación explícita de Nelson. Nelson decide qué Pablo ve y qué no. No asumir que Pablo necesita saber todo.
+Nelson quiere revisar TODO antes de compartir con Pablo. JARVIS no envía nada a Pablo sin aprobación explícita de Nelson. Pablo es colega técnico que envía docs de referencia (ej: Manual Base PM Agente IA v1.0). Nelson integra ese material a los sistemas del equipo.
 §
 Nelson valida RAG. Nuevo interés: Arduino/IoT. Demos prefiere UI web. Amigos: Apo, Juli, Faku ("el chancho", WA: 5493813022552 — suscripto al canal IA).
 §

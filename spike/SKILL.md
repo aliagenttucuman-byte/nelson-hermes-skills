@@ -237,6 +237,24 @@ async def intercept_api_calls(url: str, filter_fn):
 
 ---
 
+## Special case: spikes con OpenUI (Generative UI)
+
+Al hacer spikes del framework `thesysdev/openui`, hay dos pitfalls que aparecen inmediatamente:
+
+**1. crypto.randomUUID bloqueado en HTTP externo**
+El browser bloquea `crypto.randomUUID` en HTTP con IP no-localhost (ej: Tailscale). El error es `TypeError: crypto.randomUUID is not a function`. Fix: agregar polyfill en `layout.tsx`. Ver skill `nelson-generative-ui` para el código exacto.
+
+**2. Stream SSE crudo rompe el parser de OpenUI**
+Si el `route.ts` del frontend hace proxy a un backend que re-emite bytes SSE crudos, el parser de OpenUI falla con `SyntaxError: Unexpected token 'd', "data: {"id"... is not valid JSON`. OpenUI espera el formato del SDK de OpenAI (`response.toReadableStream()`), no SSE crudo.
+Fix: el frontend debe llamar directamente al SDK de OpenAI con `baseURL` del proveedor, y solo consultar al backend para el `systemPrompt`. Ver skill `nelson-generative-ui`.
+
+**3. Scaffold hardcodea modelo gpt-5.2**
+`npx @openuidev/cli@latest create` genera `model: "gpt-5.2"`. Cambiar siempre por el modelo correcto.
+
+**Groq es compatible con OpenAI SDK** — `baseURL: "https://api.groq.com/openai/v1"`, modelo validado: `llama-3.3-70b-versatile`.
+
+---
+
 ## Special case: evaluating unofficial/third-party APIs
 
 When spiking a wrapper, unofficial SDK, or community project that reverse-engineers a proprietary service (e.g. `notebooklm-py` for Google NotebookLM), add these specific checks to the standard loop:
@@ -294,6 +312,10 @@ Propose 2-4 candidates as Given/When/Then. Let the user pick.
 - One dir per spike: `NNN-descriptive-name/`
 - `README.md` per spike captures question, approach, results, verdict
 - Keep the code throwaway — a spike that takes 2 days to "clean up for production" was a bad spike
+
+## Reference: thesysdev/openui
+
+See `references/openui-thesysdev.md` for full notes on the Generative UI framework (OpenUI Lang, quick start, stack, diferencias con wandb/openui). Spike scaffolded en `~/spikes/001-openui/genui-chat-app/`.
 
 ## Attribution
 

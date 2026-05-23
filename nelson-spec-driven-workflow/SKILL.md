@@ -71,6 +71,64 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 
 ---
 
+#### Formato de User Stories del equipo Nelson
+
+Nelson usa el esquema **CREEMOS QUE / RESULTARÁ EN / CRITERIOS DE ACEPTACIÓN**. Es el formato obligatorio para todas las HU del equipo (tanto para I+D+I como para el equipo Central).
+
+```markdown
+## HU-XX — [Título breve]
+
+**CREEMOS QUE** al [construir/implementar/agregar X],
+lograremos [beneficio esperado para el usuario o el sistema].
+
+**RESULTARÁ EN** [descripción del artefacto o comportamiento concreto que se entrega].
+
+**CRITERIOS DE ACEPTACIÓN:**
+- Dado [contexto], cuando [acción], entonces [resultado observable]
+- Dado [contexto], cuando [acción], entonces [resultado observable]
+- [Criterio no-funcional: tiempo, límite, comportamiento en fallo]
+- [Criterio de continuidad: qué pasa si algo falla parcialmente]
+```
+
+**Reglas del formato:**
+- El "CREEMOS QUE" arranca con una hipótesis validable, no con una descripción técnica
+- El "RESULTARÁ EN" describe el entregable concreto (módulo, pipeline, PNG, endpoint)
+- Los criterios de aceptación usan lenguaje "Dado/Cuando/Entonces" (BDD-style) para los comportamientos funcionales, y lenguaje directo para los no-funcionales (tiempos, límites)
+- Mínimo 4 criterios por HU: al menos 2 funcionales, 1 no-funcional (performance/tiempo), 1 de resiliencia (qué pasa si falla)
+
+**Separación pipeline vs renderización:**
+Cuando una HU describe tanto la extracción/procesamiento de datos COMO la visualización, separarlas en dos HUs distintas:
+- HU de **motor/pipeline**: captura datos, parsea, produce DataFrames o estructuras limpias
+- HU de **renderización/UI**: toma los datos limpios y genera gráficos, reportes, imágenes
+
+Esto aplica especialmente en proyectos tipo PowerBI → WhatsApp, donde el "extraer querydata y parsear DSR" es independiente del "generar PNG con matplotlib". Beneficio: cada HU es testeable por separado y el motor es reutilizable por otras HUs de visualización.
+
+**Ejemplo real (spike PowerBI → WhatsApp):**
+
+```markdown
+## HU-01 — Extracción de datos desde tablero Power BI público
+
+CREEMOS QUE al construir un mecanismo que intercepte automáticamente las llamadas
+internas de un embed público de Power BI usando un browser headless, lograremos
+extraer los datos reales del tablero sin necesitar credenciales Azure AD ni acceso
+a la API corporativa de Microsoft.
+
+RESULTARÁ EN un módulo Python reutilizable que, dada una URL pública de Power BI,
+capture y parsee el formato DSR interno devolviendo un DataFrame estructurado.
+
+CRITERIOS DE ACEPTACIÓN:
+- Dado una URL pública válida, cuando se ejecuta el módulo, entonces se capturan
+  todos los archivos querydata emitidos por el tablero (mínimo 1)
+- Dado el JSON DSR capturado, cuando se ejecuta el parser, entonces se obtiene un
+  DataFrame con columnas nombradas correctamente y sin datos vacíos
+- El proceso completa en menos de 45 segundos incluyendo la carga del browser
+- El módulo funciona en modo caché: si los JSON ya existen, los reutiliza sin
+  lanzar el browser (ejecución en menos de 3 segundos)
+- El módulo acepta cualquier URL pública de Power BI sin cambios de código
+```
+
+---
+
 ### 3. CLARIFICAR → Integrado en `spec-driven-development`
 
 **Quién:** Tony valida, Beto ajusta
@@ -122,6 +180,15 @@ Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.c
 - **Desarrollo:** se cobra one-time ($30/hora)
 - **Software:** incluido en desarrollo, sin costo de licencia
 - **Suscripción mensual:** infra + soporte + mantenimiento
+
+---
+
+### 5b. BUSINESS PLAN → `nelson-business-plan` *(si hay equity o inversores)*
+
+**Cuándo:** Cuando el proyecto involucra socios estratégicos, inversores o negociación de participación.
+**Input:** ESTIMACION.md + BENCHMARKING.md (de nelson-startup-benchmarking) + PARTICIPACION-SOCIETARIA.md
+**Output:** BUSINESS-PLAN.md (completo) + BUSINESS-PLAN-EXEC.md (solo Executive Summary para reuniones)
+**Aprobación:** Tony (técnico) + Pablo (comercial) antes de cualquier distribución externa.
 
 ---
 
@@ -288,7 +355,26 @@ Dentro de **Python + React**, el equipo I+D+I puede experimentar con:
 - **Sin documentación pesada:** README + notas. Nada más.
 - **Promoción:** Si un experimento funciona y Tony quiere llevarlo a producción, se "congela" y el equipo Central lo rebuild desde cero con el flujo completo de 8 fases.
 
-### Ejemplo I+D+I
+### Ejemplo I+D+I — ForestAI (inventario forestal con drones, 2026-05-19)
+
+```
+Tony: "Quiero hacer una PoC de inventario forestal con imágenes de drone — conteo por especie, biomasa, edad"
+
+JARVIS:
+  1. README.md: "ForestAI PoC — hipótesis: image analytics clásico (sin ML) puede detectar y clasificar árboles desde ortofotos"
+  2. Plan: FastAPI + Rasterio/OpenCV + Celery + React + MapLibre GL JS
+  3. Criterio de éxito: 6 puntos concretos (upload → mapa → click → resumen → export → async)
+  4. Implementar en 2 días sin ML, sin OpenDroneMap (usuario sube ortofoto ya procesada)
+
+Tony: "Perfecto, usemos esto como caso de prueba para el flujo I+D+I"
+(Se ejecuta el flujo completo de la sesión: README → spec → plan → implementar)
+```
+
+Ver referencia de dominio: `nelson-brainstorming/references/forestai-inventario-forestal-drones.md`
+
+---
+
+### Ejemplo I+D+I — Zustand vs React Query
 
 ```
 Tony: "Quiero probar si Zustand es más simple que React Query para estado global"
