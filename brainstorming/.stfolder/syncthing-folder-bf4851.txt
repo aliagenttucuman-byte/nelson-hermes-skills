@@ -1,0 +1,5 @@
+# This directory is a Syncthing folder marker.
+# Do not delete.
+
+folderID: brainstorming
+created: 2026-05-18T19:19:49Z

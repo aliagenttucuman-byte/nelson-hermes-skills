@@ -1,0 +1,16 @@
+{
+  "taps": [
+    {
+      "repo": "https://github.com/supercent-io/skills",
+      "path": "skills/"
+    },
+    {
+      "repo": "https://github.com/wshobson/agents",
+      "path": "skills/"
+    },
+    {
+      "repo": "https://github.com/rknall/claude-skills",
+      "path": "skills/"
+    }
+  ]
+}

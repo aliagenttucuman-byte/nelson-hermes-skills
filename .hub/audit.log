@@ -1,0 +1,4 @@
+2026-05-11T13:53:29Z INSTALL docker-management official:builtin dangerous sha256:0e362cce7c39d0d2
+2026-05-11T13:53:41Z BLOCKED react clawhub:community caution 3_findings
+2026-05-11T16:48:28Z INSTALL api-docs-writer lobehub:community safe sha256:8907f7ec5cfe9ab7
+2026-05-11T16:48:57Z INSTALL fastapi clawhub:community safe sha256:7f7af677cdedd245
