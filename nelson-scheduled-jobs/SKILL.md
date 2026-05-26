@@ -72,8 +72,6 @@ def send_whatsapp(to: str, message: str):
 - **DDG News rate limit 403**: Si se llaman más de 2-3 búsquedas sin pausa, devuelve `403 Ratelimit`. Fix: `time.sleep(0.5)` entre búsquedas. También el paquete fue renombrado de `duckduckgo_search` a `ddgs` — puede aparecer RuntimeWarning. Usar `python3 -m pip install ddgs` para la versión nueva.
 - **RSS de referentes (MiduDev, Brais Moure, Fazt)**: Sus URLs `/rss.xml` dan 404. Hay que buscar el feed real de cada uno antes de agregar a REFERENTS. Investigar si usan Substack, FeedBurner, o YouTube RSS.
 - **Multi-delivery en cronjob**: Para que un cron job entregue a múltiples contactos de WhatsApp, usar el tool `cronjob` con `action=update`, `job_id=<id>`, y `deliver=origin,whatsapp:<num1>,whatsapp:<num2>,...`. Los números van con código de país completo sin `+` (ej: `5493816240691`). Actualizar todos los jobs relevantes por separado si hay más de uno.
-- **NO listar números externos en `deliver:` de cron jobs**: El bridge nativo de Hermes falla con `jidDecode` para cualquier número que no esté previamente en la sesión del bot. El error `Cannot destructure property 'user' of 'jidDecode(...)' as it is undefined` significa exactamente eso. Patrón correcto: `deliver: origin` en el cron (solo para Nelson), y el propio prompt del cron llama al gateway Baileys (`localhost:3001`) vía `send_whatsapp.py` para los externos (Gabi, Pablo, Faku). Ver `nelson-whatsapp-gateway` para el script helper y el patrón completo.
-- **Dos cron jobs duplicados**: Si hay dos jobs con el mismo propósito, consolidar en uno y borrar el viejo con `cronjob action=remove`. No dejar jobs dobles corriendo en horarios solapados — aumenta carga y genera confusión en logs.
 - **Hermes cron job: bug reasoning_details con OpenCode Go + Kimi K2.6**: Si los jobs fallan con `HTTP 400: Extra inputs are not permitted, field: reasoning_details`, el provider OpenCode Go está enviando campos de razonamiento que el endpoint rechaza. Fix: cambiar a provider `anthropic` con `hermes config set model.provider anthropic` y `hermes config set model.default claude-sonnet-4-20250514`. Reiniciar la sesión para que tome efecto.
 
 ## Templates
@@ -84,7 +82,7 @@ def send_whatsapp(to: str, message: str):
 
 - `references/hermes-cron-setup.md` — paso a paso para registrar cron jobs nativos de Hermes, formatos de schedule, y troubleshooting.
 - `references/ai-news-aggregator-case.md` — caso real completo: RSS aggregator de IA con envío automático por WhatsApp Gateway, estructura de archivos, cron job, y lecciones aprendidas.
-- `references/ai-news-aggregator-v2-design.md` — diseño del agregador v2 completo: 8 fases (RSS labs, DDG, Google News, Reddit, Dev.to, Referentes, YouTube RSS, GitHub Trending), scoring, formato del mensaje externo, cron job ID y pitfalls por fuente.
+- `references/ai-news-aggregator-v2-design.md` — diseño del agregador v2: pasivo (RSS) + activo (DDG News, Google News, Reddit, Dev.to) + personas de referencia. Arquitectura, fuentes, scoring de relevancia, y pitfall rate-limit de DDG.
 
 ## Comandos útiles
 

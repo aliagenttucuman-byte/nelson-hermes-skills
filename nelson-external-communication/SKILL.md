@@ -129,6 +129,54 @@ Cuando Nelson pregunta cómo mandar mensajes a números de WhatsApp desde script
 
 **Regla de oro:** Si el destinatario ya tiene chat activo con Hermes, usar la conexión nativa. Si necesita flexibilidad total para enviar a cualquier número desde scripts Python arbitrarios, evaluar Baileys.
 
+## Telegram como canal adicional para terceros
+
+Cuando Nelson quiere que un tercero (como Pablo) pueda hablar con JARVIS directamente, **Telegram es la opción más rápida y limpia** — no requiere compartir el número de Nelson.
+
+### Setup del bot Telegram (ya hecho, documentado para referencia)
+
+1. Crear bot con @BotFather en Telegram → `/newbot` → obtener token
+2. Agregar token al `.env` de Hermes:
+   ```bash
+   sed -i 's/# TELEGRAM_BOT_TOKEN=/TELEGRAM_BOT_TOKEN=<TOKEN>/' ~/.hermes/.env
+   ```
+3. Reiniciar gateway:
+   ```bash
+   systemctl --user restart hermes-gateway
+   ```
+4. Verificar conexión en logs:
+   ```bash
+   grep -i "telegram" ~/.hermes/logs/gateway.log | tail -5
+   # Debe aparecer: "✓ telegram connected"
+   ```
+
+**Bot activo:** @Jarvis_Alegent_bot (conectado desde 2026-05-22)
+
+### Pairing de nuevos usuarios en Telegram
+
+Cuando un tercero (ej. Pablo) le escribe al bot por primera vez:
+
+1. Hermes crea una solicitud de pairing pendiente
+2. JARVIS notifica a Nelson: "Hay una solicitud de acceso de [Nombre]"
+3. Nelson aprueba con:
+   ```bash
+   hermes pairing list                        # ver solicitudes pendientes
+   hermes pairing approve telegram <CODE>     # aprobar con el código de 8 chars
+   ```
+4. A partir de ese momento el usuario queda reconocido automáticamente
+
+> **Pitfall:** `hermes pairing approve <CODE>` solo (sin plataforma) falla. El comando requiere `hermes pairing approve <platform> <code>`.
+
+### Comparación de canales para terceros
+
+| Canal | Privacidad de Nelson | Facilidad para tercero | Estado |
+|-------|---------------------|----------------------|--------|
+| WhatsApp (número Nelson) | Ninguna — comparte número personal | Alta | Activo |
+| Telegram @Jarvis_Alegent_bot | Total — número de Nelson no expuesto | Alta (solo instalar Telegram) | Activo |
+| Web (JARVIS Demo Shell) | Total | Media (necesita URL) | Activo :3789 |
+
+Ver también: `references/telegram-setup.md` — flujo completo de setup del bot Telegram y pairing.
+
 ## Verificación
 
 Antes de generar un audio para terceros, verificar:

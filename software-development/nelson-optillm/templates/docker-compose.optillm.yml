@@ -1,0 +1,41 @@
+# Docker Compose: OptiLLM + Ollama
+# Stack para I+D+I y producción on-premise
+# Autor: Equipo Nelson
+# Fecha: 2026-05-15
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    # GPU support (Linux with nvidia-docker)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  optillm:
+    image: optillm/optillm:latest-proxy
+    ports:
+      - "18000:8000"
+    environment:
+      - OPENAI_API_KEY=sk-dummy
+      - OPTILLM_BASE_URL=http://ollama:11434/v1
+    command: >
+      --base_url http://ollama:11434/v1
+      --host 0.0.0.0
+      --port 8000
+      --log info
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

@@ -226,6 +226,29 @@ supertonic serve --host 127.0.0.1 --port 7788
 
 Supertonic genera voz desde texto (TTS). Applio/RVC convierte una voz existente en otra voz (voice conversion). Son complementarios, no sustitutos. Para clonar la voz de una persona específica y hacerla "hablar" cualquier texto, se necesita RVC (o OpenVoice). Supertonic es para TTS genérico productivo.
 
+## TTS en idiomas distintos al español
+
+edge-tts falla al generar OGG directamente para idiomas como ruso (`ru-RU-DmitryNeural`, `ru-RU-SvetlanaNeural`). El workaround validado es generar MP3 primero y convertir a Opus con ffmpeg:
+
+```bash
+edge-tts --voice ru-RU-DmitryNeural \
+  --text "Ваш текст здесь" \
+  --write-media /tmp/salida.mp3
+
+ffmpeg -y -i /tmp/salida.mp3 -c:a libopus -b:a 64k /tmp/salida.ogg
+```
+
+Voces disponibles para ruso:
+- `ru-RU-DmitryNeural` — Male, Friendly
+- `ru-RU-SvetlanaNeural` — Female, Friendly
+
+Para listar voces de cualquier idioma:
+```bash
+edge-tts --list-voices | grep "ru-RU"
+```
+
+**Pitfall:** No usar `--write-media *.ogg` directo con voces no-latinas — produce archivo vacío sin error visible. Siempre MP3 → ffmpeg → OGG.
+
 ## Pitfalls
 
 1. **pip no disponible**: En algunos entornos Python, `pip` no esta instalado. Solucion: `python3 -m ensurepip --upgrade`.

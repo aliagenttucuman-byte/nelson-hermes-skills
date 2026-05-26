@@ -212,33 +212,6 @@ npx react-doctor@latest
 npx react-doctor@latest --format json --output report.json
 ```
 
-## UI Design — Feedback Primero
-
-Nelson rechazó una UI completa rediseñada sin su input con "no me gusta para nada". Regla:
-
-1. Antes de rediseñar una UI, pedir: screenshot actual + estilo deseado (minimalista, GIS técnico, dashboard con cards, mapa flotante, etc.)
-2. Si no puede mandar screenshot (servidor sin pantalla), describir las opciones concretas y dejar que elija.
-3. No asumir que un dark theme genérico va a satisfacer — preguntar primero.
-
-## Referencias de soporte
-
-- `references/dashboard-mapa-websocket-chat.md` — Template completo: dashboard React con Leaflet + WebSocket live + chat IA flotante (validado FleetOptimizer PoC)
-
-## Deploy estático en Docker (nginx)
-
-Cuando el frontend corre como contenedor Docker con nginx (ej: `forestai-poc-frontend-1`), **no hay hot reload**. El flujo correcto para ver cambios:
-
-```bash
-# 1. Editar los .tsx en el host
-# 2. Build
-cd ~/proyectos/forestai-poc/frontend && npm run build
-# 3. Copiar dist al container nginx
-docker cp dist/. <container-name>:/usr/share/nginx/html/
-# 4. Usuario hace Ctrl+Shift+R en el browser
-```
-
-⚠️ Trampa frecuente: editar el código, buildear, y asumir que el browser lo levantó — pero el tunnel apunta al container Docker que sigue sirviendo el build viejo. Verificar SIEMPRE a qué puerto apunta el tunnel (`cat /tmp/cf_*.log`) para saber si es Docker o serve estático.
-
 ## Pitfalls
 
 - No usar `window.location.reload()` para navegar — usar `useNavigate()`
@@ -247,52 +220,7 @@ docker cp dist/. <container-name>:/usr/share/nginx/html/
 - Invalidar queries despues de mutaciones
 - **Verificar existencia de versiones antes de implementar:** el usuario puede pedir versiones que aun no existen (ej: React 22 no existe, la ultima estable es React 19). Siempre confirmar en npm/registry antes de actualizar.
 - **Tailwind CSS v4 breaking changes:** no usa `tailwind.config.js` ni `postcss.config.js`. La configuracion se hace directamente en CSS via `@import "tailwindcss"` y `@theme`. Ver referencia `references/tailwind-v4-migration.md`.
-
-- **Tailwind v4 purge en Docker build — las clases nuevas desaparecen:** Al hacer build de producción en Docker, Vite/Tailwind purga clases no usadas según el source escaneado del momento del build anterior. Si se agregan clases nuevas al código y se hace `docker compose build`, a veces el CSS no incluye las nuevas clases. Solución robusta para demos y PoCs: usar **inline styles** (`style={{...}}`) para los componentes principales de layout. Los estilos quedan en el JS bundle y no dependen del purge.
-
-- **body en index.css pisa clases de componentes:** Si `index.css` tiene `body { background-color: #X }` hardcodeado, las clases Tailwind en los componentes (como `bg-slate-50`) no tienen suficiente especificidad para pisarlo. Al cambiar el tema de la app (de dark a light o viceversa), actualizar `index.css` primero.
-
-- **Doble QueryClientProvider rompe React Query:** Si `main.tsx` tiene `<QueryClientProvider>` y `App.tsx` también crea uno, las queries retornan undefined o no se disparan porque los contextos no matchean. Un solo `QueryClientProvider` en todo el árbol.
-
-- **docker compose restart no aplica cambios de código en frontend estático:** El contenedor de frontend usa nginx sirviendo un build estático. `restart` solo reinicia nginx — no reconstruye el build. Siempre hacer `docker compose build frontend` primero, luego `docker restart <container>`. IMPORTANTE: `docker restart` tampoco recrea el contenedor con la nueva imagen — solo reinicia el proceso dentro del contenedor antiguo. Para que tome la imagen recién buildeada hay que destruir y recrear el contenedor:
-  ```bash
-  # Flujo correcto para aplicar nueva imagen buildeada
-  docker compose build frontend
-  docker rm -f <nombre-contenedor>
-  docker run -d --name <nombre-contenedor> --network <red-docker> -p 3010:80 <imagen>:latest
-  # Verificar que tomó la nueva imagen: el nombre del JS bundle debe cambiar
-  docker exec <contenedor> ls /usr/share/nginx/html/assets/
-  ```
-  Con docker compose el equivalente es `docker compose up -d --force-recreate frontend`.
-- **Panel aplastado en flex container (padding/width reducido):** cuando un componente tiene `width: "100%"` pero visualmente sigue comprimido, la causa es que el flex container lo puede shrinkear igual. Fix: agregar `minWidth: 0` y `flex: 1` al contenedor raíz del componente hijo, y `width: "100%"` al wrapper en el padre:
-  ```tsx
-  // wrapper en App.tsx
-  <div style={{ flex: 1, display: view === "geo" ? "flex" : "none", width: "100%" }}>
-    <MiPanel />
-  </div>
-  // raíz del componente
-  <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", minWidth: 0, flex: 1 }}>
-  ```
 - **NUNCA usar templates server-side (Jinja2, etc.) para UI cuando React esta disponible.** Para PoCs, demos o cualquier interfaz grafica, usar React desde el inicio. El backend debe exponer solo API REST (JSON), nunca HTML renderizado. Esta es la convencion del equipo Nelson.
-- **VITE_API_URL fallback debe ser string vacío en proyectos con nginx proxy:** Cuando el frontend está Dockerizado detrás de nginx que hace proxy `/api → backend`, el fallback de `VITE_API_URL` debe ser `""` (string vacío), NO `"http://localhost:8010"`. Con localhost, las llamadas desde el browser de un cliente remoto (Tailscale, etc.) van al localhost del cliente y fallan. Con string vacío, las requests van a rutas relativas (`/api/analyses`) que nginx redirige internamente al backend:
-  ```ts
-  // ✅ Correcto — funciona desde cualquier host
-  const BASE = import.meta.env.VITE_API_URL || "";
-  
-  // ❌ Incorrecto — solo funciona desde el servidor mismo
-  const BASE = import.meta.env.VITE_API_URL || "http://localhost:8010";
-  ```
-  Aplicar a: `api/client.ts`, `App.tsx`, `StatsPanel.tsx`, y cualquier archivo que construya URLs de API.
-
-- **Build requerido cuando se sirve dist estático:** Si el frontend corre con `npx serve dist -p XXXX` (no con `npm run dev`), los cambios de código NO se ven hasta hacer `npm run build`. No asumir hot reload — verificar cómo se está sirviendo el frontend antes de editar. Si el proceso es `serve dist`, siempre buildear después de cada cambio y pedir hard refresh (Ctrl+Shift+R) para limpiar caché del browser.
-- **Diagnóstico rápido del modo de servicio:**
-  ```bash
-  ps aux | grep -E "vite|serve" | grep -v grep
-  # Si ves "serve dist" → necesita build manual
-  # Si ves "vite" → hot reload activo
-  ```
-- **Siempre verificar a qué puerto apunta el tunnel** antes de editar — si apunta a Docker (ej: `:3010`) los cambios necesitan `docker cp`, si apunta a `npx serve dist` (ej: `:3011`) solo necesitan `npm run build`.
-- **Flex layout en paneles full-height:** para que un componente hijo ocupe todo el ancho disponible en un flex container, necesita `width: "100%"` + `minWidth: 0` + `flex: 1` en el elemento raíz. Solo `width: 100%` no alcanza — `minWidth: 0` evita que flex lo aplaste.
 - **Vite `allowedHosts` al exponer via tunnel (cloudflared/ngrok/serveo):** El dev server de Vite bloquea hosts desconocidos con `403 Blocked request`. Si se usa un tunel para demos remotas, agregar `allowedHosts: true` en `vite.config.ts`:
   ```ts
   export default defineConfig({

@@ -26,16 +26,7 @@ curl -s http://localhost:3000/health
 ```
 Si `queueLength > 0` → mensajes entrantes están atascados esperando ser consumidos por el adaptador Python. Eso significa que Hermes no está leyendo el polling. Reiniciar Hermes, no el gateway.
 
-### Paso 3: Verificar si el script emisor tiene logica de envío
-
-**TRAMPA CONOCIDA:** `ai_news_collector_v2.py` NO tiene lógica de envío por WhatsApp. Solo genera el digest y lo guarda en un archivo (`data/daily_digest.md`). El envío lo tiene que hacer el **prompt del cron job** (04bdd6e154a3), no el script Python.
-
-Para confirmar si el gateway recibió solicitudes de envío en el período esperado:
-```bash
-journalctl --user -u whatsapp-gateway --since "20:30" --until "20:40" --no-pager | grep -E "send|POST|200|error"
-```
-Si no aparece nada → el prompt del cron no llamó al gateway. Revisar el prompt del cron, no el script.
-
+### Paso 3: Verificar logs del aggregator / cronjob
 ```bash
 journalctl --user -u whatsapp-gateway --since "6 hours ago"
 systemctl --user status whatsapp-gateway

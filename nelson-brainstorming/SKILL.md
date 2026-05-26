@@ -36,8 +36,6 @@ Todo brainstorming, SDD, spec o documento de proyecto se guarda en:
 
 ## Spikes dentro de un Brainstorming
 
-> **Vault Obsidian:** `~/brainstorming/` tiene `.obsidian/`. Skills kepano instaladas en `~/.hermes/skills/` y `~/brainstorming/.claude/skills/`: obsidian-markdown, obsidian-cli, obsidian-bases, json-canvas, defuddle.
-
 Cuando un brainstorming incluye spikes (experimentos throwaway), se guardan en subcarpetas:
 
 ```
@@ -77,11 +75,7 @@ Cuando Tony inicia un brainstorming:
 
 ## Pitfalls
 
-- **Docker container ≠ código fuente**: En ForestAI el frontend compilado vive en el container `forestai-poc-frontend-1` (puerto 3010). El tunnel CloudFlare apunta al container, NO al directorio de código. Después de cada `npm run build` hay que hacer: `docker cp ~/proyectos/forestai-3d/frontend/dist/. forestai-poc-frontend-1:/usr/share/nginx/html/`. Sin este paso los cambios no se ven aunque el build sea exitoso.
-- **NO guardar specs en `~/` suelto**
-- **Imagen no visible en WhatsApp desde path largo:** Si el `MEDIA:` apunta a un path profundo como `~/brainstorming/.../output/reporte.png` y Nelson no ve la imagen, copiarla a `/tmp/reporte.png` y reenviar desde ahí. Workaround confiable cuando el path incluye carpetas muy anidadas.
-- **sync-to-repo.sh necesita actualización manual:** El array `SKILLS=()` en `/home/server/repos/nelson-hermes-skills/sync-to-repo.sh` no se actualiza automáticamente. Cada vez que se crea una skill nueva con `skill_manage action=create`, agregarla al array antes del próximo sync o la skill no se pushea al repo GitHub.
-- **NO guardar specs en `~/` suelto**
+- **NO guardar specs en `~/` suelto** — Tony lo corrigió explícitamente: "vayamos generando mínimo una carpeta"
 - **NO mezclar README con SDD** — El README debe caber en una pantalla; el SDD puede ser largo
 - **NO olvidar la fecha** — Sin fecha no se sabe qué brainstorming es el más reciente
 - **NO usar nombres genéricos** como `proyecto-nuevo`; ser específico: `fleet-optimizer`, `rag-documentos`
@@ -118,94 +112,12 @@ Formato de respuesta para estimativo:
 - Total año 1
 - Tabla de escenarios (conservador / base / optimista)
 
-## Empaquetado para Terceros (GUIA_REPLICAR.md + ZIP)
-
-Cuando Nelson dice "armame todo para pasarle a alguien" o "quiero que otra persona lo replique", el flujo es:
-
-1. Revisar el script principal + outputs existentes en el brainstorming
-2. Generar `GUIA_REPLICAR.md` en la carpeta del spike/proyecto con:
-   - Prereqs (Python + libs con versión)
-   - Estructura de carpetas esperada
-   - Fuente de datos (URL exacta)
-   - Pasos numerados para correr
-   - Resultado esperado (captura/descripción)
-   - Pitfalls con solución
-   - Sección "Adaptar a otro dataset" si aplica
-3. Generar el ZIP con `python3 zipfile` (zip binary no disponible en el servidor):
-   ```python
-   import zipfile, os
-   with zipfile.ZipFile('paquete.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-       zipdir('directorio-a-empaquetar', zf)
-   ```
-4. Incluir en el ZIP: script principal, datos de ejemplo, outputs de muestra, requirements.txt, README.md, carpeta docs/ con las guías
-5. Entregar el ZIP con `MEDIA:/ruta/al/paquete.zip`
-
-**No incluir** en el ZIP: archivos `.env`, credenciales, datasets >50MB, archivos temporales o `__pycache__`.
-
 ## Spikes de Datos Energéticos (Argentina)
 
 Para spikes que consuman datos de la Secretaría de Energía Argentina (datos.gob.ar), ver `references/datos-energia-argentina.md` para endpoints probados, quirks del API, y patrón de pipeline completo (descarga → KPIs → reporte imagen → WhatsApp).
 
-## Git — Pitfalls del Repo Brainstorming
-
-El repo `~/brainstorming` tiene contenido mixto: proyectos corridos con Docker como root generan archivos `__pycache__` de owner root que **bloquean git checkout/rebase** con:
-
-```
-error: The following untracked working tree files would be overwritten
-Permission denied
-```
-
-**Workaround si git rebase queda trabado por archivos de root:**
-
-```bash
-# 1. Borrar el state de rebase manualmente
-rm -rf ~/brainstorming/.git/rebase-merge ~/brainstorming/.git/REBASE_HEAD
-
-# 2. Recuperar el commit SHA de los commits locales
-git -C ~/brainstorming reflog --oneline | head -10
-
-# 3. Forzar push del commit local directamente (sin checkout)
-git -C ~/brainstorming push origin <SHA>:main --force
-
-# 4. Restaurar HEAD al branch
-git -C ~/brainstorming symbolic-ref HEAD refs/heads/main
-```
-
-**Prevención:** el `.gitignore` ya excluye `__pycache__/`. Si hay archivos de root ya trackeados:
-```bash
-git rm -r --cached -f path/a/__pycache__/
-```
-
-Agregar siempre al `.gitignore` del repo:
-```
-node_modules/
-__pycache__/
-*.pyc
-auth/
-.env
-```
-
-La carpeta `auth/` de Baileys contiene tokens de sesión de WhatsApp — **nunca subir al repo**.
-
-## Project Charter
-
-Cuando Nelson propone una iniciativa con socio externo (modelo CEO/COO con participación societaria), generar un **Project Charter** formal aplicando la metodología de Pablo:
-
-- PMI / ISO 21502 / PRINCE2 / Agile
-- Formato: 2-3 páginas, tablas, secciones enumeradas
-- Estructura: Contexto → Mandato → Alcance → RACI → Cronograma → Presupuesto → Riesgos → Estructura Societaria → KPIs → Próximos Pasos
-- Hipótesis de valor siempre en formato: `CREEMOS QUE... RESULTARÁ EN... CRITERIOS DE ACEPTACIÓN...`
-- Participación societaria estándar: Nelson 40-45% (tecnología), Socio 55-60% (dominio + clientes)
-- Formalización: sweat equity en MVP → SAS al primer cliente pago
-- Guardar como `PROJECT-CHARTER-v2.md` en la carpeta del proyecto
-- Entregar a Nelson como **PDF** (no .md — WhatsApp no renderiza markdown)
-  → usar el patrón WeasyPrint documentado en `nelson-documentation`
-
-Ver template: `templates/project-charter-template.md`
-
 ## Archivos de Soporte
 
-- `references/forestai-geotiff-sources.md` — Fuentes públicas de GeoTIFF forestales para PoCs de inventario forestal: NeonTreeEvaluation, ReforesTree, OpenAerialMap. Incluye comandos de descarga directa y limitaciones Argentina.
 - `templates/brainstorming-README.md` — Template copiable para README de cada sesión
 - `templates/sdd-template.md` — Template para Software Design Documents
 - `templates/spike-conclusion-template.md` — Template para documentar verdict de spikes
@@ -213,30 +125,6 @@ Ver template: `templates/project-charter-template.md`
 - `references/fleet-optimizer-example.md` — Ejemplo concreto de SDD completo con VAN/TIR y OpenAPI
 - `references/cookie-extraction-epiphany.md` — Técnica para extraer cookies de GNOME Web/Epiphany y convertir a formato Playwright
 - `references/syncthing-vault-sync.md` — Cómo sincronizar un vault Obsidian entre servidor Linux y Windows vía Tailscale + Syncthing
-- `templates/project-charter-template.md` — Template reutilizable para Project Charter (CEO/COO + participación societaria + metodología PM de Pablo)
+- `references/datos-energia-argentina.md` — Endpoints CSV de Secretaría de Energía, quirks SSL, filtro mes incompleto, KPIs benchmark Abril 2026
 - `templates/reporte-energia-argentina.py` — Script completo: descarga → KPIs → reporte PNG dark mode (petróleo y gas por empresa)
 - `nelson-ai-vision/references/drowning-detection-market.md` — Análisis de mercado completo para sistema de detección de ahogamiento en piletas
-
-## Vault de Obsidian
-
-El vault de Obsidian de Nelson vive en `~/brainstorming/` (misma carpeta de brainstorming). Confirmado por `.obsidian/` presente ahí.
-
-Las skills de kepano para Obsidian están instaladas en:
-- `~/brainstorming/.claude/skills/` — para Claude Code
-- `~/.hermes/skills/` — para JARVIS/Hermes
-
-Skills instaladas (kepano/obsidian-skills):
-- `obsidian-markdown` — Obsidian Flavored Markdown con wikilinks, callouts, properties
-- `obsidian-bases` — Obsidian Bases (.base) con views, filters, formulas
-- `json-canvas` — JSON Canvas (.canvas) con nodes y edges
-- `obsidian-cli` — CLI de Obsidian para desarrollo de plugins
-- `defuddle` — extrae markdown limpio de páginas web, ahorra tokens
-
-Para instalar/actualizar:
-```bash
-git clone https://github.com/kepano/obsidian-skills.git /tmp/obsidian-skills
-cp -r /tmp/obsidian-skills/skills/* ~/brainstorming/.claude/skills/
-cp -r /tmp/obsidian-skills/skills/* ~/.hermes/skills/
-```
-- `nelson-ai-vision/references/drowning-detection-market.md` — Análisis de mercado completo para sistema de detección de ahogamiento en piletas
-- `references/forestai-inventario-forestal-drones.md` — Stack validado, repos GitHub, datasets, técnicas sin ML, criterios de éxito PoC ForestAI (2026-05-19)

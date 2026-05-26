@@ -240,60 +240,9 @@ mi-proyecto/
 
 ### Para migrar skills a máquina nueva o onboarding de equipo:
 1. Clonar `nelson-hermes-skills` desde GitHub
-2. Correr `./sync-from-repo.sh` para instalar las skills custom
+2. Correr `./sync-from-repo.sh` para instalar las 22 skills custom
 3. Verificar con `hermes skills list | grep nelson`
 4. Ver `references/skill-backup-workflow.md` para detalles completos
-
-### Convención del repo de skills (`nelson-hermes-skills`)
-
-El repo **solo debe contener skills propias del equipo Nelson**. Las skills built-in de Hermes (apple, creative, mlops, github, media, devops, python-*, autonomous-ai-agents, etc.) NO deben estar trackeadas — Hermes las gestiona por su cuenta.
-
-**Síntoma de contaminación:** El repo tiene carpetas como `api-design-principles/`, `creative/`, `apple/`, `autonomous-ai-agents/`, `mlops/`, `software-development/` (que es una categoría de Hermes, no una skill propia).
-
-**Limpieza cuando el repo se contamina con skills de Hermes:**
-```python
-import subprocess
-
-hermes_builtin = [
-    'api-design-principles', 'api-docs-writer', 'apple', 'architecture-patterns',
-    'async-python-patterns', 'autonomous-ai-agents', 'creative', 'data-science',
-    'debugging-hermes-tui-commands', 'devops', 'diagramming', 'dogfood', 'domain',
-    'email', 'gaming', 'gifs', 'github', 'hermes-agent-skill-authoring',
-    'inference-sh', 'mcp', 'media', 'mlops', 'node-inspect-debugger', 'note-taking',
-    'plan', 'productivity', 'python-debugpy', 'python-design-patterns',
-    'python-project-structure', 'python-testing-patterns', 'red-teaming',
-    'requesting-code-review', 'research', 'smart-home', 'social-media',
-    'software-development', 'spike', 'subagent-driven-development',
-    'systematic-debugging', 'test-driven-development', 'writing-plans', 'yuanbao'
-]
-result = subprocess.run(
-    ["git", "rm", "--cached", "-r"] + hermes_builtin,
-    cwd="/home/server/.hermes/skills", capture_output=True, text=True
-)
-# luego git commit + push
-```
-
-**gitignore del repo** (debe existir `~/.hermes/skills/.gitignore`):
-```
-node_modules/
-__pycache__/
-*.pyc
-venv/
-.venv/
-dist/
-build/
-*.log
-.DS_Store
-```
-
-**Skills del equipo Nelson (prefijos válidos):**
-- `nelson-*` — todas las skills del equipo
-- `equipo-nelson` — skill maestra
-- `nvidia-nim-free-api` — integración de modelos NVIDIA
-- `fastapi` — convención del stack
-- `spec-driven-development` — metodología core
-- `brainstorming/` — directorio de documentos y PoCs
-- `memories/` — snapshots de memoria
 
 ### Para nuevas features:
 1. Nelson describe la feature

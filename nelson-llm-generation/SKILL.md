@@ -419,3 +419,67 @@ pip install openai anthropic groq ollama tenacity
 - **OpenCode Zen / OpenRouter:** Si recibís 401 "Missing Authentication header", verificar que el header `Authorization: Bearer <key>` esté presente. Algunas keys de OpenCode Zen funcionan via OpenRouter (`https://openrouter.ai/api/v1`) pero pueden requerir headers adicionales (`HTTP-Referer`, `X-Title`). Ver `references/opencode-zen-setup.md`
 - **OpenCode Zen / OpenRouter:** El listado de modelos (`/v1/models`) puede funcionar mientras que `/v1/chat/completions` da 401 si la key no tiene créditos o permisos. Verificar en el dashboard de OpenCode Zen.
 - **OpenCode Zen / OpenRouter:** Los model IDs son del formato `provider/model` (ej: `moonshotai/kimi-k2.6`, `minimax/minimax-m2.7`). No usar nombres cortos.
+- **Chat embebido con contexto dinámico:** Ver patrón completo en `references/fleet-chat-assistant-pattern.md`. Puntos clave: usar `window.location.hostname` en el frontend (nunca `localhost` hardcodeado), regenerar contexto en cada request, mandar historial completo al backend, patrón `buffer += lines.pop()` para parsear SSE correctamente.
+- **NVIDIA NIM — DeepSeek puede estar caído en free tier:** Si falla, cambiar a `meta/llama-3.3-70b-instruct` — mismo formato OpenAI SDK, validado estable para chat interactivo en español.
+
+## Custom Providers en Hermes Agent
+
+Para conectar endpoints propios o de Azure AI Foundry a Hermes, usar `custom_providers` en `~/.hermes/config.yaml`:
+
+```yaml
+custom_providers:
+  - name: azure-claude
+    base_url: https://<resource>.services.ai.azure.com/anthropic/
+    model: claude-sonnet-4-6
+    key_env: ANTHROPIC_API_KEY
+    api_mode: anthropic_messages
+  - name: azure-gpt
+    base_url: https://<resource>.cognitiveservices.azure.com/openai/
+    model: gpt-5.3-codex
+    key_env: AZURE_OPENAI_API_KEY
+    api_mode: chat_completions
+```
+
+**Uso:**
+```bash
+hermes chat --provider "custom:azure-claude" --model "claude-sonnet-4-6" -q "Hola"
+```
+
+### Proveedor nativo `azure-foundry`
+
+Hermes tiene soporte nativo para Azure AI Foundry:
+```bash
+hermes config set model.provider azure-foundry
+hermes config set model.base_url "https://<resource>.services.ai.azure.com/openai/"
+hermes config set model.default "gpt-5.3-codex"
+hermes config set model.api_mode codex_responses  # o chat_completions
+```
+
+Requiere `AZURE_FOUNDRY_API_KEY` en `~/.hermes/.env`.
+
+### Tabla de compatibilidad Azure x Hermes
+
+| Servicio | Endpoint Azure | `api_mode` | Status con Hermes | Notas |
+|----------|---------------|------------|-------------------|-------|
+| Claude (Anthropic) | `...azure.com/anthropic/` | `anthropic_messages` | ✅ Funciona | Usar `custom:<name>`, `--model` requerido |
+| GPT-4o / GPT-4 | `...azure.com/openai/` | `chat_completions` | ✅ Funciona | Nativo via `azure-foundry` o custom |
+| GPT-5.3-Codex | `...azure.com/openai/` | `codex_responses` | ⚠️ Limitado | Azure requiere header `api-key`; Hermes envía `Authorization: Bearer`. Requiere proxy o script intermedio. Ver `references/hermes-azure-responses-api.md` |
+
+### Debuggear endpoints
+
+```bash
+# Ver logs de Hermes
+grep -i "404\|base_url" ~/.hermes/logs/agent.log | tail -20
+
+# Test directo con curl (Anthropic-style)
+curl -s -H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-sonnet-4-6","max_tokens":1024,"messages":[{"role":"user","content":"OK"}]}' \
+  "https://<resource>.services.ai.azure.com/anthropic/v1/messages?api-version=2025-04-15"
+
+# Test directo con curl (Azure Responses API)
+curl -s -H "api-key: $KEY" \
+  -d '{"model":"gpt-5.3-codex","input":[{"role":"user","content":"OK"}]}' \
+  "https://<resource>.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview"
+```
+
+> **Nota:** `api_mode` se snapshottea al inicio de la sesión. Cambiarlo mid-session vía `/model` no tiene efecto. Siempre usar `/reset` o reiniciar Hermes después de cambiar `api_mode`.

@@ -332,9 +332,31 @@ class FunctionCallingAgent:
 - [ ] Validar inputs de tools (no ejecutar codigo arbitrario)
 - [ ] Fallback si el agente no puede resolver
 
-## Referencias
+## Browser Agent (Playwright)
+
+Para tareas que requieren controlar un navegador real, usar `nelson-browser-agent`. El agente genera código Python+Playwright al vuelo (estilo Webwright de Microsoft), ejecuta via bash, toma screenshots y se auto-verifica con visión.
+
+**Casos de uso:**
+- Scraping con evidencia visual
+- Testing E2E de frontends React
+- Automatización de formularios / flujos web
+- Extracción de datos de sitios dinámicos (SPAs)
+- Validación de deploys en browser real
+
+```python
+# Integración browser agent en flujo de agente
+# Ver skill nelson-browser-agent para el loop completo
+
+# Ejemplo: el agente detecta que necesita browser para la tarea
+if "scraping" in task or "formulario" in task or "browser" in task:
+    # Cargar skill nelson-browser-agent y ejecutar loop Playwright
+    pass
+```
+
+**Nota:** Firefox headless por defecto (resiste Akamai/Cloudflare). Chromium disponible como fallback.
 
 - [Extracción de cookies de Epiphany para autenticación de agentes](references/epiphany-cookie-extraction.md) — cómo extraer sesiones de GNOME Web para Playwright y herramientas que requieren auth de Google.
+- [DeepAgents + NVIDIA NIM](references/deepagents-nvidia-nim.md) — setup validado de DeepAgents 0.6.3 con NVIDIA NIM (DeepSeek V4 Flash). Snippet base, pitfalls de tool calling, resultados del Spike 001, próximos spikes sugeridos.
 
 ## Pitfalls
 
@@ -345,14 +367,88 @@ class FunctionCallingAgent:
 - Tools lentas bloquean al agente; usar async cuando sea posible
 - Costos: cada iteracion es una llamada al LLM; monitorizar tokens
 
+## Agentes Especializados por Rol (Agency Agents)
+
+El equipo Nelson tiene 6 agentes especializados inspirados en https://github.com/msitarzewski/agency-agents,
+adaptados al stack y flujo de Nelson. Están en la categoría `nelson-ai-agents` de skills:
+
+| Skill | Cuándo usarlo |
+|-------|--------------|
+| `agency-ai-engineer` | ML, RAG, computer vision, Qdrant, Ollama, FastAPI para modelos |
+| `agency-rapid-prototyper` | PoC en 3 días, MVP con hipótesis clara |
+| `agency-code-reviewer` | Quality gate antes de demo a stakeholders (Pablo, YPF) |
+| `agency-voice-ai-engineer` | Pipelines Whisper, diarización, TTS |
+| `agency-embedded-engineer` | ESP32, Arduino, IoT, sensores + integración al servidor |
+| `agency-software-architect` | CONSTITUTION.md, ADRs, decisiones de arquitectura |
+
+Cada uno tiene checklist, stack adaptado y ejemplos concretos para el equipo.
+
+### Sync al repo
+
+Los skills viven en `~/.hermes/skills/nelson-ai-agents/` pero el repo canónico es
+`~/repos/nelson-hermes-skills/`. Al crear o modificar skills de agentes, sincronizar:
+
+```bash
+cp -r ~/.hermes/skills/nelson-ai-agents/agency-* ~/repos/nelson-hermes-skills/nelson-ai-agents/
+cd ~/repos/nelson-hermes-skills
+git add nelson-ai-agents/agency-*
+git commit -m "feat/fix: descripción"
+git push
+```
+
+**IMPORTANTE: Los 6 agency-* sub-skills son parte permanente del repo del equipo.**
+Nunca deben eliminarse del tracking de Git, ni excluirse de `.gitignore`,
+ni omitirse en `sync-to-repo.sh`. Incluso si el entorno local tiene cambios
+en cómo se organizan, los archivos `agency-ai-engineer/SKILL.md`,
+`agency-code-reviewer/SKILL.md`, etc. deben permanecer en el repo.
+Si `sync-to-repo.sh` los elimina accidentalmente, restaurarlos inmediatamente.
+
+## Orquestacion Multi-Agente con Frameworks Externos
+
+El equipo Nelson tiene 6 agentes especializados inspirados en https://github.com/msitarzewski/agency-agents,
+adaptados al stack y flujo de Nelson. Están en la categoría `nelson-ai-agents` de skills:
+
+| Skill | Cuándo usarlo |
+|-------|--------------|
+| `agency-ai-engineer` | ML, RAG, computer vision, Qdrant, Ollama, FastAPI para modelos |
+| `agency-rapid-prototyper` | PoC en 3 días, MVP con hipótesis clara |
+| `agency-code-reviewer` | Quality gate antes de demo a stakeholders (Pablo, YPF) |
+| `agency-voice-ai-engineer` | Pipelines Whisper, diarización, TTS |
+| `agency-embedded-engineer` | ESP32, Arduino, IoT, sensores + integración al servidor |
+| `agency-software-architect` | CONSTITUTION.md, ADRs, decisiones de arquitectura |
+
+Cada uno tiene checklist, stack adaptado y ejemplos concretos para el equipo.
+
+### Sync al repo
+
+Los skills viven en `~/.hermes/skills/nelson-ai-agents/` pero el repo canónico es
+`~/repos/nelson-hermes-skills/`. Al crear o modificar skills de agentes, sincronizar:
+
+```bash
+cp -r ~/.hermes/skills/nelson-ai-agents/agency-* ~/repos/nelson-hermes-skills/nelson-ai-agents/
+cd ~/repos/nelson-hermes-skills
+git add nelson-ai-agents/agency-*
+git commit -m "feat/fix: descripción"
+git push
+```
+
+**IMPORTANTE: Los 6 agency-* sub-skills son parte permanente del repo del equipo.**
+Nunca deben eliminarse del tracking de Git, ni excluirse de `.gitignore`,
+ni omitirse en `sync-to-repo.sh`. Incluso si el entorno local tiene cambios
+en cómo se organizan, los archivos `agency-ai-engineer/SKILL.md`,
+`agency-code-reviewer/SKILL.md`, etc. deben permanecer en el repo.
+Si `sync-to-repo.sh` los elimina accidentalmente, restaurarlos inmediatamente.
+
 ## Orquestacion Multi-Agente con Frameworks Externos
 
 Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencia comparativa en `references/multi-agent-frameworks.md`.
 
 ### Decision rapida
+### Decision rapida
 
 | Si necesitas... | Usa... |
 |-----------------|--------|
+| Agente autónomo con tools reales (shell, files) rápido de configurar | **DeepAgents** |
 | Control total del flujo, estados, loops | **LangGraph** |
 | Type-safety, APIs, resultados estructurados | **PydanticAI** |
 | Hardware modesto (4GB VRAM), open-source total | **Custom ReAct + FastAPI** |

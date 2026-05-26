@@ -6,9 +6,10 @@ set -euo pipefail
 
 # Config
 BACKENDS=(
-  "8000|FLoCI-AWS|2026-05-13-rag-poc"
+  "8000|robotocore|2026-05-13-rag-poc-robotocore"
   "8001|MinIO|2026-05-13-rag-poc-minio"
   "8002|FLoCI-Azure|2026-05-14-rag-floci-azure"
+  "8003|FLoCI-AWS-legacy|2026-05-13-rag-poc"
 )
 
 LOGFILE="/tmp/rag-health-monitor.log"

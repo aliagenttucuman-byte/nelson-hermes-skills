@@ -139,7 +139,17 @@ blob_service = BlobServiceClient.from_connection_string(conn_str)
    sleep 15 && grep -i "trycloudflare" /tmp/cf.log
    ```
 8. **Olvidar agregar skills nuevas al sync script:** Cuando se crea una skill nueva, hay que agregarla al array `SKILLS` de `sync-to-repo.sh` antes de commitear.
-9. **`vite-env.d.ts` faltante:** Sin este archivo, el build falla con `Property 'env' does not exist on type 'ImportMeta'`. Siempre incluir en `frontend/src/`:
+9. **Editar el skill en el path equivocado — cambios no se sincronizan:** Las skills del equipo existen en DOS paths:
+   - `~/.hermes/skills/<nombre>/` (root)
+   - `~/.hermes/skills/software-development/<nombre>/` (categoría)
+   
+   El `sync-to-repo.sh` lee desde `software-development/`. Si editás el root path, los cambios NO llegan al repo GitHub. **Siempre verificar cuál copia estás editando** antes de correr el sync. Si hay duda, usar `diff` para comparar:
+   ```bash
+   diff ~/.hermes/skills/nelson-rag-pipeline/SKILL.md \
+        ~/.hermes/skills/software-development/nelson-rag-pipeline/SKILL.md
+   ```
+   Y copiar la correcta: `cp ~/.hermes/skills/<name>/SKILL.md ~/.hermes/skills/software-development/<name>/SKILL.md`
+10. **`vite-env.d.ts` faltante:** Sin este archivo, el build falla con `Property 'env' does not exist on type 'ImportMeta'`. Siempre incluir en `frontend/src/`:
    ```typescript
    /// <reference types="vite/client" />
    ```
@@ -230,6 +240,7 @@ robotocore MinIO  FLoCI-Azure FLoCI  Qdrant  Ollama
    ```
 
 ### Guía de Conversación con el Stakeholder
+### Guía de Conversación con el Stakeholder
 
 | Momento | Qué decir | Qué mostrar |
 |---------|----------|-------------|
@@ -260,10 +271,6 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 # Logs de un stack específico
 docker logs --tail 30 CONTAINER_NAME
-
-# Snapshots en robotocore
-curl -X POST http://localhost:4566/_robotocore/state/save
-curl -X POST http://localhost:4566/_robotocore/state/load
 
 # Ver blobs en FLoCI-Azure
 docker exec CONTAINER mc alias set local http://localhost:4577 devstoreaccount1 KEY
