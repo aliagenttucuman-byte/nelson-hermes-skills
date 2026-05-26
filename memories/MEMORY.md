@@ -16,7 +16,7 @@ Tailscale cuenta aliagenttucuman@gmail.com. IP servidor (ai-server): 100.110.8.1
 §
 HU schema de Nelson: "CREEMOS QUE [hipótesis], RESULTARÁ en [output concreto], CRITERIOS DE ACEPTACION [lista verificable]". Usar siempre este formato para historias de usuario.
 §
-CF tunnels: ForestAI (:3010, docker forestai-poc/) → /tmp/cf_forestai.log. Fleet (:8020, fleet-optimizer/poc/backend/) → /tmp/cf_fleet.log. 2>&1|tee. URLs efímeras. TTS ruso: ru-RU-DmitryNeural + ffmpeg libopus.
+CF tunnels: ForestAI (:3010 docker forestai-poc-frontend-1) /tmp/cf_forestai.log. Fleet (:8020) /tmp/cf_fleet.log. Deploy: npm run build + docker cp dist/. forestai-poc-frontend-1:/usr/share/nginx/html/.
 §
 DeepAgents: ~/brainstorming/2026-05-21-deepagents-spike/. deepagents==0.6.3+DeepSeek V4 Flash/NIM. Fleet OCR: EasyOCR+regex+Ollama qwen2.5:3b+PyMuPDF. Detección tipo doc: LISTA.
 §

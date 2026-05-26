@@ -46,6 +46,7 @@ SKILLS=(
   nelson-project-constitution
   nelson-rag-pipeline
   nelson-react-doctor
+  nelson-robotocore
   nelson-scheduled-jobs
   nelson-security
   nelson-senior-practices

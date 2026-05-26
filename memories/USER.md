@@ -2,10 +2,10 @@ Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack:
 §
 Nelson usa metodología spec-driven development (OpenAPI primero). Es action-oriented: ve el plan y quiere ejecutar. Preiere skills custom a medida de su flujo.
 §
-Nelson quiere revisar TODO antes de compartir con Pablo. JARVIS no envía nada a Pablo sin aprobación explícita de Nelson. Pablo es colega técnico que envía docs de referencia (ej: Manual Base PM Agente IA v1.0). Nelson integra ese material a los sistemas del equipo.
+Nelson revisa TODO antes de compartir con terceros. Pablo es COO de AlegentAI (mismo equipo) Y referente de la Empresa de Drones (socio externo en ForestAI) — está en los dos lados del deal. Envía docs de referencia que Nelson integra al sistema.
 §
 Nelson valida RAG. Nuevo interés: Arduino/IoT. Demos prefiere UI web. Amigos: Apo, Juli, Faku ("el chancho", WA: 5493813022552 — suscripto al canal IA).
 §
-Nelson prefiere trabajo pasito a pasito en tareas complejas. No quiere que yo adelante pasos ni haga todo de una sin su OK explícito. Preguntar antes de cada etapa significativa. Frase guía: "nadie nos apura".
+Voz TTS: castellano latino masculina (es-AR-TomasNeural). Guardado para producción.
 §
 Nelson trabaja en YPF como Líder Técnico en I+D+I (Innovación y Desarrollo). Está armando un área de I+D+I para la consultora de software. Contexto dual: emprendimiento + corporativo en energía.

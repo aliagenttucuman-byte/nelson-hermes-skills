@@ -77,7 +77,8 @@ Cuando Tony inicia un brainstorming:
 
 ## Pitfalls
 
-- **Market share >100% en spikes de datos energéticos:** El último mes del CSV suele estar incompleto (solo 1-3 empresas reportando). Siempre filtrar el mes de referencia por `count >= 20` empresas antes de calcular market share o totales. Calcular el share sobre el **mismo mes filtrado**, nunca sobre el acumulado anual.
+- **Docker container ≠ código fuente**: En ForestAI el frontend compilado vive en el container `forestai-poc-frontend-1` (puerto 3010). El tunnel CloudFlare apunta al container, NO al directorio de código. Después de cada `npm run build` hay que hacer: `docker cp ~/proyectos/forestai-3d/frontend/dist/. forestai-poc-frontend-1:/usr/share/nginx/html/`. Sin este paso los cambios no se ven aunque el build sea exitoso.
+- **NO guardar specs en `~/` suelto**
 - **Imagen no visible en WhatsApp desde path largo:** Si el `MEDIA:` apunta a un path profundo como `~/brainstorming/.../output/reporte.png` y Nelson no ve la imagen, copiarla a `/tmp/reporte.png` y reenviar desde ahí. Workaround confiable cuando el path incluye carpetas muy anidadas.
 - **sync-to-repo.sh necesita actualización manual:** El array `SKILLS=()` en `/home/server/repos/nelson-hermes-skills/sync-to-repo.sh` no se actualiza automáticamente. Cada vez que se crea una skill nueva con `skill_manage action=create`, agregarla al array antes del próximo sync o la skill no se pushea al repo GitHub.
 - **NO guardar specs en `~/` suelto**
@@ -186,6 +187,22 @@ auth/
 
 La carpeta `auth/` de Baileys contiene tokens de sesión de WhatsApp — **nunca subir al repo**.
 
+## Project Charter
+
+Cuando Nelson propone una iniciativa con socio externo (modelo CEO/COO con participación societaria), generar un **Project Charter** formal aplicando la metodología de Pablo:
+
+- PMI / ISO 21502 / PRINCE2 / Agile
+- Formato: 2-3 páginas, tablas, secciones enumeradas
+- Estructura: Contexto → Mandato → Alcance → RACI → Cronograma → Presupuesto → Riesgos → Estructura Societaria → KPIs → Próximos Pasos
+- Hipótesis de valor siempre en formato: `CREEMOS QUE... RESULTARÁ EN... CRITERIOS DE ACEPTACIÓN...`
+- Participación societaria estándar: Nelson 40-45% (tecnología), Socio 55-60% (dominio + clientes)
+- Formalización: sweat equity en MVP → SAS al primer cliente pago
+- Guardar como `PROJECT-CHARTER-v2.md` en la carpeta del proyecto
+- Entregar a Nelson como **PDF** (no .md — WhatsApp no renderiza markdown)
+  → usar el patrón WeasyPrint documentado en `nelson-documentation`
+
+Ver template: `templates/project-charter-template.md`
+
 ## Archivos de Soporte
 
 - `references/forestai-geotiff-sources.md` — Fuentes públicas de GeoTIFF forestales para PoCs de inventario forestal: NeonTreeEvaluation, ReforesTree, OpenAerialMap. Incluye comandos de descarga directa y limitaciones Argentina.
@@ -196,7 +213,7 @@ La carpeta `auth/` de Baileys contiene tokens de sesión de WhatsApp — **nunca
 - `references/fleet-optimizer-example.md` — Ejemplo concreto de SDD completo con VAN/TIR y OpenAPI
 - `references/cookie-extraction-epiphany.md` — Técnica para extraer cookies de GNOME Web/Epiphany y convertir a formato Playwright
 - `references/syncthing-vault-sync.md` — Cómo sincronizar un vault Obsidian entre servidor Linux y Windows vía Tailscale + Syncthing
-- `references/datos-energia-argentina.md` — Endpoints CSV de Secretaría de Energía, quirks SSL, filtro mes incompleto, KPIs benchmark Abril 2026
+- `templates/project-charter-template.md` — Template reutilizable para Project Charter (CEO/COO + participación societaria + metodología PM de Pablo)
 - `templates/reporte-energia-argentina.py` — Script completo: descarga → KPIs → reporte PNG dark mode (petróleo y gas por empresa)
 - `nelson-ai-vision/references/drowning-detection-market.md` — Análisis de mercado completo para sistema de detección de ahogamiento en piletas
 

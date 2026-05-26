@@ -475,11 +475,39 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-**Backend Python (boto3) — compatible con ambos sin cambios:**
+### Opción C: robotocore (emulador AWS completo — recomendado para nuevos proyectos)
+
+```yaml
+services:
+  robotocore:
+    image: jackdanger/robotocore:latest
+    ports: ["4566:4566"]
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: [qdrant-data:/qdrant/storage]
+
+  backend:
+    build: ./backend
+    ports: ["8000:8000"]
+    environment:
+      AWS_ENDPOINT_URL: http://robotocore:4566
+      AWS_ACCESS_KEY_ID: "123456789012"
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      S3_BUCKET: rag-documents
+      QDRANT_HOST: http://qdrant:6333
+      OLLAMA_HOST: http://172.17.0.1:11434
+    depends_on: [robotocore, qdrant]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Backend Python (boto3) — compatible con todos sin cambios:**
 ```python
 s3_client = boto3.client(
     "s3",
-    endpoint_url=os.getenv("AWS_ENDPOINT_URL"),  # http://minio:9000 o http://floci:4566
+    endpoint_url=os.getenv("AWS_ENDPOINT_URL"),  # http://minio:9000, http://floci:4566 o http://robotocore:4566
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", "test"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", "test123456"),
     region_name=os.getenv("AWS_REGION", "us-east-1"),
@@ -487,17 +515,21 @@ s3_client = boto3.client(
 )
 ```
 
-### FLoCI vs MinIO — Cuándo usar cada uno
+### robotocore vs FLoCI vs MinIO — Cuándo usar cada uno
 
-| Aspecto | FLoCI | MinIO |
-|---------|-------|-------|
-| Qué es | Emulador AWS (S3 + 30 servicios más) | S3 real local |
-| Persistencia | En memoria por defecto (se pierde al reiniciar) | En disco (volumen Docker) |
-| Overhead | Mayor (Quarkus native, emula mucho) | Menor (solo S3) |
-| Realismo AWS | Alto (API AWS real) | Medio (compatible S3) |
-| Ideal para | Testear migración futura a AWS | Stack local estable |
+| Aspecto | robotocore | FLoCI | MinIO |
+|---------|------------|-------|-------|
+| Qué es | Digital twin AWS (147 servicios) | Emulador AWS (~25 servicios) | S3 real local |
+| Persistencia | En memoria + snapshots API | En memoria por defecto | En disco (volumen Docker) |
+| Overhead | Medio (Moto-backed) | Mayor (Quarkus native) | Menor (solo S3) |
+| Realismo AWS | Muy alto (Moto maintainer) | Alto | Medio (compatible S3) |
+| Lambda | Python in-process | Limitado | N/A |
+| IAM | Opt-in (`ENFORCE_IAM=1`) | No | No |
+| Licencia | MIT | Apache 2.0 | AGPL v3 |
+| Ideal para | **Nuevos proyectos AWS**, CI/CD | Legacy / migración futura AWS | Stack local estable |
 
 Para persistencia con FLoCI: agregar `PERSISTENCE=1` como env var y montar volumen en `/app/data`.
+Para persistencia con robotocore: usar snapshots API (`POST /_robotocore/state/save`) o preferir MinIO.
 
 ### FLoCI-az (Azure equivalent)
 

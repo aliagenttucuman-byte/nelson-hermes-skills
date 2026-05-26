@@ -1,11 +1,11 @@
 # Template: AI Search Assistant PoC
 
-PoC de asistente IA con búsqueda web en tiempo real. Stack: FastAPI + DuckDuckGo + Ollama (local) + React/Vite. Deployable con FLoCI-AWS + Cloudflare.
+PoC de asistente IA con búsqueda web en tiempo real. Stack: FastAPI + DuckDuckGo + Ollama (local) + React/Vite. Deployable con **robotocore** (recomendado) o FLoCI-AWS (legacy) + Cloudflare.
 
 ## Puertos sugeridos (no pisar RAGs existentes)
 - Frontend: 8003
 - Backend: 8004
-- FLoCI: 4567
+- robotocore: 4566 (o 4567 si ya está usado)
 
 ## Backend (main.py)
 
@@ -70,7 +70,31 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 Sin este archivo el build falla con: `Property 'env' does not exist on type 'ImportMeta'`
 
-## docker-compose.yml
+## docker-compose.yml — robotocore (recomendado)
+```yaml
+services:
+  robotocore:
+    image: jackdanger/robotocore:latest
+    ports: ["4567:4566"]
+
+  backend:
+    build: ./backend
+    ports: ["8004:8000"]
+    environment:
+      - OLLAMA_HOST=http://host-gateway:11434
+    extra_hosts: ["host-gateway:host-gateway"]
+    depends_on: [robotocore]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=__API_URL__   # REEMPLAZAR con URL pública del backend ANTES de buildear
+    ports: ["8003:80"]
+    depends_on: [backend]
+```
+
+## docker-compose.yml — FLoCI-AWS (legacy)
 ```yaml
 services:
   floci:
@@ -91,7 +115,7 @@ services:
     build:
       context: ./frontend
       args:
-        - VITE_API_URL=__API_URL__   # REEMPLAZAR con URL pública del backend ANTES de buildear
+        - VITE_API_URL=__API_URL__
     ports: ["8003:80"]
     depends_on: [backend]
 
@@ -104,7 +128,7 @@ volumes:
 ```bash
 # 1. Buildear y levantar backend primero
 docker compose build backend
-docker compose up -d backend floci
+docker compose up -d backend robotocore   # o backend floci para legacy
 sleep 5 && curl http://localhost:8004/health  # verificar
 
 # 2. Crear túnel para el backend y capturar URL

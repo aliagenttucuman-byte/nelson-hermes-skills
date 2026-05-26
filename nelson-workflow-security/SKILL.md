@@ -14,6 +14,14 @@ dependencies: []
 
 # Nelson - Workflow Security & Leak Prevention
 
+## LECCIÓN CRÍTICA (2026-05-23): terminal/execute_code censura env vars al leer archivos
+
+Cuando se lee un archivo Python que contiene `os.getenv("VARIABLE")` usando `terminal("cat ...")` o `execute_code`, el output puede mostrar el valor real de la variable si está en el entorno — y la herramienta lo censura con `***`. Si luego ese output se usa para reescribir el archivo (patrón `cat → modificar → write_file`), la línea queda como `VARIABLE_NAME=***` lo que rompe el sintaxis del archivo.
+
+**Regla:** Nunca leer-modificar-reescribir un archivo Python con variables de entorno usando `cat`. Siempre usar `sed` o `python3 -c "..."` con operaciones quirúrgicas sobre la línea específica, o escribir el contenido correcto directamente con `write_file`.
+
+**Fix si ocurre:** `sed -i 's/^NOMBRE_VAR=\*\*\*$/NOMBRE_VAR = os.getenv("NOMBRE_VAR")/' archivo.py`
+
 ## LECCIÓN CRÍTICA (2026-05-16): Nunca hardcodear secrets en código o skills
 
 Cualquier archivo que se suba a GitHub (skills, código, referencias) NO puede contener keys reales:
