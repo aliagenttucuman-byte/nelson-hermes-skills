@@ -32,6 +32,8 @@ tags: [nelson, comunicación, whatsapp, audio, presentaciones]
 
 ### 2. Generar Audio para Terceros
 
+> **REGLA CRÍTICA DE APROBACIÓN:** Siempre generar el audio, reproducirlo para Nelson con MEDIA:/ruta, y esperar su OK explícito ANTES de enviarlo al tercero. Nelson quiere escuchar qué se le manda a sus contactos. No enviar sin que él lo apruebe primero.
+
 Cuando Nelson pide "mandale un audio" o "presentate":
 
 1. **Usar `text_to_speech`** con:
@@ -105,7 +107,7 @@ Re-confirmar cuando Nelson YA dijo qué enviar es fricción innecesaria y frustr
 
 | Nombre | Rol | Notas |
 |--------|-----|-------|
-| Pablo | Socio en consultora + Terapeuta | Presentarse como parte del equipo de agentes |
+| Pablo | Socio en consultora + Terapeuta | WA: +5493816240691. Enviar vía gateway Baileys (:3001), NO vía Hermes nativo (da error en contactos nuevos) |
 | Mercedes (8) | Hija | Mensajes familiares, afectuosos |
 | Julián (5) | Hijo | Mensajes familiares, afectuosos |
 

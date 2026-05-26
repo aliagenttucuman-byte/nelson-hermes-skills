@@ -20,12 +20,17 @@ services:
     ports: ["4566:4566"]
 ```
 - **SDK:** boto3 (drop-in, mismo que AWS real)
-- **Servicios:** 147 (S3, SQS, DynamoDB, Lambda, IAM, etc.)
-- **Persistencia:** ⚠️ En memoria por defecto, pero con API de snapshots (`POST /_robotocore/state/save` y `/load`)
-- **Ideal para:** Reemplazo permanente y gratuito de LocalStack/FLoCI, CI/CD, tests AWS
-- **Pitfall:** No permite habilitar servicios selectivamente (todo siempre on); Lambda solo Python in-process
-- **Licencia:** MIT, sin registro, sin telemetry
+- **Servicios:** 158 (S3, SQS, DynamoDB, Lambda, IAM, CloudFormation, Step Functions, EventBridge...)
+- **Operaciones:** 10.200+ (88% de todas las operaciones AWS)
+- **Persistencia:** en memoria por defecto; API de snapshots (`POST /_robotocore/state/save`)
+- **Ideal para:** reemplazo permanente y gratuito de LocalStack/FLoCI, CI/CD, tests AWS, agentes de IA
+- **Diferencial clave vs FLoCI-AWS:** Lambda ejecuta real (Python 3.8-3.13, Node 18/20/22), Step Functions real con 18 funciones intrínsecas, IAM con evaluación de políticas real, SQS con visibilidad real
+- **Tiene AGENTS.md:** pensado para agentes de IA que interactúen con AWS
+- **Construido 100% con IA** por Jack Danger (maintainer de Moto), sobre base Moto
+- **Licencia:** MIT, sin registro, sin telemetría
 - **Repo:** https://github.com/robotocore/robotocore
+- **Estado en equipo Nelson:** curiosidad tecnológica, no migrar aún. FLoCI-AWS sigue siendo la opción activa. Evaluar migración si se necesita Lambda real o Step Functions.
+- **Comparación directa con FLoCI-AWS:** robotocore es básicamente el sucesor espiritual — mismo puerto (4566), misma API boto3, pero con 147 servicios vs ~25 de FLoCI, Lambda real, Step Functions real, IAM con evaluación real, y snapshots. La diferencia clave es que robotocore ejecuta Lambda de verdad (no mock). FLoCI-AWS es legacy; robotocore es el candidato a reemplazarlo cuando se necesite algo más que S3.
 
 ### 2. MinIO (S3 real local)
 ```yaml
@@ -204,7 +209,6 @@ robotocore MinIO  FLoCI-Azure FLoCI  Qdrant  Ollama
 
 2. **Crear túneles Cloudflare** (uno por frontend y uno por backend):
    ```bash
-   # robotocore
    cloudflared tunnel --url http://localhost:8080 --protocol http2 &
    cloudflared tunnel --url http://localhost:8000 --protocol http2 &
 
