@@ -970,9 +970,9 @@ hermes config set auxiliary.vision.model <model_name>
 ## Azure AI Foundry Reference Files
 
 | File | Content |
-|------|---------|
-| `references/azure-foundry-claude.md` | Claude endpoint: verified config, curl test, how auto-detection works |
-| `references/azure-foundry-codex.md` | GPT-5.x/Codex: full patch documentation, diff, config, re-apply instructions |
+|------|---------|\n| `references/azure-foundry-claude.md` | Claude endpoint: verified config, curl test, how auto-detection works |
+| `references/azure-foundry-codex.md` | GPT-5.x/Codex: diagnóstico DeploymentNotFound, curl commands, config completo |
+| `references/webwright-browser-agent.md` | Webwright integration: arquitectura, comparativa vs browser-use/MCP, patrones |
 | `templates/azure-cognitive-patch.py` | Re-usable script to apply the `run_agent.py` patch automatically after Hermes updates |
 
 ---
