@@ -105,7 +105,11 @@ class IngestionPipeline:
         self.store = VectorStore()
 
     def ingest_document(self, doc_id: str, text: str, metadata: dict):
-        """Procesar un documento completo."""
+        """Procesar un documento completo.
+        
+        El parametro `text` viene del DocumentProcessor (Docling o fallback).
+        Ver skill `nelson-document-processing` para extraccion.
+        """
         chunks = chunk_text(text, chunk_size=500, chunk_overlap=50)
 
         texts = [c["text"] for c in chunks]
@@ -395,11 +399,12 @@ Antes de entregar un sistema RAG, validar con un documento de prueba extenso y r
 - [ ] Mismo modelo de embedding para ingestion y query
 - [ ] Chunk size apropiado (500-1000 tokens typical)
 - [ ] Overlap de 10-20% entre chunks
-- [ ] Metadata util en payloads (source, date, category)
+- [ ] Metadata util en payloads (source, date, category, processor)
+- [ ] Document Processor usa Docling para PDFs complejos / fallback para simples
 - [ ] Prompt claro con instrucciones de no alucinar
 - [ ] Sources devueltas al frontend para verificacion
 - [ ] Rate limiting en endpoints RAG (costoso)
-- [ ] Documento de prueba subido y validado antes de entregar
+- [ ] Documento de prueba subido y validado antes de entregar (PDF con texto extractable, no ReportLab Canvas puro)
 
 ## Arquitectura PoC Completa (Docker Compose)
 

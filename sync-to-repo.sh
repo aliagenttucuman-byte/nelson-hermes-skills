@@ -42,6 +42,7 @@ SKILLS=(
   nelson-rag-pipeline
   nelson-react-doctor
   nelson-robotocore
+  nelson-docling
   nelson-scheduled-jobs
   nelson-security
   nelson-senior-practices
