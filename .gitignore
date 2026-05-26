@@ -31,3 +31,23 @@ Thumbs.db
 *.tmp
 *.swp
 *.swo
+
+# Skills built-in de Hermes (no son del equipo Nelson)
+api-design-principles/
+architecture-patterns/
+async-python-patterns/
+debugging-hermes-tui-commands/
+hermes-agent-skill-authoring/
+node-inspect-debugger/
+plan/
+python-debugpy/
+python-design-patterns/
+python-project-structure/
+python-testing-patterns/
+requesting-code-review/
+spike/
+subagent-driven-development/
+systematic-debugging/
+test-driven-development/
+writing-plans/
+
