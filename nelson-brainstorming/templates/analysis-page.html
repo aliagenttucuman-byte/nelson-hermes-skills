@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>🔍 [PROYECTO] — Análisis Técnico</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.7; }
+
+  /* HEADER — cambiar color de fondo por proyecto */
+  .header { background: #cc0000; padding: 20px 24px 16px; position: relative; overflow: hidden; }
+  .header::after { content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px; background: rgba(255,255,255,0.05); border-radius: 50%; }
+  .header h1 { font-size: 22px; font-weight: 800; color: #fff; }
+  .header .sub { font-size: 13px; color: rgba(255,255,255,0.8); margin-top: 4px; }
+  .header .badges { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .badge { background: rgba(255,255,255,0.15); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25); }
+
+  .container { max-width: 920px; margin: 0 auto; padding: 28px 16px 100px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 6px; margin-bottom: 28px; flex-wrap: wrap; border-bottom: 1px solid #21262d; padding-bottom: 14px; }
+  .tab { padding: 8px 16px; border-radius: 8px; border: 1px solid #30363d; background: #161b22; color: #8b949e; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .tab:hover { border-color: #cc0000; color: #ff6b6b; }
+  .tab.active { background: #cc0000; border-color: #cc0000; color: #fff; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* CARDS */
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+  .card-title { font-size: 13px; font-weight: 700; color: #cc0000; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #21262d; display: flex; align-items: center; gap: 8px; }
+
+  /* ARCH DIAGRAM */
+  .arch-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 14px 0; }
+  .arch-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 10px 14px; font-size: 13px; text-align: center; min-width: 110px; }
+  .arch-box .label { font-size: 10px; color: #8b949e; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .arch-box .name { font-weight: 700; font-size: 13px; }
+  .arch-box.highlight { border-color: #cc0000; }
+  .arch-box.highlight .name { color: #ff6b6b; }
+  .arch-box.green { border-color: #3fb950; }
+  .arch-box.green .name { color: #7ee787; }
+  .arch-box.blue { border-color: #1f6feb; }
+  .arch-box.blue .name { color: #79c0ff; }
+  .arch-box.purple { border-color: #8957e5; }
+  .arch-box.purple .name { color: #d2a8ff; }
+  .arch-arrow { color: #30363d; font-size: 18px; padding: 0 6px; }
+
+  /* TEXT */
+  p { color: #cdd9e5; margin-bottom: 12px; font-size: 15px; }
+  h3 { font-size: 15px; font-weight: 700; color: #e6edf3; margin: 16px 0 8px; }
+  ul, ol { padding-left: 20px; color: #cdd9e5; }
+  li { margin-bottom: 7px; font-size: 14px; }
+  strong { color: #e6edf3; }
+  code { background: #21262d; border-radius: 4px; padding: 2px 6px; font-family: 'Consolas', monospace; font-size: 13px; color: #e3b341; }
+  pre { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 14px 16px; font-family: 'Consolas', monospace; font-size: 13px; overflow-x: auto; margin: 10px 0; color: #e6edf3; line-height: 1.6; }
+
+  /* PRO/CON/IMPROVE items */
+  .item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #21262d; }
+  .item:last-child { border-bottom: none; }
+  .item-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+  .item-body .title { font-weight: 700; font-size: 14px; color: #e6edf3; margin-bottom: 3px; }
+  .item-body .desc { font-size: 13px; color: #8b949e; line-height: 1.6; }
+  .item-body .snippet { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 12px; color: #e6edf3; margin-top: 6px; overflow-x: auto; }
+
+  /* SCORE CARDS */
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 14px 0; }
+  .score-card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 14px; text-align: center; }
+  .score-card .score-val { font-size: 28px; font-weight: 800; }
+  .score-card .score-label { font-size: 11px; color: #8b949e; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .score-card.green .score-val { color: #7ee787; }
+  .score-card.yellow .score-val { color: #e3b341; }
+  .score-card.red .score-val { color: #f47067; }
+  .score-card.blue .score-val { color: #79c0ff; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13px; }
+  th { background: #161b22; color: #8b949e; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; padding: 10px 12px; text-align: left; }
+  td { padding: 10px 12px; border-bottom: 1px solid #21262d; color: #cdd9e5; }
+  tr:last-child td { border-bottom: none; }
+  .tag-green { color: #7ee787; }
+  .tag-yellow { color: #e3b341; }
+  .tag-red { color: #f47067; }
+
+  /* CALLOUT NOTES */
+  .note-blue   { background: #0d2137; border-left: 3px solid #1f6feb; border-radius: 0 8px 8px 0; padding: 12px 15px; margin: 10px 0; font-size: 14px; color: #cdd9e5; }
+  .note-green  { background: #0d2613; border-left: 3px solid #3fb950; border-radius: 0 8px 8px 0; padding: 12px 15px; margin: 10px 0; font-size: 14px; color: #cdd9e5; }
+  .note-red    { background: #2d1212; border-left: 3px solid #cc0000; border-radius: 0 8px 8px 0; padding: 12px 15px; margin: 10px 0; font-size: 14px; color: #cdd9e5; }
+  .note-yellow { background: #2d2400; border-left: 3px solid #e3b341; border-radius: 0 8px 8px 0; padding: 12px 15px; margin: 10px 0; font-size: 14px; color: #cdd9e5; }
+
+  /* PRIORITY BADGES */
+  .prio { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; margin-left: 6px; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.5px; }
+  .prio-high { background: #4a1c1c; color: #f47067; }
+  .prio-med  { background: #3d2e00; color: #e3b341; }
+  .prio-low  { background: #1f3d22; color: #7ee787; }
+
+  /* DIVIDER */
+  hr { border: none; border-top: 1px solid #21262d; margin: 20px 0; }
+
+  /* FEATURE BAR CHART */
+  .feature-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .feature-name { min-width: 220px; color: #cdd9e5; font-family: monospace; font-size: 12px; }
+  .feature-bar-bg { flex: 1; background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; }
+  .feature-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #cc0000, #ff6b6b); }
+  .feature-pct { min-width: 40px; text-align: right; color: #8b949e; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    .arch-flow { flex-direction: column; align-items: flex-start; }
+    .arch-arrow { transform: rotate(90deg); padding: 4px 0; }
+    .score-grid { grid-template-columns: 1fr 1fr; }
+    .feature-name { min-width: 140px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔍 [NOMBRE DEL PROYECTO]</h1>
+  <div class="sub">[Subtítulo — tipo de análisis, stack, contexto]</div>
+  <div class="badges">
+    <span class="badge">[Badge 1]</span>
+    <span class="badge">[Badge 2]</span>
+    <span class="badge">[Stack]</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">📐 Descripción</div>
+    <div class="tab" onclick="switchTab('arch')">🏗️ Arquitectura</div>
+    <div class="tab" onclick="switchTab('core')">🤖 Core/Modelo</div>
+    <div class="tab" onclick="switchTab('pros')">✅ Aciertos</div>
+    <div class="tab" onclick="switchTab('cons')">⚠️ Problemas</div>
+    <div class="tab" onclick="switchTab('mejoras')">🚀 Mejoras</div>
+  </div>
+
+  <!-- TAB: DESCRIPCIÓN -->
+  <div class="section active" id="tab-overview">
+    <div class="card">
+      <div class="card-title">🎯 ¿Qué es este proyecto?</div>
+      <p>[Descripción del proyecto]</p>
+    </div>
+
+    <div class="score-grid">
+      <div class="score-card blue"><div class="score-val">0</div><div class="score-label">Métrica 1</div></div>
+      <div class="score-card green"><div class="score-val">0%</div><div class="score-label">Métrica 2</div></div>
+      <div class="score-card yellow"><div class="score-val">0</div><div class="score-label">Métrica 3</div></div>
+    </div>
+  </div>
+
+  <!-- TAB: ARQUITECTURA -->
+  <div class="section" id="tab-arch">
+    <div class="card">
+      <div class="card-title">🏗️ Arquitectura general</div>
+      <div class="arch-flow">
+        <div class="arch-box blue"><div class="label">Input</div><div class="name">Origen</div></div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box highlight"><div class="label">Core</div><div class="name">Proceso</div></div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-box green"><div class="label">Output</div><div class="name">Resultado</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: CORE / MODELO -->
+  <div class="section" id="tab-core">
+    <div class="card">
+      <div class="card-title">⚙️ Lógica principal</div>
+      <p>[Descripción del core]</p>
+    </div>
+  </div>
+
+  <!-- TAB: ACIERTOS -->
+  <div class="section" id="tab-pros">
+    <div class="card">
+      <div class="card-title">✅ Lo que se hizo muy bien</div>
+      <div class="item">
+        <div class="item-icon">⚡</div>
+        <div class="item-body">
+          <div class="title">Título del acierto</div>
+          <div class="desc">Descripción detallada.</div>
+          <div class="snippet">código de ejemplo si aplica</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: PROBLEMAS -->
+  <div class="section" id="tab-cons">
+    <div class="card">
+      <div class="card-title">⚠️ Problemas detectados</div>
+      <div class="item">
+        <div class="item-icon">🔴</div>
+        <div class="item-body">
+          <div class="title">Bug crítico <span class="prio prio-high">crítico</span></div>
+          <div class="desc">Descripción del bug.</div>
+          <div class="snippet">código del bug ❌</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: MEJORAS -->
+  <div class="section" id="tab-mejoras">
+    <div class="card">
+      <div class="card-title">🚀 Mejoras prioritarias</div>
+      <div class="item">
+        <div class="item-icon">1️⃣</div>
+        <div class="item-body">
+          <div class="title">Mejora 1 <span class="prio prio-high">alto impacto</span></div>
+          <div class="desc">Descripción y justificación.</div>
+          <div class="snippet">código de la mejora</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 Roadmap</div>
+      <table>
+        <tr><th>#</th><th>Mejora</th><th>Impacto</th><th>Esfuerzo</th></tr>
+        <tr><td>1</td><td>Mejora 1</td><td class="tag-red">Crítico</td><td class="tag-green">30 min</td></tr>
+        <tr><td>2</td><td>Mejora 2</td><td class="tag-yellow">Medio</td><td class="tag-yellow">1 día</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+</script>
+</body>
+</html>

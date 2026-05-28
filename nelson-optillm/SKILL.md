@@ -19,7 +19,7 @@ OptiLLM es un proxy OpenAI API que intercepta requests y aplica técnicas de opt
 |---------|--------|
 | **OpenCode Zen API** | ✅ Conectado — `gpt-5.4-nano` default en producción |
 | Infraestructura local | ✅ Ollama + OptiLLM + 3 RAGs corriendo |
-| Integración RAGs | ⏳ Pendiente — requiere cambiar `base_url` y `model` en cada backend |
+| Integración RAGs | ✅ Completada — 3 RAGs migrados a OpenCode Zen |
 | Benchmarks | ✅ Completados (mayo 2026) |
 | Skill + Templates | ✅ Actualizados (OpenCode Zen + OptiLLM) |
 
@@ -163,15 +163,30 @@ export OPTILLM_TECHNIQUE=moa
 export OPTILLM_MODEL=llama3.1:8b
 ```
 
-## 10. Comandos útiles
+## 10. Pitfalls — OpenCode Zen
+
+1. **Modelos `-free` NO funcionan.** `deepseek-v4-flash-free`, `qwen3.6-plus-free`, `minimax-m2.5-free` devuelven respuestas vacías o errores. Siempre usar la versión paga.
+2. **Headers `HTTP-Referer` y `X-Title` son obligatorios.** Sin ellos, OpenCode Zen rechaza el request.
+3. **URL base correcta:** `https://opencode.ai/zen/v1`. NO `api.opencode.ai`, NO `api.opencode.com`, NO `openrouter.ai`.
+4. **Math con `gpt-5.4-nano` es limitado.** Para reasoning matemático, usar `claude-sonnet-4` o `kimi-k2.6`.
+5. **La API key funciona con OpenRouter para listar modelos**, pero la URL de chat completions es específica de OpenCode Zen (`/zen/v1/chat/completions`).
+6. **Los túneles Cloudflare pueden dar 403/530 en redes corporativas.** Si fallan, probar Serveo, Localtunnel, o acceso directo por VPN.
+
+## 11. Comandos útiles
 
 ### OpenCode Zen (producción)
 
+> **Pitfall Docker:** El `docker-compose.yml` usa `${OPENCODE_API_KEY:-}` que lee del **shell del host**, no del archivo `~/secrets/opencode.env`. Si no está exportada, el contenedor usa fallback a Ollama. Siempre hacer `set -a && source ~/secrets/opencode.env && set +a` antes de `docker compose up`.
+
 ```bash
+# Cargar credenciales ANTES de docker compose
+set -a && source ~/secrets/opencode.env && set +a
+
 # Test rápido con gpt-5.4-nano
 curl https://opencode.ai/zen/v1/chat/completions \
   -H "Authorization: Bearer $OPENCODE_API_KEY" \
   -H "HTTP-Referer: https://tu-app.com" \
+  -H "X-Title: NelsonRAG" \
   -H "Content-Type: application/json" \
   -d '{"model":"gpt-5.4-nano","messages":[{"role":"user","content":"Hola"}]}'
 
@@ -200,6 +215,10 @@ pkill -f 'optillm --base_url'
 
 ## 11. Referencias
 
+- `references/opencode-zen-api.md` — Detalles técnicos de la API (endpoint, headers, modelos, pitfall Docker)
 - `references/benchmark-mayo-2026.md` — Reporte completo del benchmark
+- `templates/rag-opencode-backend.py` — Template FastAPI con switch OpenCode Zen/Ollama/OptiLLM
+- `templates/rag-optillm-backend.py` — Template FastAPI con switch OptiLLM/Ollama
+- Repo upstream: https://github.com/algorithmicsuperintelligence/optillm
 - `templates/rag-optillm-backend.py` — Template FastAPI con switch OptiLLM/Ollama
 - Repo upstream: https://github.com/algorithmicsuperintelligence/optillm

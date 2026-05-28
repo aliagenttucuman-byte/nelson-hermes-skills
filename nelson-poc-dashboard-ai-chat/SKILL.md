@@ -342,6 +342,43 @@ curl -s -o /dev/null -w "%{http_code}" https://<url>.trycloudflare.com
 
 ---
 
+## Patron Chat con TTS toggle (produccion 2026-05)
+
+Para dashboards internos donde el usuario quiere elegir texto vs texto+audio:
+
+```typescript
+// Toggle en el frontend
+const [audioMode, setAudioMode] = useState(false)
+
+// Al recibir done del SSE:
+if (audioMode) {
+  const blob = await fetch('/api/chat/speak', { method: 'POST', body: JSON.stringify({ text: fullText }) }).then(r => r.blob())
+  const url = URL.createObjectURL(blob)
+  setMessages(prev => prev.map(m => m.id === id ? { ...m, audioUrl: url } : m))
+  new Audio(url).play()
+}
+```
+
+Endpoint TTS en FastAPI:
+```python
+@app.post("/chat/speak")
+async def speak(req: SpeakRequest):
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp.close()
+    proc = await asyncio.create_subprocess_exec(
+        "edge-tts", "--voice", "es-AR-TomasNeural",
+        "--text", req.text[:2000], "--write-media", tmp.name,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return FileResponse(tmp.name, media_type="audio/mpeg")
+```
+
+Pitfall: el proxy `/api/chat` en vite.config cubre `/api/chat/speak` automaticamente
+por ser prefijo — no hace falta entrada separada.
+
+---
+
 ## Pitfalls
 
 ### Campos derivados en el context builder para el LLM

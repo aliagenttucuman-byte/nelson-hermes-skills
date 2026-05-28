@@ -240,9 +240,87 @@ mi-proyecto/
 
 ### Para migrar skills a máquina nueva o onboarding de equipo:
 1. Clonar `nelson-hermes-skills` desde GitHub
-2. Correr `./sync-from-repo.sh` para instalar las 22 skills custom
+2. Correr `./sync-from-repo.sh` para instalar las skills custom
 3. Verificar con `hermes skills list | grep nelson`
 4. Ver `references/skill-backup-workflow.md` para detalles completos
+
+### Convención del repo de skills (`nelson-hermes-skills`)
+
+El repo **solo debe contener skills propias del equipo Nelson**. Las skills built-in de Hermes (apple, creative, mlops, github, media, devops, python-*, autonomous-ai-agents, etc.) NO deben estar trackeadas — Hermes las gestiona por su cuenta.
+
+**Problema de duplicados — software-development/:**
+Las skills nuestras existen en dos lugares:
+- `/home/server/.hermes/skills/nelson-XXXX/` ← raíz, **estas van al repo**
+- `/home/server/.hermes/skills/software-development/nelson-XXXX/` ← duplicados, ignorados en git
+
+Cuando se agrega una skill nueva, verificar que esté en la **raíz**:
+```bash
+cd /home/server/.hermes/skills
+git ls-files nelson-nueva-skill/  # debe mostrar archivos
+# Si no aparece, copiar desde software-development/ y agregar:
+cp -r software-development/nelson-nueva-skill/ nelson-nueva-skill/
+git add nelson-nueva-skill/ && git commit -m "feat: agregar skill" && git push origin main
+```
+
+**Verificar integridad completa:**
+```bash
+cd /home/server/.hermes/skills
+for dir in nelson-* agency-* equipo-nelson; do
+    [ -d "$dir" ] || continue
+    git ls-files --error-unmatch "$dir" > /dev/null 2>&1 || echo "NO TRACKEADA: $dir"
+done
+```
+
+**Conteo real:** ~70 skills únicas del equipo en el repo (no confundir con ~250 locales que incluyen genéricas Hermes + duplicados de software-development/).
+
+**`git rm --cached` es seguro:** solo remueve del tracking remoto, no borra archivos locales.
+
+**Síntoma de contaminación:** El repo tiene carpetas como `api-design-principles/`, `creative/`, `apple/`, `autonomous-ai-agents/`, `mlops/`, `software-development/` (que es una categoría de Hermes, no una skill propia).
+
+**Limpieza cuando el repo se contamina con skills de Hermes:**
+```python
+import subprocess
+
+hermes_builtin = [
+    'api-design-principles', 'api-docs-writer', 'apple', 'architecture-patterns',
+    'async-python-patterns', 'autonomous-ai-agents', 'creative', 'data-science',
+    'debugging-hermes-tui-commands', 'devops', 'diagramming', 'dogfood', 'domain',
+    'email', 'gaming', 'gifs', 'github', 'hermes-agent-skill-authoring',
+    'inference-sh', 'mcp', 'media', 'mlops', 'node-inspect-debugger', 'note-taking',
+    'plan', 'productivity', 'python-debugpy', 'python-design-patterns',
+    'python-project-structure', 'python-testing-patterns', 'red-teaming',
+    'requesting-code-review', 'research', 'smart-home', 'social-media',
+    'software-development', 'spike', 'subagent-driven-development',
+    'systematic-debugging', 'test-driven-development', 'writing-plans', 'yuanbao'
+]
+result = subprocess.run(
+    ["git", "rm", "--cached", "-r"] + hermes_builtin,
+    cwd="/home/server/.hermes/skills", capture_output=True, text=True
+)
+# luego git commit + push
+```
+
+**gitignore del repo** (debe existir `~/.hermes/skills/.gitignore`):
+```
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+dist/
+build/
+*.log
+.DS_Store
+```
+
+**Skills del equipo Nelson (prefijos válidos):**
+- `nelson-*` — todas las skills del equipo
+- `equipo-nelson` — skill maestra
+- `nvidia-nim-free-api` — integración de modelos NVIDIA
+- `fastapi` — convención del stack
+- `spec-driven-development` — metodología core
+- `brainstorming/` — directorio de documentos y PoCs
+- `memories/` — snapshots de memoria
 
 ### Para nuevas features:
 1. Nelson describe la feature
@@ -392,7 +470,19 @@ networks:
 - Vector DB (pgvector o Chroma) para RAG
 - Prompts versionados en `backend/app/prompts/`
 
-## Comunicación entre Agentes
+## Meta-Orquestador (desde mayo 2026)
+
+El equipo ahora cuenta con un meta-agente orquestador formal. Ver skills:
+- `nelson-meta-orchestrator` — loop GOAL→DECOMPOSE→ASSIGN→EXECUTE→VERIFY
+- `nelson-task-memory` — persistencia SQLite en `localhost:8742` (systemd)
+- `nelson-agent-routing` — router declarativo por categoría de tarea
+- `nelson-eval-harness` — métricas de calidad 0-100 por tarea
+- `nelson-context-handoff` — HandoffPacket entre agentes
+
+**JARVIS ya actúa como meta-orquestador** via `delegate_task`. La formalización
+es incremental — no rompe el flujo existente.
+
+### Comunicación entre Agentes
 
 Cuando un agente necesita algo de otro:
 - Beto (arquitecto backend) genera el OpenAPI schema → Nico (frontend) lo consume
@@ -461,6 +551,27 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True)
 ```
+
+### Pitfall: GitHub bloquea archivos > 100 MB
+
+El repo de skills puede acumular backups `.tar.gz` que superan el límite de GitHub (100 MB).
+Si el push falla con `GH001: Large files detected`:
+
+```bash
+# Sacar el archivo grande del tracking
+git rm --cached .curator_backups/FECHA/skills.tar.gz
+
+# Agregar al .gitignore
+echo "*.tar.gz" >> .gitignore
+echo "*.tar" >> .gitignore
+
+# Enmendar el commit y pushear
+git add .gitignore
+git commit --amend --no-edit
+git push
+```
+
+Agregar `*.tar.gz` y `*.tar` al `.gitignore` del repo de skills **desde el inicio** para evitar este problema.
 
 ## Próximos Pasos Sugeridos
 

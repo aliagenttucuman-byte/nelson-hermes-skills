@@ -82,13 +82,20 @@ No tiene docker-compose. Para levantar:
 # Asegurarse que el dist está compilado
 ls /home/server/brainstorming/2026-05-22-fleet-optimizer/poc/frontend/dist
 
-# Levantar backend (sirve también el frontend)
+# Instalar dependencias (usar python3 -m pip, no pip a secas — puede no estar en PATH)
 cd /home/server/brainstorming/2026-05-22-fleet-optimizer/poc/backend
-pip install -q -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8020
+python3 -m pip install -q -r requirements.txt
+
+# Levantar en background con terminal(background=True) — NO usar nohup/& en foreground
+# uvicorn main:app --host 0.0.0.0 --port 8020
 ```
 
 El frontend dist ya existe compilado — no hace falta `npm run build` salvo cambios en el código.
+
+Health check: `curl http://localhost:8020/health` → `{"status":"ok","trucks":10}`
+
+**Pitfall — `pip` no encontrado**: en el servidor, usar `python3 -m pip` en vez de `pip` directo.
+**Pitfall — nohup en terminal foreground**: usar `terminal(background=True)` de Hermes para procesos en background, no wrappers de shell como `nohup ... &` que causan error en terminal foreground.
 
 ### Módulo OCR de comprobantes de combustible
 

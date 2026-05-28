@@ -941,40 +941,54 @@ tasks show a1b2c3d4
 
 SQLite soporta múltiples lectores concurrentes pero solo un escritor a la vez. Con WAL mode (`PRAGMA journal_mode=WAL`) esto es suficiente para el uso del meta-agente. Si en el futuro hay alta escritura concurrente, migrar a PostgreSQL usando la misma interfaz crud.
 
-### 2. No borrar tareas, cancelarlas
+### 2. Borrado vs cancelación — cuándo usar cada uno
 
-Nunca hacer `DELETE` en tasks. Siempre marcar como `cancelled`. El historial es valioso para debugging y auditoría. Si el espacio es un problema, archivar en una tabla `tasks_archive` después de 90 días.
+Para **tareas de trabajo real** preferir `cancelled` (preserva historial). Para **limpieza de historial** (tareas de prueba, experiments, runs que ya no interesan) hay endpoints DELETE que borran en cascada (subtareas + artefactos + sesiones).
 
-**Patrón de limpieza masiva (batch cancel):**
+**Endpoints DELETE disponibles (en producción desde 2026-05-26):**
 
-Cuando hay tareas de prueba, huérfanas o desactualizadas que ensucian el estado, cancelarlas en batch via PATCH. No hay endpoint bulk nativo — iterar con curl o httpx:
+```bash
+# Borrar una tarea individual con todo su árbol
+DELETE /tasks/{task_id}
+# → { "deleted": "uuid" }
 
-```python
-import httpx
-
-ids_to_cancel = ["uuid-1", "uuid-2", ...]  # IDs a limpiar
-
-for tid in ids_to_cancel:
-    r = httpx.patch(
-        f"http://localhost:8742/tasks/{tid}/status",
-        json={"status": "cancelled", "result_summary": "Limpieza manual — tarea obsoleta"},
-        timeout=5,
-    )
-    print(f"  {tid[:8]}... → {r.json().get('status')}")
-
-# Verificar que quedó limpio:
-pending = httpx.get("http://localhost:8742/tasks/pending").json()
-assert pending == [], f"Aún hay pendientes: {pending}"
+# Borrar todas las tareas de un estado en bloque
+DELETE /tasks/bulk/{status}   # done | failed | cancelled | pending
+# → { "deleted_count": N, "status": "done" }
 ```
 
-Usar `curl` desde bash:
 ```bash
-for id in uuid-1 uuid-2; do
-  curl -s -X PATCH http://localhost:8742/tasks/$id/status \
-    -H "Content-Type: application/json" \
-    -d '{"status":"cancelled","result_summary":"Limpieza manual"}'
-done
-curl -s http://localhost:8742/tasks/pending  # debe retornar []
+# Ejemplos curl
+curl -X DELETE http://localhost:8742/tasks/{task_id}
+curl -X DELETE http://localhost:8742/tasks/bulk/done
+curl -X DELETE http://localhost:8742/tasks/bulk/failed
+```
+
+```python
+# Desde Python
+import httpx
+httpx.delete(f"http://localhost:8742/tasks/{task_id}")
+httpx.delete("http://localhost:8742/tasks/bulk/failed")
+```
+
+**Regla de uso:**
+- `bulk/done` + `bulk/failed` → limpieza periódica de historial viejo (safe, no hay recuperación)
+- `bulk/pending` → usar con cuidado, borra tareas activas esperando ejecución
+- Individual por ID → para limpiar una tarea específica con sus subtareas
+- No exponer bulk/pending en el dashboard (demasiado destructivo por accidente)
+
+**Implementación en crud.py** — borra en cascada:
+```python
+def delete_task(task_id):
+    # 1. sub_ids = SELECT id WHERE parent_task_id = task_id
+    # 2. Para cada sub: DELETE artifacts, sessions, task
+    # 3. DELETE artifacts, sessions, task principal
+    # Retorna bool (False si no existía)
+
+def delete_tasks_by_status(status):
+    # Solo borra tareas raíz (parent_task_id IS NULL) del status dado
+    # Las subtareas se borran en cascada via delete_task()
+    # Retorna count de tareas raíz borradas
 ```
 
 ### 3. IDs de sesión Hermes deben ser consistentes

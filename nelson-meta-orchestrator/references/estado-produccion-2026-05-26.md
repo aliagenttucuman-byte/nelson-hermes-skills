@@ -8,34 +8,29 @@
 | nelson-agent-router | :8743 | active (running) | Router de goals → agentes |
 | nelson-meta-orchestrator | :8744 | active (running) | Loop GOAL→ROUTE→EXECUTE→VERIFY→NOTIFY |
 
-Todos con `enabled` → levantan solos al reiniciar el servidor.
+Dashboard: :5174 (Vite + CF tunnel). PIN: 123456.
 
-Orden de arranque garantizado por `After=` y `Wants=` en el .service:
-- task-memory y router primero
-- orchestrator después (depende de ambos)
+## Endpoints activos en :8744
 
-## Pitfall del deploy de systemd
+- POST /run — ejecuta inmediatamente (backward compat)
+- POST /plan — arma plan, persiste con status pending, devuelve task_id
+- POST /run/confirm/{task_id} — Tony aprueba, recien ahi ejecuta
+- GET /ws — WebSocket live feed
+- POST /chat — SSE streaming con hermes -z
+- POST /chat/speak — TTS edge-tts, devuelve MP3
+- POST /docs/generate — genera HTML manual con Playwright (WIP)
+- GET /docs/download/{filename}
 
-El orquestador corría como proceso uvicorn en background antes de instalar el servicio.
-Cuando se instaló y arrancó el systemd, falló con `[Errno 98] address already in use`.
+## Endpoints activos en :8742
 
-**Solución:**
-```bash
-fuser -k 8744/tcp   # matar proceso viejo
-sudo systemctl restart nelson-meta-orchestrator
-```
+- GET/POST /tasks
+- DELETE /tasks/{task_id} — cascada
+- DELETE /tasks/bulk/{status}
+- PATCH /tasks/{id}/status
 
-Regla: antes de instalar un systemd service para un proceso que ya corre en background,
-matar el proceso existente primero.
+## PITFALL CRITICO: PATH en systemd
 
-## Next sprint (evoluciones pendientes)
-
-1. **WebSocket broadcast desde dentro del loop** → el dashboard (:5174) se actualiza en tiempo real mientras el orquestador ejecuta una tarea (hoy el dashboard hace polling manual).
-2. **Endpoint `/tasks/{id}/replay`** → re-correr una tarea cancelada o fallida sin tener que copiar el goal y crear una nueva. Útil para el flujo de operación diaria.
-
-## Dashboard
-
-- Puerto :5174 (Vite + Cloudflare tunnel)
-- PIN: 741852
-- Live feed via WebSocket /ws en :8744
-- Presupuestación automática por tarea
+Subprocesses lanzados desde uvicorn/systemd no tienen ~/.local/bin en PATH.
+Usar siempre rutas absolutas:
+- hermes: /home/server/.local/bin/hermes
+- edge-tts: /home/server/.hermes/hermes-agent/venv/bin/edge-tts

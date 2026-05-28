@@ -2,17 +2,17 @@
 
 ## Estado final del stack
 
-Todos los servicios del meta-orquestador corren como systemd services con restart automático:
+Todos los servicios del meta-orquestador corren como systemd services con restart automatico:
 
-| Puerto | Servicio                     | Estado   |
-|--------|------------------------------|----------|
-| :8742  | nelson-task-memory.service   | ✅ active |
-| :8743  | nelson-agent-router.service  | ✅ active |
-| :8744  | nelson-meta-orchestrator.service | ✅ active |
+| Puerto | Servicio                         | Estado   |
+|--------|----------------------------------|----------|
+| :8742  | nelson-task-memory.service       | active   |
+| :8743  | nelson-agent-router.service      | active   |
+| :8744  | nelson-meta-orchestrator.service | active   |
 
-El dashboard (Vite + CF tunnel) corre aparte.
+El dashboard (Vite + CF tunnel) corre aparte en :5174.
 
-## Procedimiento de instalación
+## Procedimiento de instalacion
 
 Script en `/home/server/nelson/meta-orchestrator/install-service.sh`
 
@@ -24,33 +24,60 @@ El script copia el `.service` a `/etc/systemd/system/`, hace `daemon-reload`, `e
 
 ## Pitfall: Address already in use al instalar
 
-**Problema:** Al correr `install-service.sh`, el servicio falla con `[Errno 98] address already in use` porque el orquestador ya estaba corriendo en background (uvicorn lanzado manualmente en sesiones anteriores).
+**Problema:** Al correr `install-service.sh`, el servicio falla con `[Errno 98] address already in use`.
 
-**Solución:**
+**Solucion:**
 ```bash
-# Matar el proceso que ocupa el puerto
 fuser -k 8744/tcp 2>&1
-# Esperar un momento y reiniciar el servicio
 sleep 2
 echo 'srv2026' | sudo -S systemctl restart nelson-meta-orchestrator
 ```
 
-**Lección:** Antes de instalar el systemd service, siempre verificar si el puerto ya está en uso con `fuser 8744/tcp` o `ss -tlnp | grep 8744`.
+Regla: antes de instalar un systemd service, verificar `ss -tlnp | grep 8744`.
 
-## Limpieza de tareas obsoletas
+## PITFALL CRITICO: subprocesses desde systemd no tienen PATH del usuario
 
-No hay endpoint DELETE en task-memory. Para limpiar tareas de prueba, usar PATCH al endpoint de status:
+**Problema:** El servicio corre con `User=server` pero el PATH del proceso NO incluye `~/.local/bin` ni venvs del usuario. Subprocesses como `hermes -z` o `edge-tts` fallan silenciosamente.
 
-```bash
-curl -s -X PATCH http://localhost:8742/tasks/{task_id}/status \
-  -H "Content-Type: application/json" \
-  -d '{"status":"cancelled","result_summary":"Limpieza manual — tarea de prueba obsoleta"}'
+**Sintoma tipico:** Endpoint SSE devuelve HTTP 200 pero no llegan chunks de datos al frontend. El streaming queda colgado.
+
+**Solucion:** SIEMPRE usar rutas absolutas en subprocesses lanzados desde uvicorn/systemd:
+
+```python
+# MAL - no encontrado en systemd
+proc = await asyncio.create_subprocess_exec("hermes", "-z", prompt, ...)
+proc = await asyncio.create_subprocess_exec("edge-tts", "--voice", ...)
+
+# BIEN - rutas absolutas
+proc = await asyncio.create_subprocess_exec(
+    "/home/server/.local/bin/hermes", "-z", prompt, ...)
+proc = await asyncio.create_subprocess_exec(
+    "/home/server/.hermes/hermes-agent/venv/bin/edge-tts", "--voice", ...)
 ```
 
-Verificar que quedó limpio: `curl -s http://localhost:8742/tasks/pending` debe retornar `[]`.
+**Binarios conocidos del stack Nelson:**
+- hermes CLI: `/home/server/.local/bin/hermes`
+- edge-tts: `/home/server/.hermes/hermes-agent/venv/bin/edge-tts`
+
+Regla general: cualquier binario instalado en el home del usuario requiere ruta absoluta cuando lo invoca un servicio systemd.
+
+## Limpieza de tareas
+
+Desde 2026-05-26 hay endpoints DELETE en task-memory:
+- `DELETE /tasks/{task_id}` — elimina tarea + subtareas en cascada
+- `DELETE /tasks/bulk/{status}` — limpia todas las del estado dado (done/failed/cancelled/pending)
+
+Antes de esta sesion, la unica forma era PATCH a status=cancelled.
+
+## Estado del dashboard (post sesion 2026-05-26)
+
+- PIN cambiado de `741852` a `123456`
+- Nuevas paginas: Chat JARVIS (/chat), Documentacion (/docs)
+- Flujo orquestador: POST /plan -> revisar -> POST /run/confirm/{task_id}
+- Proxy vite: /api/chat -> :8744/chat, /api/docs -> :8744/docs
 
 ## Evoluciones pendientes (next sprint)
 
-1. **WebSocket broadcast desde dentro del loop del orquestador** → que el dashboard se actualice en tiempo real mientras el orquestador ejecuta batches (actualmente el WS en :8744 existe pero el loop no broadcastea eventos internos).
-
-2. **Endpoint `/tasks/{id}/replay`** → re-correr una tarea cancelada o fallida sin tener que copiar el goal y crear una nueva. Muy útil para las tareas que fallan por contexto insuficiente y se quieren relanzar corregidas.
+1. WebSocket broadcast desde dentro del loop -> dashboard en tiempo real
+2. Endpoint `/tasks/{id}/replay` -> re-correr tarea fallida
+3. Endpoint `/send-media` en gateway Baileys para audios OGG nativos

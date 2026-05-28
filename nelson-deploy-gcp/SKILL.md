@@ -202,6 +202,7 @@ gcloud run services describe nelson-backend --region=us-central1 --format='value
 
 ## Pitfalls
 
+- **Entrenar modelo ML en startup de Cloud Run → timeout en Free Tier**: el entrenamiento toma 25s+ y Cloud Run Free Tier tiene límite de startup. Siempre pre-entrenar en build time dentro del Dockerfile con `RUN python scripts/train_model.py` y guardar el pkl. En runtime solo cargar con `joblib.load()` — startup < 1s. Ver nelson-data-science pitfall #1.
 - Cloud Run cold start: usar `--min-instances=1` si la latencia importa
 - Cloud SQL connection: usar Unix socket `/cloudsql/...`, no IP publica
 - No exponer Cloud SQL a internet (0.0.0.0/0)

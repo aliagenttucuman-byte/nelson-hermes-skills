@@ -314,6 +314,12 @@ if __name__ == "__main__":
 
 ---
 
+## Referencias adicionales
+
+- `references/repo-sync-hygiene.md` — Reglas del sync-to-repo.sh: qué skills sincronizar (solo nelson-* + equipo-nelson), preservar subdirectorios (agency-*), .gitignore de built-in de Hermes, verificación pre-commit.
+
+---
+
 ## Integración con Hermes
 
 ### En cada turno, antes de responder al usuario:
