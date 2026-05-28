@@ -1,0 +1,121 @@
+{
+  "name": "Reporte Semanal - Lunes 9AM",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "1a2b3c4d-0001-0001-0001-000000000001",
+      "name": "Cada Lunes 9AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8010/health",
+        "options": { "timeout": 5000 }
+      },
+      "id": "1a2b3c4d-0002-0002-0002-000000000002",
+      "name": "Check ForestAI Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:5678/healthz",
+        "options": { "timeout": 5000 }
+      },
+      "id": "1a2b3c4d-0003-0003-0003-000000000003",
+      "name": "Check n8n",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 340],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:3001/health",
+        "options": { "timeout": 5000 }
+      },
+      "id": "1a2b3c4d-0004-0004-0004-000000000004",
+      "name": "Check WhatsApp GW",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 480],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const forestai = $('Check ForestAI Backend').first()?.json;\nconst n8nStatus = $('Check n8n').first()?.json;\nconst waStatus = $('Check WhatsApp GW').first()?.json;\n\nconst ok = '✅';\nconst fail = '❌';\n\nconst forestaiOk = forestai && !forestai?.error;\nconst n8nOk = n8nStatus?.status === 'ok';\nconst waOk = waStatus?.status === 'connected';\n\nconst now = new Date().toLocaleDateString('es-AR', {\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n  timeZone: 'America/Argentina/Buenos_Aires'\n});\n\nconst mensaje = `🤖 *Reporte Semanal - JARVIS*\n📅 ${now}\n\n*Estado de servicios:*\n${forestaiOk ? ok : fail} ForestAI Backend (:8010)\n${n8nOk ? ok : fail} n8n (:5678)\n${waOk ? ok : fail} WhatsApp Gateway (:3001)\n\n*Proyectos activos:*\n🌲 ForestAI PoC\n🔍 AI Search Assistant — :8888\n\nTodo nominal, Mr. Stark. 🚀`;\n\nreturn [{ json: { mensaje } }];"
+      },
+      "id": "1a2b3c4d-0005-0005-0005-000000000005",
+      "name": "Generar Resumen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3001/send",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "to", "value": "5493816240691" },
+            { "name": "message", "value": "={{ $json.mensaje }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a2b3c4d-0006-0006-0006-000000000006",
+      "name": "Enviar por WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 340]
+    }
+  ],
+  "connections": {
+    "Cada Lunes 9AM": {
+      "main": [
+        [
+          {"node": "Check ForestAI Backend", "type": "main", "index": 0},
+          {"node": "Check n8n", "type": "main", "index": 0},
+          {"node": "Check WhatsApp GW", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Check ForestAI Backend": {
+      "main": [[{"node": "Generar Resumen", "type": "main", "index": 0}]]
+    },
+    "Check n8n": {
+      "main": [[{"node": "Generar Resumen", "type": "main", "index": 0}]]
+    },
+    "Check WhatsApp GW": {
+      "main": [[{"node": "Generar Resumen", "type": "main", "index": 0}]]
+    },
+    "Generar Resumen": {
+      "main": [[{"node": "Enviar por WhatsApp", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "active": false
+}

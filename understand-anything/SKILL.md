@@ -207,12 +207,13 @@ Agregar nuevos proyectos corriendo `/understand <path>` desde Hermes.
 4. **Proyectos grandes >100 archivos:** El skill avisa y pide confirmación. Mejor scopear a un subdirectorio (ej: /poc en vez de la raíz completa).
 5. **node_modules en el path:** Si se analiza la raíz de un frontend, asegurarse de que node_modules esté en .understandignore (se genera automáticamente).
 6. **Dashboard requiere puerto libre:** El dashboard web se lanza en un puerto local. Verificar disponibilidad con `ss -tlnp | grep <puerto>`.
-11. **`g["project"]["languages"]` puede fallar con KeyError.** El scanner no siempre popula ese campo. Usar `.get("languages", [])` y `.get("frameworks", [])` siempre al leer el grafo.
+7. **`ua-inline-validate.cjs` NO existe pre-compilado.**
 
 7. **`ua-inline-validate.cjs` NO existe pre-compilado.** No está en `skills/understand/` ni en ningún path del plugin. El SKILL.md de `/understand` dice que se escribe en `tmp/` en Phase 6 — eso es correcto. Nunca buscar ese archivo en el plugin; siempre escribirlo al momento de ejecutar.
 8. **`build-fingerprints.mjs` necesita un JSON de input, NO la raíz del proyecto.** El script tiene firma `node build-fingerprints.mjs <input.json>` con estructura `{ projectRoot, sourceFilePaths[], gitCommitHash }`. Pasarle la ruta del proyecto directamente falla con EISDIR.
 9. **Modo directo (no-subagente):** Cuando /understand se ejecuta directamente por Hermes Agent (no vía Claude Code delegation), las fases que dicen "dispatch a subagent" se ejecutan inline. Las fases 3-5 (assemble-reviewer, architecture-analyzer, tour-builder) se implementan directamente escribiendo los JSONs de output manualmente con el LLM, en vez de delegar a subagentes.
 10. **Phase 0.5 auto-confirm:** Cuando el usuario especifica explícitamente que NO se espere confirmación (ej: "NO esperar confirmación del usuario — auto-confirmar y continuar"), omitir la espera de confirmación del .understandignore y proceder directamente a Phase 1.
+11. **`g["project"]["languages"]` puede fallar con KeyError.** El scanner no siempre popula ese campo. Usar `.get("languages", [])` y `.get("frameworks", [])` siempre al leer el grafo.
 
 ## Desinstalar de un proyecto
 

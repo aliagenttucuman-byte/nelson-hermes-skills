@@ -8,6 +8,7 @@ related_skills:
   - nelson-task-memory
   - nelson-agent-routing
   - subagent-driven-development
+  - nelson-eval-harness
 ---
 
 # Nelson Meta-Orchestrator

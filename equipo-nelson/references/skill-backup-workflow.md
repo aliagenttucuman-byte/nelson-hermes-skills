@@ -120,6 +120,74 @@ Cuando se crea una skill nueva o se modifica una existente:
 3. `git add . && git commit -m "feat: descripción del cambio" && git push`
 4. El equipo hace `git pull && ./sync-from-repo.sh` para actualizar
 
+## Pitfall: Conflictos de rebase al hacer push
+
+Si el remote tiene commits que no tenemos localmente, `git pull --rebase` puede generar conflictos. Estrategia correcta — **el servidor es siempre la fuente de verdad**:
+
+```bash
+cd /home/server/repos/nelson-hermes-skills
+
+# 1. Pull con rebase
+git pull --rebase origin main
+
+# 2. Si hay conflictos (suele ser en SKILL.md y memories/):
+#    "theirs" = nuestra versión local (ya que hacemos rebase encima del remote)
+git checkout --theirs equipo-nelson/SKILL.md
+git checkout --theirs nelson-brainstorming/SKILL.md
+# ... repetir para cada archivo en conflicto que muestre el rebase ...
+git checkout --theirs memories/MEMORY.md
+git checkout --theirs memories/USER.md
+git checkout --theirs sync-to-repo.sh
+
+# 3. Marcar como resueltos
+git add .
+
+# 4. Continuar rebase (sin abrir editor)
+GIT_EDITOR=true git rebase --continue
+
+# 5. Push
+git push
+```
+
+Los conflictos más comunes son en:
+- `equipo-nelson/SKILL.md` (la skill más activa)
+- `memories/MEMORY.md` y `memories/USER.md` (el remote los eliminó en algún commit)
+- Skills recién creadas que el remote también tiene (add/add conflict)
+- `sync-to-repo.sh` (si se actualizó la lista de skills)
+
+## Pitfall: Skills en paths distintos a software-development/
+
+Algunas skills no están en `~/.hermes/skills/software-development/` sino en subdirectorios propios:
+- `fastapi` → `~/.hermes/skills/fastapi/` (no en software-development)
+- `nelson-server-services` → `~/.hermes/skills/devops/nelson-server-services/`
+
+El `sync-to-repo.sh` busca en `software-development/` por defecto. Para estas skills, copiar manualmente:
+
+```bash
+cp -r ~/.hermes/skills/fastapi /home/server/repos/nelson-hermes-skills/fastapi
+cp -r ~/.hermes/skills/devops/nelson-server-services /home/server/repos/nelson-hermes-skills/nelson-server-services
+```
+
+## Skills nuevas agregadas en sync 2026-05-28
+
+Las siguientes 20 skills faltaban en el repo y fueron agregadas:
+`nelson-agent-routing`, `nelson-browser-agent`, `nelson-business-plan`, `nelson-cloudflare-tunnel-deploy`,
+`nelson-codegraph`, `nelson-context-handoff`, `nelson-demo-script`, `nelson-eval-harness`,
+`nelson-floci-gcp`, `nelson-forest-inventory`, `nelson-generative-ui`, `nelson-lean-ctx`,
+`nelson-meta-orchestrator`, `nelson-monitoring-observability`, `nelson-optillm`, `nelson-poc-dashboard-ai-chat`,
+`nelson-server-services`, `nelson-startup-benchmarking`, `nelson-task-memory`, `understand-anything`.
+
+El `sync-to-repo.sh` fue actualizado con la lista completa.
+
+## Cómo detectar skills faltantes
+
+```bash
+# Ver qué está en Hermes pero no en el repo
+ls ~/.hermes/skills/software-development/ | sort > /tmp/hermes_skills.txt
+ls /home/server/repos/nelson-hermes-skills/ | grep -E '^(nelson-|equipo-|nvidia-|spec-|fastapi|understand)' | sort > /tmp/repo_skills.txt
+diff /tmp/hermes_skills.txt /tmp/repo_skills.txt
+```
+
 ## Notas
 
 - Las skills del hub oficial no se incluyen en el backup; solo las custom del equipo.

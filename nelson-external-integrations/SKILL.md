@@ -351,6 +351,7 @@ def load_query_files(data_files: list) -> list:
 - Con: depende de que el embed sea público y de la estructura interna de Power BI (puede cambiar)
 - **Playwright ya instalado en el servidor:** `python3 -m playwright --version` → 1.59.0, chromium en `~/.cache/ms-playwright/`
 - **Referencia técnica completa:** `references/powerbi-public-embed-wabi.md`
+- **JARVIS Demo Shell (OpenUI + FastAPI):** `references/jarvis-demo-shell.md`
 
 ### Escenario B: URL con login corporativo (cuenta YPF + Azure AD)
 - Registrar App en Azure AD del tenant de YPF con permisos: `Report.Read.All`, `Dataset.Read.All`
@@ -389,11 +390,122 @@ body = {"format": "PNG", "powerBIReportConfiguration": {"pages": [{"pageName": "
 - [ ] Enviarlo por WhatsApp a un número de prueba
 
 **References:** `references/powerbi-whatsapp-poc.md` — diseño inicial de la PoC
+- `templates/spike_powerbi_playwright.py` — template listo para usar: Playwright intercept + DSR parser + load_query_files()
+
+---
+
+## 9. Generative UI con OpenUI (thesysdev) + Groq
+
+**Qué es:** Framework full-stack para chat UIs donde el agente devuelve componentes React interactivos (charts, forms, tables) en tiempo real vía streaming, en lugar de texto plano. Usa "OpenUI Lang" — un lenguaje propio que el modelo genera y el runtime de React renderiza.
+
+**Stack:** Next.js 15 + React 18 + @openuidev/cli. Compatible con cualquier proveedor con API OpenAI-compatible.
+
+**Scaffold en 1 minuto:**
+```bash
+npx @openuidev/cli@latest create --name mi-app
+cd mi-app
+# configurar .env con la API key
+npm run dev  # corre en puerto 3000 por defecto
+```
+
+**Swap para Groq (o cualquier proveedor OpenAI-compatible):**
+
+El scaffold genera `src/app/api/chat/route.ts` apuntando a OpenAI con `gpt-5.2`. Para usar Groq:
+
+```typescript
+// src/app/api/chat/route.ts
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1",
+});
+
+// Cambiar modelo a uno de Groq:
+model: "llama-3.3-70b-versatile",
+```
+
+**Variables de entorno:**
+```
+GROQ_API_KEY=gsk_...
+```
+
+**Modelos Groq compatibles (2026):** `llama-3.3-70b-versatile`, `llama3-70b-8192`, `mixtral-8x7b-32768`
+
+**Validación del spike:** El modelo genera OpenUI Lang en streaming con sintaxis tipo `chart tipo="barra" titulo="Ventas"`. El runtime React lo convierte en componentes visuales interactivos en tiempo real. VALIDADO con Groq + llama-3.3-70b.
+
+**Casos de uso en el equipo:**
+- Dashboards conversacionales (usuario pide "mostrame ventas del mes" → aparece un bar chart)
+- Formularios generados dinámicamente por el agente
+- Copilots con respuestas ricas para demos I+D+I
+
+**Repo:** https://github.com/thesysdev/openui — MIT, activo
+
+**Límite clave:** OpenUI es web, no WhatsApp. WhatsApp no renderiza componentes React. Para WA seguir con flujo PNG (matplotlib → gateway Baileys). Para demos y herramientas internas → OpenUI.
+
+### JARVIS Demo Shell — Template reutilizable para demos I+D+I
+
+Patrón para reusar el mismo chat UI (OpenUI) con diferentes proyectos solo cambiando una variable de entorno. Directorio base: `~/jarvis-demo-shell/`.
+
+```
+jarvis-demo-shell/
+├── frontend/          ← OpenUI Next.js — NUNCA cambia entre proyectos
+│   └── src/app/api/chat/route.ts  ← proxy al backend (no llama LLM directo)
+└── backend/           ← FastAPI Python — la capa que cambia por proyecto
+    ├── main.py
+    ├── routers/chat.py    ← recibe mensajes, arma system prompt, llama Groq
+    └── tools/
+        ├── registry.py    ← registro dinámico de tools por proyecto
+        ├── demo.py        ← proyecto por defecto
+        └── energia.py     ← demo energía/PowerBI
+```
+
+**Cómo agregar un proyecto nuevo (3 pasos):**
+
+1. Crear `backend/tools/mi_proyecto.py`:
+```python
+from tools.registry import BaseTool, register
+
+@register
+class MiProyectoTool(BaseTool):
+    name = "mi_proyecto"
+    
+    def get_system_instructions(self) -> str:
+        return """
+        # Mi Proyecto
+        Contexto del agente, qué datos tiene, qué componentes OpenUI usar...
+        """
+```
+
+2. Cambiar en `backend/.env`:
+```
+ACTIVE_PROJECT=mi_proyecto
+```
+
+3. Reiniciar el backend. El frontend no se toca.
+
+**Para levantar:**
+```bash
+# Backend (en algún puerto libre, 8000-8001-8002 pueden estar ocupados por otros servicios)
+cd ~/jarvis-demo-shell/backend
+pip3 install -r requirements.txt
+python3 -m uvicorn main:app --reload --port 8765 --env-file .env
+
+# Frontend
+cd ~/jarvis-demo-shell/frontend
+# Editar .env: BACKEND_URL=http://localhost:8765
+PORT=3789 npm run dev
+```
+
+**Acceso Tailscale:** http://100.110.8.13:3789
+
+**Pitfall de puertos:** Los puertos 8000, 8001, 8002 pueden estar ocupados por otros servicios del servidor. Verificar con `ss -tlnp | grep 8000` antes. El shell usa 8765 (backend) y 3789 (frontend) para no colisionar.
 
 ---
 
 ## Pitfalls
 
+- **Imagen PNG no visible en WhatsApp desde path anidado:** Si el `MEDIA:` apunta a un path largo como `~/brainstorming/2026-05-19-x/output/reporte.png` y Nelson dice que no ve la imagen, copiar a `/tmp/reporte.png` y reenviar. `cp ~/brainstorm/.../reporte.png /tmp/reporte.png` resuelve de forma consistente.
 - **DuckDuckGo desde Docker:** Bloquea por IP de datacenter. Correr desde host.
 - **ddgs vs duckduckgo_search:** La lib cambió de nombre. Usar `from duckduckgo_search import DDGS` y `ddgs.text()`. Los campos son `href` y `body`, no `url` y `snippet`.
 - **SearXNG con bot detection:** Incluso con `pass_ip=true` puede devolver 403. Configurar `limiter.toml` para desactivarlo completamente.

@@ -28,7 +28,6 @@ Compatible con OpenAI SDK — solo cambiás `base_url` y `api_key`.
 
 | Modelo | Notas |
 |--------|-------|
-| `meta/llama-3.3-70b-instruct` | **Chat interactivo validado. Funciona cuando DeepSeek falla.** Streaming estable, buena calidad en español. Primera opción para chat embebido en apps. |
 | `minimaxai/minimax-m2.7` | Chat rápido, 8K output |
 
 ### Razonamiento avanzado / Thinking mode
@@ -403,71 +402,12 @@ GitGuardian lo detectó en minutos. Se debió limpiar el historial con git-filte
 
 ---
 
-## OpenCode como alternativa para visión
-
-Cuando Llama Vision de NVIDIA NIM es inestable (rechazos, timeouts, free tier saturado),
-usar `claude-haiku-4-5` vía el proxy de OpenCode es la alternativa validada.
-Ver `references/opencode-vision-models.md` para el test completo de modelos y configuración.
-
-```python
-# Cambio mínimo en vlm_classifier.py para usar OpenCode en lugar de NVIDIA NIM
-NVIDIA_API_URL = "https://opencode.ai/zen/v1/chat/completions"  # mismo formato OpenAI
-VLM_MODEL = "claude-haiku-4-5"
-# api_key = os.getenv("OPENCODE_API_KEY")  # desde ~/secrets/opencode.env
-```
-
-## Integración con DeepAgents (LangChain)
-
-Usar `ChatOpenAI` de `langchain-openai` apuntando a NIM. Validado con DeepAgents 0.6.3:
-
-```python
-from langchain_openai import ChatOpenAI
-
-model = ChatOpenAI(
-    model="deepseek-ai/deepseek-v4-flash",
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=os.getenv("NVIDIA_API_KEY"),
-    temperature=0.6,
-    max_tokens=1024,
-)
-```
-
-Modelos con mejor tool calling para agentes LangChain: `deepseek-v4-flash`, `llama-3.3-70b-instruct`.
-Ver `nelson-ai-agents/references/deepagents-nvidia-nim.md` para setup completo.
-
----
-
 ## Pitfalls
 
 - **Gemma4, Qwen3.5, Mistral Medium necesitan `requests` directo:** Tienen parámetros extra que el SDK de OpenAI puede ignorar. Usar `requests.post` para esos.
 - **DeepSeek V4 Flash thinking:** El campo de reasoning puede llamarse `reasoning` o `reasoning_content` según el chunk. Checar ambos con `getattr`.
 - **Qwen3-coder 480B:** Latencia alta en primer token. No usar para chat interactivo.
 - **Llama Vision:** Imágenes en base64 dentro del payload. Max 512 tokens por defecto en el ejemplo — aumentar para análisis detallados.
-- **Llama Vision + crops pequeños → rechaza en español:** Si el recorte de imagen tiene < ~40px de lado, el modelo responde en lenguaje natural ("No puedo identificar...") en lugar de JSON. Pre-filtrar bboxes pequeños O escalar el recorte a mínimo 128×128 antes de encodear. Validado en Spike 002 (ForestAI).
-- **Llama Vision dentro de FastAPI → asyncio.run() falla:** El endpoint FastAPI/uvicorn ya tiene un event loop activo. `asyncio.run()` levanta `RuntimeError: cannot be called from a running event loop`. Fix: correr en ThreadPoolExecutor con loop propio. Ver `nelson-ai-vision` sección "VLM para clasificación por lote" para el snippet exacto.
-- **Llama Vision system prompt con `<>` placeholders:** Si el system message contiene texto tipo `<species name>`, el modelo lo copia literalmente como respuesta. Usar `"..."` como placeholder en ejemplos. Separar siempre system prompt del user message con imagen en mensajes distintos.
-- **Llama Vision rechaza imágenes de vegetación con filtros de seguridad:** El modelo libre de NVIDIA NIM a veces responde "I'm not going to engage in this topic" para imágenes aéreas inocentes. No hay workaround confiable — para clasificación forestal preferir `claude-haiku-4-5` vía OpenCode (ver `references/opencode-vision-models.md`).
-- **Llama Vision + prompt de seguridad → rechaza con "I'm not going to engage":** Cuando el system prompt contiene frases ambiguas como "classify this image" sin contexto profesional claro, el modelo activa filtros de seguridad y devuelve rechazo en texto plano. Fix: agregar contexto profesional explícito en el system message ("You are an expert remote sensing analyst...") + separar system/user roles correctamente. NO mezclar el system prompt dentro del `content` del user message.
-- **Llama Vision — formato correcto de mensaje:** El system prompt va en un mensaje separado con `role: system`. Ponerlo como texto dentro del `content` del user message hace que el modelo lo interprete como instrucción a seguir literalmente (devuelve el template `{"species": "<...>"}` en lugar de rellenarlo). Formato correcto:
-  ```python
-  "messages": [
-      {"role": "system", "content": "You are an expert forestry analyst..."},
-      {"role": "user", "content": [
-          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
-          {"type": "text", "text": "Analyze this image. Respond with JSON only: {...}"}
-      ]}
-  ]
-  ```
-- **Llama Vision latencia:** ~7-10s por request. Para procesar lotes (ej. 55 copas de árboles), usar `asyncio.gather` con batches de 5-10 paralelos. Latencia promedio en producción: 10s/árbol secuencial → ~2 min para 55 árboles en paralelo.
-- **Parsing JSON de Vision — robusto:** El modelo puede ignorar el instruction "SOLO JSON" y responder en prosa. Usar regex para extraer `{ ... }`:
-  ```python
-  import re, json
-  match = re.search(r'\{[^}]+\}', content, re.DOTALL)
-  if match: content = match.group(0)
-  result = json.loads(content)
-  ```
 - **Free tier:** Rate limit y cuota mensual. Para producción, upgradar o rotar keys.
-- **DeepSeek V4 (pro y flash) pueden estar caídos/sin cuota en free tier:** Si la llamada falla silenciosamente o da error 4xx, cambiar a `meta/llama-3.3-70b-instruct` — mismo formato OpenAI SDK, validado estable para chat interactivo en español. Verificar disponibilidad: `python3 -c "from openai import OpenAI; import os; c=OpenAI(base_url='https://integrate.api.nvidia.com/v1', api_key=os.getenv('NVIDIA_API_KEY')); r=c.chat.completions.create(model='meta/llama-3.3-70b-instruct', messages=[{'role':'user','content':'hola'}], max_tokens=10); print(r.choices[0].message.content)"`
-- **Fallback de modelos sugerido para chat:** `llama-3.3-70b-instruct` → `minimax-m2.7` → `mistral-medium-3.5-128b`.
 - **DeepSeek V4 Flash y GLM-5.1 comparten key** en los snippets originales — pueden ser la misma key de NIM que sirve múltiples modelos. Si da 401, generar key nueva desde la página del modelo.
 - **Nemotron Omni:** `reasoning_budget` controla cuántos tokens dedica al thinking interno. 16384 es el sweet spot calidad/velocidad.

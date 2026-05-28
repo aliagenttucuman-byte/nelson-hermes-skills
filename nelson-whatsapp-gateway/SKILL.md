@@ -55,111 +55,45 @@ POST /send
 }
 ```
 
-## Enviar audio via gateway ✅
+## Enviar audio via gateway (workaround)
 
-El gateway ya tiene `/send-audio` implementado. Recibe el **path local** del archivo y lo envía como nota de voz (PTT). No usar base64 — el gateway lee el archivo directamente.
+El gateway Baileys expone `/send` para texto y no tiene `/send-media` implementado (devuelve 404). Para enviar un audio generado con TTS a un número externo, dos opciones:
+
+1. **Enviar el texto del mensaje como texto plano** via `/send` — funciona siempre, sin fricción.
+2. **Transcribir el audio a texto** y enviarlo como mensaje de texto.
+
+El endpoint `/send-media` NO existe en la implementación actual del gateway. No intentarlo.
 
 ```bash
-# ✅ Enviar texto
+# ✅ Funciona
 curl -X POST http://localhost:3001/send \
   -H 'Content-Type: application/json' \
   -d '{"to": "5493816240691", "message": "Texto del mensaje"}'
 
-# ✅ Enviar audio OGG como nota de voz (PTT)
-curl -X POST http://localhost:3001/send-audio \
-  -H 'Content-Type: application/json' \
-  -d '{"to": "5493816240691", "path": "/ruta/absoluta/audio.ogg"}'
+# ❌ No existe
+curl -X POST http://localhost:3001/send-media ...  # 404
 ```
 
-Desde Python:
-```python
-import json, urllib.request
-
-data = json.dumps({"to": "5493816240691", "path": "/ruta/absoluta/audio.ogg"}).encode()
-req = urllib.request.Request("http://localhost:3001/send-audio", data=data,
-      headers={"Content-Type": "application/json"}, method="POST")
-with urllib.request.urlopen(req, timeout=20) as resp:
-    print(resp.read().decode())  # {"success":true,...}
-```
-
-> **Pitfall:** NO enviar base64 — el body será demasiado grande (PayloadTooLargeError 413). Siempre pasar el path local del archivo.
-
-## Anatomía del gateway en producción (IMPORTANTE)
-
-El gateway de Baileys tiene **dos directorios** distintos con roles diferentes:
-
-| Directorio | Qué contiene | Para qué sirve |
-|---|---|---|
-| `/home/server/.hermes/skills/.../whatsapp-gateway/` | `server.js` + `node_modules/` + `package.json` | El código y las dependencias |
-| `/home/server/brainstorming/2025-05-13-ai-news-aggregator/whatsapp-gateway/` | Solo `auth/` (sesión de WhatsApp) | El state de autenticación |
-
-**El proceso DEBE correr desde el dir de skills** (tiene `node_modules`). El `auth/` debe copiarse/linkearse ahí antes de arrancar.
-
-### Procedimiento correcto para reiniciar el gateway
-
-```python
-import subprocess, time, shutil, os
-
-skills_gw = "/home/server/.hermes/skills/brainstorming/2025-05-13-ai-news-aggregator/whatsapp-gateway"
-orig_auth  = "/home/server/brainstorming/2025-05-13-ai-news-aggregator/whatsapp-gateway/auth"
-skills_auth = os.path.join(skills_gw, "auth")
-
-# Matar proceso viejo
-subprocess.run(["pkill", "-f", "node server.js"], capture_output=True)
-time.sleep(1)
-
-# Copiar auth actualizado al dir de skills
-if os.path.exists(skills_auth):
-    subprocess.run(["rm", "-rf", skills_auth])
-shutil.copytree(orig_auth, skills_auth)
-
-# Arrancar desde skills (tiene node_modules)
-proc = subprocess.Popen(
-    ["node", "server.js"],
-    cwd=skills_gw,
-    stdout=open("/tmp/wa-gateway.log", "w"),
-    stderr=subprocess.STDOUT,
-    start_new_session=True
-)
-time.sleep(6)
-# Verificar
-r = subprocess.run(["curl", "-s", "http://localhost:3001/health"], capture_output=True, text=True)
-print(r.stdout)  # debe ser {"status":"connected"}
-```
-
-### Síntoma: gateway responde `/health` pero da Bad Request en `/send`
-
-Causa: el proceso en puerto 3001 está corriendo un `server.js` que fue **borrado del disco** pero sigue en memoria, sin el middleware `express.json()` funcional o sin el `auth/` correcto. **El health check pasa pero los endpoints de negocio fallan.**
-
-Esto ocurre típicamente después de sincronizaciones de Git que eliminaron el `server.js` del directorio de trabajo sin matar el proceso existente.
-
-Diagnóstico rápido:
-```bash
-# Ver si el proceso tiene server.js en su cwd
-PID=$(ss -tlnp | grep 3001 | grep -oP 'pid=\K[0-9]+')
-ls /proc/$PID/cwd/
-# Si no aparece server.js → proceso zombie. Reiniciar con el procedimiento de arriba.
-
-# Confirmación extra: probar endpoint de negocio directamente
-curl -s -X POST http://localhost:3001/send \
-  -H "Content-Type: application/json" \
-  -d '{"to":"5493816240691","message":"test"}' 
-# Si responde HTML Bad Request (no JSON) → proceso zombie confirmado
-```
-
-**Regla:** Si `/send` devuelve HTML (`<!DOCTYPE html>...Bad Request`) en lugar de JSON, es proceso zombie. No intentar debuggear el payload — reiniciar el proceso siempre resuelve.
-
-## Estado en producción
-
-El gateway Baileys corre en :3001 pero **NO tiene systemd configurado** — si el servidor reinicia, no levanta solo. Para reiniciarlo seguir el procedimiento en "Anatomía del gateway en producción".
-
-Para instalarlo como servicio persistente, ver la sección "Auto-arranque con systemd" — requiere `sudo loginctl enable-linger server` y crear el .service en `~/.config/systemd/user/`.
+Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el servidor Node.js del gateway usando `sock.sendMessage(jid, { audio: fs.readFileSync(path), mimetype: 'audio/ogg; codecs=opus', ptt: true })`.
 
 ## Pitfalls
 
-- **Gateway Baileys no tiene `/send-media` implementado todavía (next sprint).** Para enviar audios OGG a números externos, hay que implementar el endpoint usando `sock.sendMessage(jid, { audio: fs.readFileSync(path), mimetype: 'audio/ogg; codecs=opus', ptt: true })`. Hasta entonces, solo texto. Ver evoluciones pendientes en memoria.
-
-- **Bridge nativo de Hermes no envía a contactos nuevos**
+- **Gateway de Hermes falla con `whatsapp-session_lock` tras reboot/restart**: Si el gateway anterior se cayó sin limpiar su lock, el nuevo proceso muere con `gateway_state: startup_failed` y error `WhatsApp session already in use (PID XXXX). Stop the other gateway first.` — aunque el PID ya no exista. El lock está en `~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock`. Diagnóstico y fix:
+  ```bash
+  # 1. Confirmar el problema
+  cat ~/.hermes/gateway_state.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('exit_reason',''))"
+  # 2. Ver el lock file
+  ls ~/.local/state/hermes/gateway-locks/
+  cat ~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock
+  # 3. Eliminar el lock stale (solo si el PID listado no existe)
+  ps aux | grep <PID_DEL_LOCK>  # verificar que no existe
+  rm ~/.local/state/hermes/gateway-locks/whatsapp-session-*.lock
+  # 4. Reiniciar el gateway
+  systemctl --user restart hermes-gateway
+  # 5. Verificar
+  curl -s http://localhost:3000/health
+  ```
+  El código de Hermes debería detectar el PID stale automáticamente, pero con `--replace` a veces el lock no se limpia si el proceso anterior terminó de forma abrupta entre arranques del sistema.
 
 - **Bridge nativo de Hermes no envía a contactos nuevos**: El tool `send_message` de Hermes (que usa el bridge de WhatsApp) solo puede enviar a números que ya están en los contactos de la sesión del bot. Si intenta enviar a un número nuevo (ej. Pablo, 5493816240691), da error:
   ```
@@ -181,6 +115,8 @@ Para instalarlo como servicio persistente, ver la sección "Auto-arranque con sy
 - **NO usar `&` o `nohup` en comandos de terminal Hermes**. Hermes bloquea backgrounding en foreground commands. Usar `execute_code` con `subprocess.Popen(..., start_new_session=True)` para levantar el servidor, luego verificar con health checks separados.
 - **Health check con Python `urllib`** en vez de `curl` desde terminal cuando el servidor corre en background — más fiable dentro del entorno de Hermes.
 - **"Connected" pero mensajes no llegan**: El gateway (puerto 3001) puede estar conectado y responder bien a `/send` manual, pero si los mensajes automatizados dejaron de llegar, el problema suele estar en el **script emisor** (cronjob caído, script con error) o en el **bridge de Hermes** (puerto 3000) con `queueLength > 0` (mensajes atascados esperando consumo). Ver `references/troubleshooting-messages-not-arriving.md` para flujo de diagnóstico completo.
+- **ai_news_collector_v2.py NO envía por WA**: El script solo genera el digest en disco. El envío por WhatsApp está en el prompt del cron job (04bdd6e154a3), no en el script Python. Si los mensajes no llegan, revisar el prompt del cron primero, no el script.
+- **Secuencia de diagnóstico validada (mayo 2026)**: 1) `systemctl --user status whatsapp-gateway` → 2) `curl -s http://localhost:3001/health` → 3) test manual `curl -X POST http://localhost:3001/send` con número propio → 4) revisar journalctl en la ventana horaria del cron → 5) revisar prompt del cron job en Hermes.
 
 ## API HTTP completa (Express)
 
@@ -281,6 +217,29 @@ CONTACTS = {
 
 Cuando Tony agregue un nuevo contacto del equipo, sumarlo a este diccionario y guardar en memoria de usuario el nombre + número.
 
+## Patrón: delivery híbrido desde cron jobs
+
+Cuando un cron job de Hermes necesita entregar a Nelson + contactos externos:
+
+- **Nelson** → `deliver: origin` en el cron (Hermes lo maneja)
+- **Externos (Gabi, Pablo, Faku, etc.)** → el propio prompt del cron llama al gateway Baileys vía `send_whatsapp.py`
+
+El cron NO debe listar números externos en `deliver:` — el bridge nativo falla con `jidDecode` para contactos que no están en la sesión del bot de Hermes.
+
+Patrón en el prompt del cron:
+
+```
+python3 /home/server/.hermes/skills/software-development/nelson-whatsapp-gateway/references/send_whatsapp.py \
+  --to "5491132438887,5493816240691,5493813022552" \
+  --batch --delay 3000 \
+  --message "MENSAJE_COMPLETO"
+```
+
+Números del equipo para broadcasts:
+- Gabi: 5491132438887
+- Pablo: 5493816240691
+- Faku: 5493813022552
+
 ## Integración: envío automático desde scripts Python
 
 Cualquier script Python puede enviar mensajes integrando la función `send_whatsapp`:
@@ -302,6 +261,7 @@ Ejemplo de uso: el AI News Aggregator genera un resumen y al finalizar llama `se
 
 ## Referencias
 
+- `references/ai-news-aggregator-delivery.md` — Patrón completo de delivery híbrido, fuentes del script v2, formato del mensaje externo, cron job ID.
 - `references/hermes-bridge-sigterm-crash.md` — Problema recurrente: el bridge nativo de Hermes (puerto 3000) se cae con SIGTERM (`code -15`) mientras el gateway standalone (3001) permanece estable. Diagnóstico, hipótesis de causa raíz, y solución temporal de monitoreo.
 - `references/troubleshooting-messages-not-arriving.md` — Guía paso a paso para cuando los mensajes dejan de llegar aunque el gateway diga "connected". Diferencia gateway (3001) vs bridge (3000) vs origen del mensaje.
 - `references/connect-example.js` — Script Node.js completo de conexión con QR + código de emparejamiento.

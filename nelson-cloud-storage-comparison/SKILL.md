@@ -20,17 +20,12 @@ services:
     ports: ["4566:4566"]
 ```
 - **SDK:** boto3 (drop-in, mismo que AWS real)
-- **Servicios:** 158 (S3, SQS, DynamoDB, Lambda, IAM, CloudFormation, Step Functions, EventBridge...)
-- **Operaciones:** 10.200+ (88% de todas las operaciones AWS)
-- **Persistencia:** en memoria por defecto; API de snapshots (`POST /_robotocore/state/save`)
-- **Ideal para:** reemplazo permanente y gratuito de LocalStack/FLoCI, CI/CD, tests AWS, agentes de IA
-- **Diferencial clave vs FLoCI-AWS:** Lambda ejecuta real (Python 3.8-3.13, Node 18/20/22), Step Functions real con 18 funciones intrínsecas, IAM con evaluación de políticas real, SQS con visibilidad real
-- **Tiene AGENTS.md:** pensado para agentes de IA que interactúen con AWS
-- **Construido 100% con IA** por Jack Danger (maintainer de Moto), sobre base Moto
-- **Licencia:** MIT, sin registro, sin telemetría
+- **Servicios:** 147 (S3, SQS, DynamoDB, Lambda, IAM, etc.)
+- **Persistencia:** ⚠️ En memoria por defecto, pero con API de snapshots (`POST /_robotocore/state/save` y `/load`)
+- **Ideal para:** Reemplazo permanente y gratuito de LocalStack/FLoCI, CI/CD, tests AWS
+- **Pitfall:** No permite habilitar servicios selectivamente (todo siempre on); Lambda solo Python in-process
+- **Licencia:** MIT, sin registro, sin telemetry
 - **Repo:** https://github.com/robotocore/robotocore
-- **Estado en equipo Nelson:** curiosidad tecnológica, no migrar aún. FLoCI-AWS sigue siendo la opción activa. Evaluar migración si se necesita Lambda real o Step Functions.
-- **Comparación directa con FLoCI-AWS:** robotocore es básicamente el sucesor espiritual — mismo puerto (4566), misma API boto3, pero con 147 servicios vs ~25 de FLoCI, Lambda real, Step Functions real, IAM con evaluación real, y snapshots. La diferencia clave es que robotocore ejecuta Lambda de verdad (no mock). FLoCI-AWS es legacy; robotocore es el candidato a reemplazarlo cuando se necesite algo más que S3.
 
 ### 2. MinIO (S3 real local)
 ```yaml
@@ -144,17 +139,7 @@ blob_service = BlobServiceClient.from_connection_string(conn_str)
    sleep 15 && grep -i "trycloudflare" /tmp/cf.log
    ```
 8. **Olvidar agregar skills nuevas al sync script:** Cuando se crea una skill nueva, hay que agregarla al array `SKILLS` de `sync-to-repo.sh` antes de commitear.
-9. **Editar el skill en el path equivocado — cambios no se sincronizan:** Las skills del equipo existen en DOS paths:
-   - `~/.hermes/skills/<nombre>/` (root)
-   - `~/.hermes/skills/software-development/<nombre>/` (categoría)
-   
-   El `sync-to-repo.sh` lee desde `software-development/`. Si editás el root path, los cambios NO llegan al repo GitHub. **Siempre verificar cuál copia estás editando** antes de correr el sync. Si hay duda, usar `diff` para comparar:
-   ```bash
-   diff ~/.hermes/skills/nelson-rag-pipeline/SKILL.md \
-        ~/.hermes/skills/software-development/nelson-rag-pipeline/SKILL.md
-   ```
-   Y copiar la correcta: `cp ~/.hermes/skills/<name>/SKILL.md ~/.hermes/skills/software-development/<name>/SKILL.md`
-10. **`vite-env.d.ts` faltante:** Sin este archivo, el build falla con `Property 'env' does not exist on type 'ImportMeta'`. Siempre incluir en `frontend/src/`:
+9. **`vite-env.d.ts` faltante:** Sin este archivo, el build falla con `Property 'env' does not exist on type 'ImportMeta'`. Siempre incluir en `frontend/src/`:
    ```typescript
    /// <reference types="vite/client" />
    ```
@@ -209,6 +194,7 @@ robotocore MinIO  FLoCI-Azure FLoCI  Qdrant  Ollama
 
 2. **Crear túneles Cloudflare** (uno por frontend y uno por backend):
    ```bash
+   # robotocore
    cloudflared tunnel --url http://localhost:8080 --protocol http2 &
    cloudflared tunnel --url http://localhost:8000 --protocol http2 &
 
@@ -244,7 +230,6 @@ robotocore MinIO  FLoCI-Azure FLoCI  Qdrant  Ollama
    ```
 
 ### Guía de Conversación con el Stakeholder
-### Guía de Conversación con el Stakeholder
 
 | Momento | Qué decir | Qué mostrar |
 |---------|----------|-------------|
@@ -275,6 +260,10 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 # Logs de un stack específico
 docker logs --tail 30 CONTAINER_NAME
+
+# Snapshots en robotocore
+curl -X POST http://localhost:4566/_robotocore/state/save
+curl -X POST http://localhost:4566/_robotocore/state/load
 
 # Ver blobs en FLoCI-Azure
 docker exec CONTAINER mc alias set local http://localhost:4577 devstoreaccount1 KEY

@@ -1,159 +1,78 @@
-# AI News Aggregator v2 — Diseño
+# AI News Aggregator v2 — Diseño y Fuentes
 
-> Fecha: 2026-05-18  
-> Upgrade del agregador v1 (solo RSS pasivo) a arquitectura pasivo + activo + referentes.
+Script: `/home/server/brainstorming/2025-05-13-ai-news-aggregator/scripts/ai_news_collector_v2.py`
+Output: `/home/server/brainstorming/2025-05-13-ai-news-aggregator/data/daily_digest.md`
+State: `/home/server/brainstorming/2025-05-13-ai-news-aggregator/data/seen_articles_v2.json`
 
 ## Arquitectura
 
+8 fases en secuencia, cada una con su fuente. Deduplicación por ID hash `title+link` entre corridas.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    AI News Aggregator v2                     │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 1: RSS Pasivo     │ HuggingFace, OpenAI, Google AI,    │
-│  (esperar a que publiquen) │ LangChain, Microsoft, arXiv     │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 2: Búsqueda Activa │ DuckDuckGo News por keywords     │
-│  (buscar intencionalmente) │ Google News RSS por tema       │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 3: Comunidad      │ Reddit: r/MachineLearning,        │
-│                         │ r/Python, r/reactjs,               │
-│                         │ r/computervision, r/LocalLLaMA     │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 4: Blogs Técnicos │ Dev.to por tags (ai, python,     │
-│                         │ react, machinelearning)            │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 5: Referentes     │ MiduDev, Brais Moure, Fazt        │
-│  (personas de referencia) │ (blogs RSS, YouTube)             │
-├─────────────────────────────────────────────────────────────┤
-│  FASE 6: Twitter/X      │ INVESTIGACIÓN — requiere API key  │
-│  (pendiente)            │ o alternativa Nitter/RSS         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │ Deduplicación   │ ← State file JSON
-                    │ por article_id  │   (title + link hash)
-                    └─────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │ Scoring         │ ← Keywords de relevancia
-                    │ de relevancia   │   (open source, llm, react,
-                    │                 │    computer vision, etc.)
-                    └─────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │ Markdown Digest │ ← Organizado por sección
-                    │ con emojis    │   🔥=alto, ⭐=medio, 📄=base
-                    └─────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │ WhatsApp        │ ← Solo a Tony (por ahora)
-                    │ Gateway         │   POST /send o /send-batch
-                    └─────────────────┘
+FASE 1: RSS Pasivo      → Labs (HuggingFace, OpenAI, Anthropic, Google, DeepMind, Meta, Mistral, Cohere, Stability, xAI)
+                          Frameworks (LangChain, LlamaIndex, Microsoft Research)
+                          arXiv (cs.AI, cs.LG, cs.CL, cs.CV) con filtro keywords
+FASE 2: DDG News        → SEARCH_TOPICS (10 temas), timelimit="d" (solo hoy), time.sleep(0.5) entre búsquedas
+FASE 3: Google News RSS → Mismos tópicos, via RSS de news.google.com/rss/search?q=...
+FASE 4: Reddit          → r/MachineLearning, r/Python, r/reactjs, r/computervision, r/artificial, r/LocalLLaMA
+FASE 5: Dev.to          → tags: ai, python, react, machinelearning, opensource, news
+FASE 6: Referentes      → MiduDev, Brais Moure, Fazt (RSS — verificar URLs periódicamente, dan 404 a veces)
+FASE 7: YouTube RSS     → Two Minute Papers, Yannic Kilcher, Andrej Karpathy, Sentdex, MiduDev YT
+                          URL: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID
+FASE 8: GitHub Trending → python, javascript, all (via scraping HTML de github.com/trending?since=daily)
 ```
 
-## Temas de búsqueda activa
+## Secciones del digest
 
-```python
-SEARCH_TOPICS = [
-    "artificial intelligence",
-    "machine learning",
-    "computer vision",
-    "large language model",
-    "Python",
-    "React",
-    "mobile development",
-    "image analytics",
-    "edge AI",
-    "open source AI",
-]
+Orden fijo: Búsqueda Activa → RSS Pasivo → Videos → Repositorios → Comunidad → Blogs Técnicos → Referentes → General
+
+Máx 15 artículos por sección, ordenados por score de relevancia.
+
+## Scoring
+
+Función `score_relevance(title, summary)`: cuenta ocurrencias de RELEVANCE_KEYWORDS en el texto.
+- DDG News: +2 bonus (búsqueda activa, más relevante)
+- Dev.to: +1 bonus
+- Referentes: +3 bonus
+- YouTube: +2 bonus
+- GitHub Trending: +3 bonus
+
+## Cron job
+
+- Job ID: `04bdd6e154a3`
+- Schedule: `30 11,20 * * *` (11:30 y 20:30 UTC = 8:30 y 17:30 ARG)
+- Deliver: `origin` (solo Nelson)
+- Delivery externo (Gabi, Pablo, Faku): el prompt del cron llama a `send_whatsapp.py` via gateway Baileys en localhost:3001
+
+## Formato del mensaje externo (texto plano, sin markdown)
+
+```
+📰 AI News I+D+I — [fecha]
+[N] artículos nuevos
+
+🔥 Highlights
+• [titulo] → [link]
+(máx 5 noticias)
+
+🎬 Videos nuevos
+• [titulo] — [canal] → [link youtube]
+(máx 3)
+
+🐙 Repos del día
+• [owner/repo] → [link github]
+(máx 5)
+
+📄 Más noticias
+• [titulo] → [link]
+(máx 5)
+
+_JARVIS — Nelson I+D+I_
 ```
 
-## Fuentes y técnicas
+## Pitfalls de fuentes
 
-| Fuente | Método | Pros | Contras |
-|---|---|---|---|
-| RSS pasivo | `xml.etree.ElementTree` (stdlib) | Sin rate limits, confiable | Solo reacciona a publicaciones |
-| DDG News | `duckduckgo_search.DDGS.news()` | Búsqueda activa por keyword | Rate limit 403 si se spamea |
-| Google News | RSS por tema (`news.google.com/rss/search?q=...`) | Sin API key | Links son redirects largos |
-| Reddit | `.json` público (`reddit.com/r/{sub}/hot.json`) | JSON nativo, score visible | Puede devolver threads meta |
-| Dev.to | API pública (`dev.to/api/articles?tag=...`) | JSON limpio | Limitado a ~30 artículos/tag |
-| Referentes | RSS de blogs personales | Contenido curado | URLs de RSS pueden cambiar o no existir |
-
-## Pitfalls descubiertos
-
-1. **DDG News rate limit**: Si se llaman muchas búsquedas seguidas sin delay, DDG devuelve `403 Ratelimit`. Fix: `time.sleep(0.5)` entre búsquedas, o reducir número de topics por corrida.
-
-2. **RSS de referentes da 404**: MiduDev, Brais Moure y Fazt no tienen `/rss.xml` en esas URLs. Hay que investigar el feed real de cada uno (puede ser FeedBurner, Substack, o no tener RSS abierto).
-
-3. **Google News RSS links son redirects**: El `link` de cada item es un URL de tracking de Google, no el link directo al artículo. Para uso interno no importa, pero para scraping directo sí.
-
-4. **Reddit JSON sin User-Agent adecuado**: Reddit bloquea requests sin `User-Agent` realístico. Fix: enviar `"Mozilla/5.0 (AI-News-Bot/2.0)"`.
-
-5. **Twitter/X sin API key**: No hay acceso público a tweets desde 2023. Alternativas a investigar: Nitter (instancias públicas), RSS-Bridge, o xurl skill con login.
-
-## State management
-
-```python
-STATE_FILE = "data/seen_articles_v2.json"
-
-def article_id(title: str, link: str) -> str:
-    clean = re.sub(r"\W+", "", (title + link).lower())[:80]
-    return clean
-```
-
-El state guarda IDs de artículos ya vistos. Cada corrida del script carga el state, filtra duplicados, agrega los nuevos, y guarda el state actualizado.
-
-## Scoring de relevancia
-
-```python
-RELEVANCE_KEYWORDS = [
-    "open source", "released", "launch", "new model",
-    "llm", "multimodal", "agent", "framework",
-    "benchmark", "sota", "training", "inference",
-    "quantization", "distillation", "rag", "fine-tuning",
-    "computer vision", "image analytics", "edge ai",
-    "python", "react", "fastapi", "docker",
-]
-```
-
-Cada artículo suma 1 punto por keyword encontrada en título + sumario. Luego se ordena por score descendente dentro de cada sección.
-
-## Formato de salida (Markdown)
-
-```markdown
-# 📰 Daily Digest I+D+I
-
-📅 Lunes 18 Mayo 2026 — Fuente: Nelson Server
-📊 59 artículos nuevos encontrados
-
----
-
-## Búsqueda Activa
-
-⭐ **[Título del artículo](https://link.com)**
-> Resumen de 200 caracteres...
-> `Fuente: DDG News / AI` | `2026-05-18`
-
-## RSS Pasivo
-🔥 **[Título arXiv](https://arxiv.org/...)**
-...
-```
-
-## Estado actual (2026-05-19)
-
-- ✅ Script v2 funcionando: `~/brainstorming/2025-05-13-ai-news-aggregator/scripts/ai_news_collector_v2.py`
-- ✅ Cron jobs activos: `afa66f131c92` (0 12,21 UTC) y `04bdd6e154a3` (30 11,20 UTC)
-- ✅ Delivery: Tony (origin) + Gabi (5491132438887)
-- ✅ 59 artículos en primera corrida (lunes 18/05/2026)
-
-## Próximos pasos pendientes
-
-- [ ] Investigar feeds RSS reales de MiduDev, Brais Moure, Fazt (sus `/rss.xml` dan 404)
-- [ ] Probar Nitter o RSS-Bridge para Twitter/X sin API key
-- [ ] Agregar YouTube RSS de canales de referencia (`youtube.com/feeds/videos.xml?channel_id=...`)
-- [ ] Filtrar threads meta de Reddit (Self-Promotion, Who's Hiring, Daily Threads)
-- [ ] Actualizar paquete DDG: `python3 -m pip install ddgs` (reemplaza `duckduckgo_search`)
+- **RSS referentes (MiduDev, Brais Moure, Fazt)**: URLs `/rss.xml` pueden dar 404. Verificar periódicamente.
+- **DDG News rate limit**: Más de 2-3 llamadas seguidas sin pausa → 403. Fix: `time.sleep(0.5)`.
+- **GitHub Trending scraping**: El HTML de github.com/trending usa clases CSS que GitHub cambia sin aviso. Si deja de parsear repos, revisar los patrones regex de `repo_pattern` y `desc_pattern`.
+- **YouTube RSS namespace**: El feed de YouTube usa tres namespaces (`atom`, `yt`, `media`). Siempre parsear con el dict de namespaces completo. El videoId está en `yt:videoId`, no en `atom:link`.
+- **arXiv RSS**: Los ítems de arXiv incluyen markup HTML en el `<description>`. Limpiar con `clean_text()` antes de mostrar.
