@@ -1,41 +1,65 @@
 ---
 name: nelson-document-processing
-title: Document Processing - PDF, Word, TXT, Markdown
-description: Procesamiento de documentos para RAG. Extraccion de texto desde PDFs, Word, TXT, Markdown. Limpieza, metadatos, manejo de tablas e imagenes. PyPDF, pdfplumber, python-docx.
+title: Document Processing - MarkItDown + pdfplumber fallback
+description: Procesamiento de documentos para RAG. MarkItDown como capa principal (PDF, Word, Excel, PPT, HTML, CSV, email, YouTube). pdfplumber como fallback para PDFs con tablas complejas o escaneados con OCR.
 skill: nelson-document-processing
 author: equipo-nelson
-version: 1.0.0
-keywords: [pdf, word, docx, markdown, parsing, extraction, text, documents, rag]
+version: 2.0.0
+keywords: [pdf, word, docx, markdown, parsing, extraction, text, documents, rag, markitdown, pdfplumber]
 dependencies: [nelson-rag-pipeline]
 ---
 
 # Document Processing - Equipo Nelson
 
-## Proposito
+## Propósito
 
-Extraer texto limpio y estructurado de documentos para alimentar el pipeline RAG. Sin esto, el RAG no funciona con documentos reales.
+Extraer texto limpio y estructurado de documentos para alimentar el pipeline RAG.
+
+**Arquitectura de dos capas:**
+1. **MarkItDown** (Microsoft) — capa principal, soporta 15+ formatos, output siempre Markdown
+2. **pdfplumber** — fallback para PDFs con tablas complejas o cuando MarkItDown retorna vacío
 
 ## Formatos soportados
 
-| Formato | Libreria | Extraccion |
-|---------|----------|------------|
-| PDF | pdfplumber | Texto, tablas, coordenadas |
-| PDF (alt) | PyPDF2 | Texto simple |
-| Word | python-docx | Texto, parrafos, tablas |
-| TXT | built-in | Texto plano |
-| Markdown | markdown | Texto renderizado |
-| CSV/Excel | pandas | Tablas |
+| Formato | Capa | Notas |
+|---------|------|-------|
+| PDF (texto) | MarkItDown | Directo |
+| PDF (tablas complejas) | pdfplumber fallback | Mejor fidelidad de tablas |
+| PDF (escaneado) | Tesseract OCR | MarkItDown no hace OCR nativo |
+| Word (.docx) | MarkItDown | Reemplaza python-docx |
+| Excel (.xlsx) | MarkItDown | Reemplaza pandas/openpyxl |
+| PowerPoint (.pptx) | MarkItDown | Reemplaza python-pptx |
+| HTML | MarkItDown | Reemplaza BeautifulSoup manual |
+| CSV | MarkItDown | Reemplaza pandas |
+| Email (.msg, .eml) | MarkItDown | Nativo |
+| YouTube URL | MarkItDown | Extrae transcripción automática |
+| TXT / Markdown | MarkItDown | Directo |
+| EPUB | MarkItDown | Nativo |
 
-> **Default del equipo: pdfplumber** para PDFs (mejor extraccion de tablas y layout).
+## Dependencias
+
+```bash
+# Capa principal
+pip install markitdown[all]
+
+# Fallback PDFs con tablas
+pip install pdfplumber
+
+# OCR para PDFs escaneados (opcional)
+apt-get install -y tesseract-ocr
+pip install pytesseract
+```
 
 ## Servicio de Document Processing
 
 ```python
 # app/services/document_processor.py
 import io
+import tempfile
+from pathlib import Path
 from typing import List
 from dataclasses import dataclass
-from pathlib import Path
+from markitdown import MarkItDown
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -47,135 +71,79 @@ class DocumentChunk:
     chunk_index: int
     metadata: dict
 
+
 class DocumentProcessor:
+    def __init__(self):
+        self._md = MarkItDown()
+
     def process(self, file_bytes: bytes, filename: str, mime_type: str) -> List[DocumentChunk]:
         """Procesar cualquier documento y devolver chunks de texto."""
         logger.info("processing_document", filename=filename, mime_type=mime_type)
 
-        if mime_type == "application/pdf":
-            chunks = self._process_pdf(file_bytes, filename)
-        elif mime_type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
-            chunks = self._process_word(file_bytes, filename)
-        elif mime_type == "text/plain":
-            chunks = self._process_text(file_bytes, filename)
-        elif mime_type == "text/markdown":
-            chunks = self._process_markdown(file_bytes, filename)
-        else:
-            raise ValueError(f"Formato no soportado: {mime_type}")
+        # Intentar con MarkItDown primero
+        text = self._markitdown(file_bytes, filename)
 
-        logger.info("document_processed", filename=filename, chunks=len(chunks))
-        return chunks
+        # Fallback: pdfplumber para PDFs con tablas o si MarkItDown retorna vacío
+        if not text and mime_type == "application/pdf":
+            logger.info("markitdown_empty_fallback_pdfplumber", filename=filename)
+            text = self._pdfplumber(file_bytes, filename)
 
-    def _process_pdf(self, file_bytes: bytes, filename: str) -> List[DocumentChunk]:
+        if not text:
+            raise ValueError(f"No se pudo extraer texto de: {filename}")
+
+        text = self._clean_text(text)
+        logger.info("document_processed", filename=filename, chars=len(text))
+
+        return [DocumentChunk(
+            text=text,
+            page=1,
+            chunk_index=0,
+            metadata={
+                "source": filename,
+                "mime_type": mime_type,
+                "chars": len(text),
+            },
+        )]
+
+    def _markitdown(self, file_bytes: bytes, filename: str) -> str:
+        """Convertir a Markdown via MarkItDown. Usa archivo temporal."""
+        try:
+            suffix = Path(filename).suffix or ".bin"
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+            result = self._md.convert(tmp_path)
+            return result.text_content or ""
+        except Exception as e:
+            logger.warning("markitdown_failed", filename=filename, error=str(e))
+            return ""
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    def _pdfplumber(self, file_bytes: bytes, filename: str) -> str:
+        """Fallback: extraer texto + tablas con pdfplumber."""
         import pdfplumber
 
-        chunks = []
+        pages_text = []
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
-                text = page.extract_text()
-                if not text or not text.strip():
-                    continue
+                text = page.extract_text() or ""
+                tables = page.extract_tables()
+                for table in tables:
+                    table_md = "\n".join(
+                        " | ".join(str(cell) if cell else "" for cell in row)
+                        for row in table
+                    )
+                    text += f"\n\n[TABLA]\n{table_md}\n[/TABLA]"
+                if text.strip():
+                    pages_text.append(text)
 
-                # Limpiar texto
-                text = self._clean_text(text)
-
-                chunks.append(DocumentChunk(
-                    text=text,
-                    page=page_num,
-                    chunk_index=page_num - 1,
-                    metadata={
-                        "source": filename,
-                        "page": page_num,
-                        "type": "pdf",
-                    },
-                ))
-        return chunks
-
-    def _process_word(self, file_bytes: bytes, filename: str) -> List[DocumentChunk]:
-        import docx
-
-        doc = docx.Document(io.BytesIO(file_bytes))
-        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-        text = "\n\n".join(paragraphs)
-        text = self._clean_text(text)
-
-        return [DocumentChunk(
-            text=text,
-            page=1,
-            chunk_index=0,
-            metadata={"source": filename, "type": "docx"},
-        )]
-
-    def _process_text(self, file_bytes: bytes, filename: str) -> List[DocumentChunk]:
-        text = file_bytes.decode("utf-8")
-        text = self._clean_text(text)
-
-        return [DocumentChunk(
-            text=text,
-            page=1,
-            chunk_index=0,
-            metadata={"source": filename, "type": "txt"},
-        )]
-
-    def _process_markdown(self, file_bytes: bytes, filename: str) -> List[DocumentChunk]:
-        import markdown
-        from bs4 import BeautifulSoup
-
-        md_text = file_bytes.decode("utf-8")
-        html = markdown.markdown(md_text)
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text(separator="\n\n")
-        text = self._clean_text(text)
-
-        return [DocumentChunk(
-            text=text,
-            page=1,
-            chunk_index=0,
-            metadata={"source": filename, "type": "markdown"},
-        )]
+        return "\n\n".join(pages_text)
 
     def _clean_text(self, text: str) -> str:
-        """Limpiar texto extraido."""
-        # Eliminar espacios multiples
-        text = " ".join(text.split())
-        # Eliminar lineas vacias multiples
-        lines = [line.strip() for line in text.split("\n") if line.strip()]
-        text = "\n".join(lines)
-        return text.strip()
-```
-
-## Extraccion avanzada de PDFs (con tablas)
-
-```python
-def _process_pdf_with_tables(self, file_bytes: bytes, filename: str) -> List[DocumentChunk]:
-    import pdfplumber
-
-    chunks = []
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for page_num, page in enumerate(pdf.pages, start=1):
-            # Texto del cuerpo
-            text = page.extract_text() or ""
-
-            # Tablas como texto estructurado
-            tables = page.extract_tables()
-            for table in tables:
-                table_text = "\n".join(
-                    " | ".join(str(cell) if cell else "" for cell in row)
-                    for row in table
-                )
-                text += f"\n\n[TABLA]\n{table_text}\n[/TABLA]"
-
-            if not text.strip():
-                continue
-
-            text = self._clean_text(text)
-            chunks.append(DocumentChunk(
-                text=text,
-                page=page_num,
-                chunk_index=page_num - 1,
-                metadata={"source": filename, "page": page_num, "type": "pdf", "has_tables": len(tables) > 0},
-            ))
-    return chunks
+        """Limpiar texto extraído."""
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return "\n".join(lines).strip()
 ```
 
 ## Endpoint de upload
@@ -183,7 +151,6 @@ def _process_pdf_with_tables(self, file_bytes: bytes, filename: str) -> List[Doc
 ```python
 # app/api/v1/documents.py
 from fastapi import APIRouter, UploadFile, File, Depends
-from fastapi.responses import JSONResponse
 from app.services.document_processor import DocumentProcessor
 from app.services.ingestion import IngestionPipeline
 from app.api.deps import get_current_user
@@ -198,17 +165,14 @@ async def upload_document(
     processor = DocumentProcessor()
     ingestion = IngestionPipeline()
 
-    # Leer archivo
     file_bytes = await file.read()
 
-    # Procesar
     chunks = processor.process(
         file_bytes=file_bytes,
         filename=file.filename,
         mime_type=file.content_type,
     )
 
-    # Ingestar a Qdrant (chunking + embeddings)
     doc_id = f"doc_{current_user.id}_{file.filename}"
     all_text = "\n\n".join(c.text for c in chunks)
 
@@ -230,49 +194,41 @@ async def upload_document(
     }
 ```
 
-## Docker Compose (con pdfplumber)
+## Docker
 
 ```dockerfile
-# backend/Dockerfile (agregar)
+# backend/Dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
-```
-
-## Dependencias
-
-```bash
-pip install pdfplumber python-docx markdown beautifulsoup4
 ```
 
 ## Tamaños de archivo
 
-| Escenario | Max size | Como |
+| Escenario | Max size | Cómo |
 |-----------|----------|------|
 | Desarrollo local | 10MB | FastAPI default |
-| Produccion con background jobs | 100MB | Upload a Cloud Storage, procesar async |
-| Produccion sin background | 50MB | `max_file_size` en nginx + FastAPI |
+| Producción con background jobs | 100MB | Upload a Cloud Storage, procesar async |
+| Producción sin background | 50MB | `max_file_size` en nginx + FastAPI |
 
 ## Checklist
 
-- [ ] pdfplumber extrae texto legible del PDF
-- [ ] Tablas detectadas y formateadas
-- [ ] Texto limpio (sin espacios multiples, saltos de linea excesivos)
-- [ ] Metadatos incluyen: source, page, user_id, mime_type
+- [ ] MarkItDown instalado: `pip install markitdown[all]`
+- [ ] Texto extraído no vacío (verificar fallback activado si es PDF)
+- [ ] Texto limpio (sin espacios múltiples, saltos de línea excesivos)
+- [ ] Metadatos incluyen: source, mime_type, user_id
 - [ ] Archivos grandes procesados async (background job)
 - [ ] Solo usuarios autenticados pueden subir
 - [ ] Validar mime_type antes de procesar
 
 ## Pitfalls
 
-- **PDFs generados con ReportLab no son text-extractables**: ReportLab renderiza el texto como gráficos vectoriales (paths) en lugar de objetos de texto reales. pdfplumber, PyPDF2 y otras librerías estándar devuelven texto vacío (`""`) al procesar estos PDFs. El pipeline de RAG los indexa como "0 chunks" sin error visible.
-  - **Síntoma**: Upload exitoso, pero `process_pdf` extrae `text = ""` y no se indexan chunks. Las preguntas sobre ese documento responden "No tengo información".
-  - **Fix**: Generar PDFs con texto seleccionable usando `reportlab.platypus` (Paragraph) con `wordWrap='CJK'` que sí crea objetos de texto, o usar `fpdf2`/`weasyprint` que generan PDFs con texto real.
-  - **Detección temprana**: después de upload, verificar que `stats.points_count` aumentó. Si no aumentó, el PDF probablemente no tiene texto extractable.
-  - **Alternativa para testing**: usar PDFs reales exportados desde Word/Google Docs o descargados de internet, nunca generados dinámicamente con ReportLab Canvas puro.
-- PDFs escaneados (imagenes) no tienen texto: necesitan OCR (Tesseract / pytesseract)
-- pdfplumber necesita libgl1 en Docker (imagen slim no lo tiene)
-- Archivos Word con muchas imagenes pueden ser muy pesados en memoria
-- Siempre limitar tamaño de upload para evitar DoS
-- Codificacion UTF-8 para TXT; manejar errores de decoding
+- **MarkItDown requiere archivo físico**: no acepta bytes directamente. Siempre escribir a `tempfile.NamedTemporaryFile` y borrar después.
+- **PDFs escaneados (imágenes)**: MarkItDown y pdfplumber retornan vacío. Necesita Tesseract. Detectar con: si `chunks == 0` después de ambas capas → activar OCR.
+- **PDFs generados con ReportLab Canvas puro**: el texto es paths vectoriales, no objetos texto. Ninguna librería lo extrae. Fix: usar `reportlab.platypus` o `fpdf2`/`weasyprint`.
+- **Detección temprana**: después de upload verificar que `stats.points_count` aumentó en Qdrant. Si no → PDF sin texto extractable.
+- **pdfplumber en Docker slim**: necesita `libgl1-mesa-glx` en el Dockerfile.
+- **Excel con MarkItDown**: convierte a tabla Markdown. Si las celdas tienen fórmulas, extrae el valor calculado, no la fórmula.
+- **YouTube URLs**: pasar la URL directamente a `MarkItDown().convert(url)` — extrae la transcripción automática del video.
