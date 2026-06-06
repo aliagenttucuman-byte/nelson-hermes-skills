@@ -20,6 +20,12 @@ related_skills: [nelson-project-bootstrap, nelson-pricing-model, nelson-cloudfla
 
 ---
 
+## Written Communications (Text/Email/Pitch)
+
+For drafting written messages, emails, stack migration pitches, or questionnaire responses — not verbal demos — see `references/written-stakeholder-pitches.md`.
+
+---
+
 ## Estructura de la Demo (20 minutos)
 
 ### 1. Setup (2 min)
@@ -108,6 +114,26 @@ Para cuando "tengo 5 minutos, mostrame algo":
 ### "Me parece que le falta [feature X]"
 
 > "Buen punto. Eso no está en la PoC porque la armamos para validar [Y]. Feature X es el siguiente paso natural. ¿Es crítico para vos?"
+
+---
+
+## Respuesta a Propuestas/Documentos Recibidos de Terceros
+
+Cuando un tercero le manda a Nelson un Executive Summary, propuesta de inversión, deck, o similar, y **hay una reunión programada en los próximos 2-3 días**, la respuesta correcta es:
+
+**Regla:** No opinar en profundidad por WhatsApp. Guardar el análisis para la reunión.
+
+Plantilla estándar (texto + audio breve):
+> "Hola, recibí el [nombre del doc]. Muy interesante la propuesta y el mercado que apuntan. Me gustaría entender un poco más la parte técnica antes de opinar en profundidad. Lo charlamos pronto."
+
+Ajustar la línea de "lo que es interesante" según el tipo de doc:
+- Energía/tecnología → "la propuesta y el mercado que apuntan"
+- Inversión/startup → "el modelo de negocio y los sectores que eligieron"
+- Software/servicio → "el enfoque y el problema que resuelven"
+
+**Cuándo JARVIS debe generar análisis detallado:** solo cuando Nelson lo pide explícitamente o cuando no hay reunión próxima y Nelson quiere una opinión escrita.
+
+**Cuándo NO:** si Nelson dice "me reúno en X días" — respuesta corta, sin comprometerse, sin pedir más info por escrito.
 
 ---
 

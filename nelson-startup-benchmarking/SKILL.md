@@ -259,6 +259,42 @@ MVP típico (4 meses, 5 personas): ~2.400 horas, ~USD 73.000 en sweat equity.
 Guardar en: `~/brainstorming/YYYY-MM-DD-nombre-proyecto/PROJECT-CHARTER-vN.md`
 Exportar a PDF con WeasyPrint (ver scripts/generar_pdf.py — misma receta que para el benchmarking).
 
+## Integración con Resumen PM (meta-orchestrator)
+
+Cuando el dashboard PM pida "valoración real" (no heurística), usar el Project Charter/Estimación como fuente estructurada y mostrarlo por proyecto seleccionado.
+
+Referencia técnica de extracción: `references/pm-valuation-extraction.md`.
+
+### Campos mínimos que debe exponer el backend por proyecto
+
+```json
+{
+  "project_valuation": {
+    "mvp_total_investment_usd": 73960,
+    "development_cost_usd": 73440,
+    "operational_cost_4m_usd": 520,
+    "monthly_avg_usd": 18490,
+    "revenue_scenarios": [
+      {"name":"Conservador","clients_per_year":5,"price_per_year_usd":8000,"gross_revenue_usd":40000,"estimated_margin_usd":24000},
+      {"name":"Base","clients_per_year":15,"price_per_year_usd":10000,"gross_revenue_usd":150000,"estimated_margin_usd":90000},
+      {"name":"Optimista","clients_per_year":40,"price_per_year_usd":12000,"gross_revenue_usd":480000,"estimated_margin_usd":288000}
+    ],
+    "source_files": [".../PROJECT-CHARTER-v3.md"]
+  }
+}
+```
+
+### Reglas UX validadas con Nelson
+
+1. Si hay `project_valuation`, priorizar esos números en "Resumen económico".
+2. Si NO hay valuación estructurada, **no inventar valoración**: mostrar mensaje explícito de "faltan documentos financieros".
+3. "Objetivos/KPIs", "Hitos", "Riesgos" y "Próximas acciones" deben re-renderizar según proyecto seleccionado; evitar bloques estáticos.
+4. Mantener trazabilidad visual de fuentes (mostrar `source_files` resumido).
+
+### Pitfall crítico (cache incremental)
+
+Si existe endpoint con `force_refresh`, no reutilizar grupos locales cacheados en esa ruta. `force_refresh=true` debe recalcular verdaderamente datos locales + financieros, no solo GitHub.
+
 ---
 
 ## Exportar Análisis a PDF (para presentar a Pablo u otros)

@@ -1,7 +1,7 @@
 ---
 name: nelson-document-processing
 title: Document Processing - MarkItDown + pdfplumber fallback
-description: Procesamiento de documentos para RAG. MarkItDown como capa principal (PDF, Word, Excel, PPT, HTML, CSV, email, YouTube). pdfplumber como fallback para PDFs con tablas complejas o escaneados con OCR.
+description: "Procesamiento de documentos para RAG. 3 capas: MarkItDown (principal, 15+ formatos), Surya (PDFs escaneados, layouts complejos, OCR 90+ idiomas), pdfplumber (fallback tablas nativas)."
 skill: nelson-document-processing
 author: equipo-nelson
 version: 2.0.0
@@ -15,9 +15,20 @@ dependencies: [nelson-rag-pipeline]
 
 Extraer texto limpio y estructurado de documentos para alimentar el pipeline RAG.
 
-**Arquitectura de dos capas:**
+**Arquitectura de tres capas:**
 1. **MarkItDown** (Microsoft) — capa principal, soporta 15+ formatos, output siempre Markdown
-2. **pdfplumber** — fallback para PDFs con tablas complejas o cuando MarkItDown retorna vacío
+2. **Surya** (datalab-to/surya) — capa 2 para PDFs escaneados, layouts complejos, tablas y OCR en 90+ idiomas. Supera a Tesseract. Corre 100% local.
+3. **pdfplumber** — fallback ligero para PDFs nativos con tablas simples
+
+**Cuándo usar cada capa:**
+
+| Caso | Capa |
+|------|------|
+| PDF texto nativo, Word, Excel, HTML, CSV | MarkItDown |
+| PDF escaneado / fotografiado | Surya OCR |
+| Layout complejo (columnas, tablas embebidas) | Surya layout |
+| Fórmulas matemáticas | Surya math OCR |
+| PDF nativo con tablas simples sin layout | pdfplumber fallback |
 
 ## Formatos soportados
 
@@ -25,7 +36,9 @@ Extraer texto limpio y estructurado de documentos para alimentar el pipeline RAG
 |---------|------|-------|
 | PDF (texto) | MarkItDown | Directo |
 | PDF (tablas complejas) | pdfplumber fallback | Mejor fidelidad de tablas |
-| PDF (escaneado) | Tesseract OCR | MarkItDown no hace OCR nativo |
+| PDF (escaneado) | Surya OCR | 90+ idiomas, supera Tesseract, corre local |
+| PDF (layout complejo, columnas) | Surya layout | Detecta bloques, tablas embebidas, figuras |
+| Fórmulas matemáticas | Surya math OCR | Output LaTeX |
 | Word (.docx) | MarkItDown | Reemplaza python-docx |
 | Excel (.xlsx) | MarkItDown | Reemplaza pandas/openpyxl |
 | PowerPoint (.pptx) | MarkItDown | Reemplaza python-pptx |
@@ -39,16 +52,17 @@ Extraer texto limpio y estructurado de documentos para alimentar el pipeline RAG
 ## Dependencias
 
 ```bash
-# Capa principal
+# Capa 1 — principal
 pip install markitdown[all]
 
-# Fallback PDFs con tablas
-pip install pdfplumber
+# Capa 2 — Surya (OCR + layout para escaneados y layouts complejos)
+pip install surya-ocr
 
-# OCR para PDFs escaneados (opcional)
-apt-get install -y tesseract-ocr
-pip install pytesseract
+# Capa 3 — fallback PDFs nativos con tablas
+pip install pdfplumber
 ```
+
+> Surya descarga modelos de HuggingFace en el primer uso (~1-2GB). Con GPU corre 100+ páginas/min, en CPU ~5-15 seg/página.
 
 ## Servicio de Document Processing
 
@@ -75,38 +89,71 @@ class DocumentChunk:
 class DocumentProcessor:
     def __init__(self):
         self._md = MarkItDown()
+        self._surya_loaded = False
+        self._surya_models = {}
+
+    def _load_surya(self):
+        """Lazy-load modelos Surya (pesados, solo cuando se necesitan)."""
+        if self._surya_loaded:
+            return
+        try:
+            from surya.ocr import run_ocr
+            from surya.model.detection.model import load_model as load_det
+            from surya.model.detection.processor import load_processor as load_det_proc
+            from surya.model.recognition.model import load_model as load_rec
+            from surya.model.recognition.processor import load_processor as load_rec_proc
+            self._surya_models = {
+                "run_ocr":       run_ocr,
+                "det_model":     load_det(),
+                "det_processor": load_det_proc(),
+                "rec_model":     load_rec(),
+                "rec_processor": load_rec_proc(),
+            }
+            self._surya_loaded = True
+            logger.info("surya_models_loaded")
+        except Exception as e:
+            logger.warning("surya_load_failed", error=str(e))
 
     def process(self, file_bytes: bytes, filename: str, mime_type: str) -> List[DocumentChunk]:
-        """Procesar cualquier documento y devolver chunks de texto."""
+        """Procesar documento con pipeline de 3 capas."""
         logger.info("processing_document", filename=filename, mime_type=mime_type)
+        layer = "markitdown"
 
-        # Intentar con MarkItDown primero
+        # Capa 1: MarkItDown (texto nativo, Word, Excel, HTML, CSV, etc.)
         text = self._markitdown(file_bytes, filename)
 
-        # Fallback: pdfplumber para PDFs con tablas o si MarkItDown retorna vacío
+        # Capa 2: Surya (PDFs escaneados, layouts complejos, OCR multilingüe)
         if not text and mime_type == "application/pdf":
-            logger.info("markitdown_empty_fallback_pdfplumber", filename=filename)
+            logger.info("fallback_surya", filename=filename)
+            text = self._surya_ocr(file_bytes, filename)
+            layer = "surya"
+
+        # Capa 3: pdfplumber (fallback ligero para PDFs nativos con tablas)
+        if not text and mime_type == "application/pdf":
+            logger.info("fallback_pdfplumber", filename=filename)
             text = self._pdfplumber(file_bytes, filename)
+            layer = "pdfplumber"
 
         if not text:
             raise ValueError(f"No se pudo extraer texto de: {filename}")
 
         text = self._clean_text(text)
-        logger.info("document_processed", filename=filename, chars=len(text))
+        logger.info("document_processed", filename=filename, chars=len(text), layer=layer)
 
         return [DocumentChunk(
             text=text,
             page=1,
             chunk_index=0,
             metadata={
-                "source": filename,
+                "source":    filename,
                 "mime_type": mime_type,
-                "chars": len(text),
+                "chars":     len(text),
+                "layer":     layer,
             },
         )]
 
     def _markitdown(self, file_bytes: bytes, filename: str) -> str:
-        """Convertir a Markdown via MarkItDown. Usa archivo temporal."""
+        """Capa 1: MarkItDown. Requiere archivo temporal."""
         try:
             suffix = Path(filename).suffix or ".bin"
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -120,28 +167,66 @@ class DocumentProcessor:
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
-    def _pdfplumber(self, file_bytes: bytes, filename: str) -> str:
-        """Fallback: extraer texto + tablas con pdfplumber."""
-        import pdfplumber
+    def _surya_ocr(self, file_bytes: bytes, filename: str) -> str:
+        """Capa 2: Surya OCR — PDFs escaneados, layouts complejos, 90+ idiomas."""
+        try:
+            from PIL import Image
+            import fitz  # PyMuPDF — convierte páginas PDF a imagen
 
+            self._load_surya()
+            if not self._surya_loaded:
+                return ""
+
+            # Convertir páginas PDF a imágenes PIL
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            images = []
+            for page in doc:
+                pix = page.get_pixmap(dpi=150)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                images.append(img)
+            doc.close()
+
+            if not images:
+                return ""
+
+            langs = [["es", "en"]] * len(images)  # español + inglés por defecto
+            results = self._surya_models["run_ocr"](
+                images, langs,
+                self._surya_models["det_model"],
+                self._surya_models["det_processor"],
+                self._surya_models["rec_model"],
+                self._surya_models["rec_processor"],
+            )
+
+            pages_text = []
+            for page_result in results:
+                lines = [line.text for line in page_result.text_lines if line.text.strip()]
+                pages_text.append("\n".join(lines))
+
+            return "\n\n".join(pages_text)
+
+        except Exception as e:
+            logger.warning("surya_ocr_failed", filename=filename, error=str(e))
+            return ""
+
+    def _pdfplumber(self, file_bytes: bytes, filename: str) -> str:
+        """Capa 3: pdfplumber — fallback para PDFs nativos con tablas."""
+        import pdfplumber
         pages_text = []
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            for page_num, page in enumerate(pdf.pages, start=1):
+            for page in pdf.pages:
                 text = page.extract_text() or ""
-                tables = page.extract_tables()
-                for table in tables:
+                for table in page.extract_tables():
                     table_md = "\n".join(
-                        " | ".join(str(cell) if cell else "" for cell in row)
+                        " | ".join(str(c) if c else "" for c in row)
                         for row in table
                     )
                     text += f"\n\n[TABLA]\n{table_md}\n[/TABLA]"
                 if text.strip():
                     pages_text.append(text)
-
         return "\n\n".join(pages_text)
 
     def _clean_text(self, text: str) -> str:
-        """Limpiar texto extraído."""
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         return "\n".join(lines).strip()
 ```
@@ -201,9 +286,14 @@ async def upload_document(
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    tesseract-ocr \
+    libmupdf-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# PyMuPDF para convertir PDF→imagen antes de Surya
+RUN pip install pymupdf surya-ocr
 ```
+
+> En producción con GPU agregar `torch` con CUDA. Sin GPU Surya es más lento pero funcional.
 
 ## Tamaños de archivo
 
@@ -213,12 +303,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 | Producción con background jobs | 100MB | Upload a Cloud Storage, procesar async |
 | Producción sin background | 50MB | `max_file_size` en nginx + FastAPI |
 
+## Web Articles & External Documents
+
+When Nelson shares a link to a research paper, blog post, or web article, use the extraction recipes in `references/web-article-extraction.md`. Covers:
+- Preferring `defuddle` skill for clean markdown extraction
+- Fallback `curl + python` pattern when browser sandbox fails
+- Quick `pymupdf` one-liner for PDFs shared via document upload
+
 ## Checklist
 
 - [ ] MarkItDown instalado: `pip install markitdown[all]`
-- [ ] Texto extraído no vacío (verificar fallback activado si es PDF)
+- [ ] Surya instalado: `pip install surya-ocr pymupdf`
+- [ ] pdfplumber instalado: `pip install pdfplumber`
+- [ ] Texto extraído no vacío (verificar qué capa activó el `layer` en metadata)
 - [ ] Texto limpio (sin espacios múltiples, saltos de línea excesivos)
-- [ ] Metadatos incluyen: source, mime_type, user_id
+- [ ] Metadatos incluyen: source, mime_type, user_id, layer
 - [ ] Archivos grandes procesados async (background job)
 - [ ] Solo usuarios autenticados pueden subir
 - [ ] Validar mime_type antes de procesar
@@ -226,8 +325,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ## Pitfalls
 
 - **MarkItDown requiere archivo físico**: no acepta bytes directamente. Siempre escribir a `tempfile.NamedTemporaryFile` y borrar después.
-- **PDFs escaneados (imágenes)**: MarkItDown y pdfplumber retornan vacío. Necesita Tesseract. Detectar con: si `chunks == 0` después de ambas capas → activar OCR.
-- **PDFs generados con ReportLab Canvas puro**: el texto es paths vectoriales, no objetos texto. Ninguna librería lo extrae. Fix: usar `reportlab.platypus` o `fpdf2`/`weasyprint`.
+- **Surya lazy-load**: los modelos pesan ~1-2GB. Cargarlos en el constructor bloquea startup. Usar `_load_surya()` lazy (solo cuando se necesita).
+- **Surya requiere PyMuPDF para convertir PDF→imagen**: `pip install pymupdf`. Sin él la capa 2 no puede renderizar páginas.
+- **Surya en CPU es lento**: ~5-15 seg/página. Para prod usar GPU o procesar async (Celery). En dev es suficiente para tests rápidos.
+- **Surya idiomas**: pasar lista por página. Default `["es", "en"]`. Documentos técnicos en otros idiomas: agregar el código ISO (e.g., `["es", "en", "pt"]`).
+- **PDFs escaneados (imágenes)**: MarkItDown y pdfplumber retornan vacío — siempre activarán Surya. Detectar con: si `layer == "surya"` en metadata.
+- **PDFs generados con ReportLab Canvas puro**: el texto es paths vectoriales. Ninguna librería extrae texto. Fix: usar `reportlab.platypus` o `fpdf2`.
 - **Detección temprana**: después de upload verificar que `stats.points_count` aumentó en Qdrant. Si no → PDF sin texto extractable.
 - **pdfplumber en Docker slim**: necesita `libgl1-mesa-glx` en el Dockerfile.
 - **Excel con MarkItDown**: convierte a tabla Markdown. Si las celdas tienen fórmulas, extrae el valor calculado, no la fórmula.

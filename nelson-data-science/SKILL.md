@@ -27,6 +27,124 @@ dependencies: [nelson-observability]
 | Tracking | MLflow | Experimentos, modelos, artifacts |
 | Serializacion | joblib | Guardar modelos entrenados |
 | Validacion | scikit-learn | Cross-validation, train/test split |
+## Data Pipelines con Polars (Excel / CSV / Joins)
+
+### Patrón operativo: pipeline de 4 sheets (cobranza + facturación) con visualización
+
+Cuando el usuario trae un Excel operativo con 4 hojas (`pendientes_cobro_contado`, `pendientes_cobro_trabajada`, `pendientes_facturar`, `pendientes_facturar_trabajada`), usar este patrón:
+
+1. Leer las 4 hojas y normalizar `envio_id` como string.
+2. Merge de cobranza (`contado` + `trabajada`) y aplicar exclusión `incluir_cc=false`.
+3. Excluir del circuito de cobranza toda fila cuyo `envio_id` esté en `pendientes_facturar`.
+4. Calcular `saldo_pendiente = importe_total - monto_cobrado` y estado (`cobrado`/`parcial`/`pendiente`).
+5. Aplicar regla T+1 para `transferencia` (`fecha_impacto = fecha_cobro + 1 día`).
+6. Auto-asignar referente faltante (round-robin) para no dejar casos huérfanos.
+7. Generar output Excel con sheets `pipeline_cobranza`, `pipeline_facturacion`, `dashboard` (KPIs).
+8. Exponer resumen para UI (KPIs + stages + preview tabular + download URL).
+
+Ver referencia: `references/excel-4sheet-cobranzas-pipeline.md`
+
+### Patrón: Cruzar múltiples Excels con joins + reglas LLM
+
+Escenario típico del equipo: recibir varios archivos Excel/CSV que deben cruzarse por columnas clave, aplicar reglas de negocio, y generar un Excel resultante.
+
+```python
+# app/services/excel_processor.py
+import polars as pl
+from pathlib import Path
+
+def merge_dataframes(
+    left: pl.DataFrame, right: pl.DataFrame,
+    left_key: str, right_key: str, join_type: str = "inner",
+) -> pl.DataFrame:
+    """Join seguro con normalización de tipos."""
+    if left_key not in left.columns:
+        raise ValueError(f"Columna '{left_key}' no existe. Columnas: {left.columns}")
+    if right_key not in right.columns:
+        raise ValueError(f"Columna '{right_key}' no existe. Columnas: {right.columns}")
+    left = left.with_columns(pl.col(left_key).cast(pl.Utf8))
+    right = right.with_columns(pl.col(right_key).cast(pl.Utf8))
+    return left.join(right, left_on=left_key, right_on=right_key, how=join_type)
+
+
+def apply_llm_dataframe_rules(
+    df: pl.DataFrame, prompt: str, client, model: str
+) -> pl.DataFrame:
+    """Envía una muestra del DataFrame a un LLM y ejecuta el código Polars generado.
+    
+    Seguridad: el código se ejecuta en un namespace aislado sin __builtins__
+    permitidos. Solo Polars y el DataFrame `df` están disponibles.
+    """
+    schema_desc = "\n".join([f"  - {c}: {df[c].dtype}" for c in df.columns])
+    sample = df.head(5).to_dicts()
+    sample_str = "\n".join([f"  {row}" for row in sample])
+    
+    full_prompt = f"""Sos un experto en análisis de datos con Polars (Python).
+
+REGLAS DE SEGURIDAD:
+- NO uses eval(), exec(), open(), os, sys, subprocess.
+- SOLO operaciones de Polars: filtros, joins, groupby, select, with_columns.
+- El resultado debe ser un DataFrame de Polars.
+- No escribas explicaciones. Solo código.
+
+ESTRUCTURA DEL DATAFRAME:
+{schema_desc}
+
+MUESTRA DE DATOS:
+{sample_str}
+
+DESCRIPCIÓN DEL USUARIO:
+{prompt}
+
+GENERÁ SOLO EL CÓDIGO (una expresión que devuelva el DataFrame transformado):"""
+    
+    resp = client.chat.completions.create(
+        model=model, messages=[{"role": "user", "content": full_prompt}],
+        temperature=0.1, max_tokens=2048,
+    )
+    code = resp.choices[0].message.content.strip()
+    # Limpiar markdown
+    for prefix in ["```python", "```"]:
+        if code.startswith(prefix):
+            code = code[len(prefix):]
+    if code.endswith("```"):
+        code = code[:-3]
+    code = code.strip()
+    
+    local_ns = {"pl": pl, "df": df}
+    exec(code, {"__builtins__": {}}, local_ns)
+    result = local_ns.get("df", df)
+    for key, val in local_ns.items():
+        if isinstance(val, pl.DataFrame) and key != "df":
+            result = val
+            break
+    return result
+```
+
+Ver referencia completa: `references/excel-polars-llm-pattern.md`
+
+Caso operativo sin IA (reglas determinísticas CDO/PF): `references/excel-cdo-pf-static-pipeline.md`
+
+## Pipeline estático CDO/PF (sin IA)
+
+Cuando la operación requiere reproducir exactamente el flujo manual de hojas trabajadas (ej. `CDO Trabajada` y `PF Trabajada`), usar lógica fija en Python y **no** LLM.
+
+Patrón recomendado:
+1. Tomar solo hojas base del sistema (`CDO Sistema`, `PTE de Fact Sistema`).
+2. Normalizar llaves (`envio_id`/`guia`) y columnas numéricas (`cobro`, `saldo`, `importe`).
+3. Excluir ítems fuera de CC (según columna de inclusión/exclusión si existe).
+4. Bloquear cobro para ítems presentes en pendientes de facturación.
+5. Calcular `saldo_pendiente` y estado (`cobrado`/`parcial`) con reglas determinísticas.
+6. Aplicar impacto T+1 para transferencias.
+7. Asignar referente automáticamente cuando falta (round-robin configurable).
+8. Exportar salida final con hojas exactas de negocio: `CDO Trabajada` y `PF Trabajada` (+ `KPIs` opcional).
+
+Pitfall crítico:
+- No usar `CDO Trabajada`/`PF Trabajada` como input del pipeline de producción; usarlas sólo como referencia de validación. El pipeline debe correr con las hojas sistema y producir trabajadas como output.
+
+Ver referencia: `references/excel-cdo-pf-static-pipeline.md`.
+
+## Visualizacion | matplotlib, seaborn, plotly | Ver skill `nelson-data-viz` |
 
 ## Carga de Datos
 
@@ -369,6 +487,8 @@ class MLPipeline:
 ```toml
 # pyproject.toml [project.dependencies]
 "polars>=1.15",
+"fastexcel>=0.7",   # requerido por pl.read_excel
+"xlsxwriter>=3.2",  # requerido por df.write_excel
 "pandas>=2.2",
 "xgboost>=2.1",
 "lightgbm>=4.5",
@@ -396,6 +516,8 @@ class MLPipeline:
 
 ## Pitfalls
 
+- FastAPI + pandas preview: `to_dict()` puede incluir `NaN/NaT/Timestamp` y romper JSON con `ValueError: Out of range float values are not JSON compliant`. Antes de responder, convertir explícitamente: `NaN/NaT -> None` y fechas a `isoformat()`.
+- Polars Excel I/O usa dependencias opcionales: si falla `pl.read_excel` con `required package 'fastexcel' not found`, instalar `fastexcel`; si falla `df.write_excel` por `xlsxwriter`, instalar `xlsxwriter` y agregar ambas al proyecto para no romper en runtime.
 - Data leakage: nunca fit el scaler/encoder con datos de test
 - Overfitting en Optuna: limitar n_trials o usar nested CV
 - Desbalance de clases: usar scale_pos_weight en XGBoost o SMOTE

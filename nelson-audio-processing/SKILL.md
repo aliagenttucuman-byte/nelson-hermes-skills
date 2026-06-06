@@ -375,6 +375,119 @@ curl -L -H "Authorization: Bearer $HF_TOKEN" \
 
 - `references/rvc-training.md` — Flujo completo de entrenamiento RVC con Applio, incluyendo preparación de dataset y parámetros recomendados para GTX 1650
 
+## Content Generation — Generación de Contenido Multimodal
+
+Para pipelines de alto nivel que producen podcasts, slides, quizzes y resúmenes a partir de documentos técnicos o noticias, la herramienta principal es **NotebookLM** (Google Cloud).
+
+### Cuándo usar NotebookLM vs edge-tts/Supertonic
+
+| Necesidad | Herramienta |
+|---|---|
+| Podcast conversacional (2 voces, 5-10 min) | NotebookLM |
+| Audio rápido de texto corto (<30 seg) | edge-tts o Supertonic |
+| Resumen de voz para WhatsApp | edge-tts (local, instantáneo) |
+| Slides/Quiz/Infographic desde documento | NotebookLM |
+
+### Instalación NotebookLM
+
+```bash
+pip install notebooklm-py
+# Con soporte de cookies para headless:
+pip install "notebooklm-py[cookies]"
+python3 -m playwright install chromium
+```
+
+### Autenticación (modo headless — sin navegador)
+
+NotebookLM requiere cookies de sesión de Google. En el servidor (headless) se extraen de Epiphany (Gnome Web):
+
+```
+~/.local/share/epiphany/cookies.sqlite  # Tabla: moz_cookies
+```
+
+Ver `references/notebooklm-api-cheatsheet.md` (movido desde `nelson-content-generation`) y el script `scripts/export-epiphany-cookies.py` para el flujo completo.
+
+```bash
+# Verificar auth
+notebooklm auth check --test --json
+```
+
+### Patrón async — generar podcast desde texto
+
+```python
+import asyncio
+from notebooklm import NotebookLMClient
+from notebooklm.auth import AuthTokens
+from notebooklm.types import AudioFormat, AudioLength
+
+async def generate_podcast(text_content: str, title: str) -> str:
+    auth = await AuthTokens.from_storage()
+    async with NotebookLMClient(auth=auth) as client:
+        nb = await client.notebooks.create(title=title)
+        await client.sources.add_text(notebook_id=nb.id, content=text_content, title=title)
+        await client.artifacts.generate_audio(
+            notebook_id=nb.id,
+            audio_format=AudioFormat.DEEP_DIVE,  # DEEP_DIVE | BRIEF | CRITIQUE | DEBATE
+            audio_length=AudioLength.DEFAULT,     # SHORT | DEFAULT | LONG
+            language="es",
+            instructions="Hazlo conversacional. Explicale a un dev senior."
+        )
+        # Polling hasta completion (puede tardar 5-10 min)
+        for _ in range(60):
+            audios = await client.artifacts.list_audio(notebook_id=nb.id)
+            if audios and audios[0].status == "complete":
+                break
+            await asyncio.sleep(15)
+        output_path = f"/tmp/{nb.id}.mp3"
+        await client.artifacts.download_audio(
+            notebook_id=nb.id, artifact_id=audios[0].id, output_path=output_path
+        )
+        await client.notebooks.delete(notebook_id=nb.id)
+        return output_path
+```
+
+### Tipos de contenido soportados
+
+| Tipo | Método API | Duración típica |
+|------|------------|-----------------|
+| Audio Overview (podcast) | `generate_audio()` | 5-10 min |
+| Video | `generate_video()` | 10-15 min |
+| Slide Deck | `generate_slide_deck()` | 3-5 min |
+| Quiz | `generate_quiz()` | 1-2 min |
+| Flashcards | `generate_flashcards()` | 1-2 min |
+| Mind Map | `generate_mind_map()` | 1-2 min |
+
+### Política de retención de archivos
+
+| Tipo | Retención | Método |
+|------|-----------|--------|
+| Cache TTS | 3 días | Cronjob diario 2am |
+| Podcasts/MP3 | 24 horas | Mismo cronjob |
+| Notebooks cloud | Inmediato | Borrar post-descarga |
+
+Script de cleanup: `~/.hermes/scripts/cleanup-audio-cache.sh`
+
+### Pipeline Noticia → Podcast → WhatsApp
+
+```
+1. AI News Aggregator levanta noticia
+2. Filtro: ¿interesante para I+D+i?
+3. NotebookLM: genera podcast (async, background)
+4. Descarga MP3
+5. WhatsApp Gateway: envía a Nelson
+6. Cleanup: borra MP3 + notebook cloud
+```
+
+### Pitfalls NotebookLM
+
+- `NotebookLMClient` requiere `async with` context — no instanciar directo
+- `generate_audio()` devuelve `GenerationStatus` con `task_id`, no `id`
+- `AudioLength.MEDIUM` no existe — valores válidos: `SHORT`, `DEFAULT`, `LONG`
+- `wait_for_completion()` tiene timeout de 300s; podcasts pueden tardar más — usar polling manual
+- No usar `time.sleep()` en código async sin `await asyncio.sleep()`
+- Google detecta navegadores automatizados (Playwright) y bloquea login — usar import de cookies
+- Las cookies de Epiphany expiran — si falla auth, re-exportar
+
 ## Verificacion
 
 Para probar que todo funciona:
@@ -386,11 +499,14 @@ python3 -c "import whisper; m = whisper.load_model('base'); print('OK')"
 ## Referencias
 
 - `scripts/transcribir.py` — Script CLI reutilizable para transcripcion de audio manual
+- `scripts/export-epiphany-cookies.py` — Exporta cookies de Epiphany para autenticar NotebookLM en headless
 - `references/bridge-whisper-integration.md` — Documentacion completa de la integracion WhatsApp Bridge + Whisper Daemon, con codigo, problemas conocidos y flujo de datos
 - `references/openvoice-install.md` — Instalación completa de OpenVoice V2 en el servidor (clonación de voz, MeloTTS, pitfall libav-dev, uso básico con español, pitfall tupla get_se, pitfall OGG codec)
+- `references/notebooklm-api-cheatsheet.md` — Métodos y enums completos de la API NotebookLM (notebooks, sources, artifacts, tipos AudioFormat/AudioLength)
+- `references/rvc-training.md` — Flujo completo de entrenamiento RVC con Applio: preparación de dataset, parámetros, pitfalls CUDA y modelos pre-entrenados
 - `templates/openvoice_clone_test.py` — Script completo para testear clonación de voz: carga converter, extrae embeddings, genera TTS en español, clona voz y exporta a OGG
 - `templates/openvoice_multilang_clone.py` — Clonación de voz en los 6 idiomas soportados (EN, ES, FR, ZH, JP, KR) usando la voz de referencia del usuario; incluye exportación a OGG con libopus
-- `references/rvc-training.md` — Flujo completo de entrenamiento RVC con Applio: preparación de dataset, parámetros, pitfalls CUDA y modelos pre-entrenados
 - `templates/rvc_infer_tts.py` — Pipeline completo TTS→RVC→OGG listo para usar; incluye verificación de firma de `run_infer_script` y conversión final a OGG Opus para WhatsApp
+- `templates/generate-podcast.py` — Template NotebookLM: texto/URL → podcast MP3, con polling y cleanup automático
 - Daemon en produccion: `/home/server/whisper_daemon.py`
 - Bridge modificado: `/home/server/.hermes/hermes-agent/scripts/whatsapp-bridge/bridge.js`

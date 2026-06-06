@@ -44,6 +44,7 @@ app = FastAPI(lifespan=lifespan)
 - Use `status_code=201` on POST endpoints returning created resources — 200 is the default but semantically wrong
 - `Response` with `media_type="text/plain"` for non-JSON responses — returning a string still gets JSON-encoded otherwise
 - Set `response_model_exclude_unset=True` to omit None fields from response — cleaner API output
+- For multi-step dataframe joins (Polars/Pandas), enforce unique `suffix` per join step/right input to avoid duplicate-column crashes on chained merges (typical `_right` collision).
 
 ## Error Handling
 - `raise HTTPException(status_code=404)` — don't return Response objects for errors, it bypasses middleware

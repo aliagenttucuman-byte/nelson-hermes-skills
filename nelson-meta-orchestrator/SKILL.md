@@ -744,6 +744,69 @@ task = Task(
 
 ---
 
+## OTel Tracing nativo (patrón AgentScope)
+
+AgentScope usa OpenTelemetry para trazar cada agent call, tool call y batch de ejecución. Integrarlo en nuestro meta-orquestador permite visualizar el trace completo en Jaeger o cualquier backend OTLP, y correlacionar con el timeline SQLite existente.
+
+```python
+# nelson_orchestrator/tracing.py
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+
+def setup_tracing(service_name: str = "nelson-meta-orchestrator") -> trace.Tracer:
+    resource = Resource.create({"service.name": service_name})
+    provider = TracerProvider(resource=resource)
+    exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
+    provider.add_span_processor(BatchSpanProcessor(exporter))
+    trace.set_tracer_provider(provider)
+    return trace.get_tracer(service_name)
+
+tracer = setup_tracing()
+
+async def execute_task(task: Task) -> TaskResult:
+    with tracer.start_as_current_span(f"task.{task.subject}") as span:
+        span.set_attribute("task.id",         task.id)
+        span.set_attribute("task.agent",      task.assigned_to)
+        span.set_attribute("task.layer",      task.layer)
+        span.set_attribute("task.complexity", task.complexity)
+        try:
+            result = await _run_agent(task)
+            span.set_attribute("task.result", "success")
+            return TaskResult(success=True, data=result)
+        except Exception as e:
+            span.record_exception(e)
+            span.set_attribute("task.result", "failure")
+            return TaskResult(success=False, error=str(e))
+
+async def run_batch(batch: list[Task], run_id: str) -> dict:
+    with tracer.start_as_current_span("batch.parallel") as span:
+        span.set_attribute("batch.size",   len(batch))
+        span.set_attribute("batch.run_id", run_id)
+        results = await asyncio.gather(*[execute_task(t) for t in batch])
+        return dict(zip([t.id for t in batch], results))
+```
+
+**Docker Compose Jaeger local:**
+```yaml
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # UI
+      - "4317:4317"    # OTLP gRPC
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+```
+
+UI en `http://localhost:16686`. Correlacionar `run_id` con el timeline SQLite existente.
+
+**Pitfall:** `grpcio` puede fallar en entornos sin compilador. Alternativa HTTP: `pip install opentelemetry-exporter-otlp-proto-http` + endpoint `http://localhost:4318`.
+
+---
+
 ## Convenciones del Equipo Nelson
 
 - **IDs de tareas:** formato `{módulo}-{número}`, ej: `NOTIF-001`, `NOTIF-002`

@@ -1,15 +1,60 @@
 ---
 name: nelson-llm-generation
-title: LLM Generation - OpenCode Zen, OpenAI, Ollama, Anthropic, Groq
-description: Integracion con LLMs para el equipo Nelson. Generacion de texto, streaming, manejo de errores, retry con backoff, tracking de tokens/costos. OpenCode Zen (via OpenRouter), OpenAI, Ollama local, Anthropic Claude, Groq.
+title: LLM Generation - OpenCode Zen, OpenAI, Ollama, Anthropic, Groq, FreeLLMAPI
+description: Integracion con LLMs para el equipo Nelson. Generacion de texto, streaming, manejo de errores, retry con backoff, tracking de tokens/costos. OpenCode Zen (via OpenRouter), OpenAI, Ollama local, Anthropic Claude, Groq, FreeLLMAPI proxy multi-provider.
 skill: nelson-llm-generation
 author: equipo-nelson
-version: 1.1.0
-keywords: [llm, opencode, openrouter, openai, ollama, anthropic, claude, groq, streaming, generation, tokens, kimi, minimax]
+version: 1.3.0
+keywords: [llm, opencode, openrouter, openai, ollama, anthropic, claude, groq, streaming, generation, tokens, kimi, minimax, azure-foundry, provider-adapter, freellmapi, multi-provider, routing, pociai]
 dependencies: [nelson-rag-pipeline, nelson-optillm]
+related: [nelson-poc-ai-quickstart, nelson-spec-driven-workflow]
 ---
 
 # LLM Generation - Equipo Nelson
+
+## Reglas de routing LLM Nelson (cargar primero, 2026-06-06)
+
+Antes de elegir provider/modelo, chequear estas reglas. **No son opcionales** — son cómo JARVIS y los agentes del equipo enrutan requests en el ai-server.
+
+### Para el agente JARVIS / uso personal / Tony
+
+**Siempre Anthropic** vía Azure Foundry:
+
+- Endpoint: `https://yizlafclc001.services.ai.azure.com/anthropic`
+- Model: `claude-sonnet-4-6`
+- Env var: `AZURE_ANTHROPIC_API_KEY` (en `~/.hermes/.env`)
+- Wire format: nativo Anthropic (`x-api-key` + `anthropic-version: 2023-06-01`), no OpenAI-compatible
+- Ver [`references/azure-anthropic-foundry.md`](references/azure-anthropic-foundry.md) para detalles, script cliente y quirks
+
+### Para PoCs y otros casos (regla de cascada)
+
+El router FreeLLMAPI intenta en este orden hasta que uno responde. **Por default usar `model="auto"` y dejar al router elegir.** Si necesitás un modelo específico, el orden de preferencia es:
+
+1. **OpenAI directo** (custom provider): `gpt-4o-mini` (default), `gpt-4o`, `o4-mini` (reasoning)
+2. **Groq**: `llama-3.3-70b-versatile` (velocidad brutal)
+3. **OpenRouter free** (21 modelos autodetectados al cargar key): `qwen/qwen3-coder:free`, `meta-llama/llama-3.3-70b-instruct:free`, etc.
+4. **Keyless trial** (Kilo, Pollinations, LLM7) — sin SLA, prompts pueden usarse para training
+
+❌ **OpenCode Zen NO** — key `sk-EASBo2t...5bEtHu` da Cloudflare error 1010 (bloqueada).
+
+### Drop-in: el proxy FreeLLMAPI está en ai-server :3101
+
+No armar abstracciones LLM nuevas en código de agente. El proxy ya es la abstracción:
+
+```python
+from openai import OpenAI
+client = OpenAI(
+    base_url="http://100.110.8.13:3101/v1",
+    api_key="freellmapi-0b0b33d6a9c82a2b15ec6e2006867256e26e7b244e71a57d",
+)
+resp = client.chat.completions.create(model="auto", messages=[...])
+print("Routed via:", resp._routed_via)  # {platform, model}
+```
+
+Setup, endpoints, pitfalls y deploy actual: [`references/freellmapi-deploy-and-usage.md`](references/freellmapi-deploy-and-usage.md).
+Build local del proxy (necesario si modificás el código): [`references/freellmapi-local-build.md`](references/freellmapi-local-build.md).
+
+**Para una PoC con IA nueva, cargar también la skill `nelson-poc-ai-quickstart`** que consolida los patrones de cliente, decisión tree por tarea, y template de README.
 
 ## Modelos locales (Ollama) - Recomendados por VRAM
 
@@ -61,6 +106,33 @@ dependencies: [nelson-rag-pipeline, nelson-optillm]
 
 > **Tip**: Si un modelo es muy grande para tu VRAM, Ollama corre parte en GPU y parte en CPU automaticamente. Pero es más lento.
 
+## MarkItDown como capa de ingesta documental
+
+Para pipelines que necesitan pre-procesar documentos antes de enviárselos a un LLM, usar MarkItDown (Microsoft) como primera capa:
+
+```python
+from markitdown import MarkItDown
+import tempfile
+from pathlib import Path
+
+def doc_to_text(file_bytes: bytes, filename: str) -> str:
+    """Convertir cualquier documento a texto Markdown para el LLM."""
+    md = MarkItDown()
+    suffix = Path(filename).suffix or ".bin"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(file_bytes)
+        tmp_path = tmp.name
+    try:
+        result = md.convert(tmp_path)
+        return result.text_content or ""
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+```
+
+Soporta: PDF, Word, Excel, PPT, HTML, CSV, email (.msg/.eml), YouTube URLs, EPUB, Markdown, TXT.
+Pitfall: requiere archivo físico en disco (tempfile), no acepta bytes directamente.
+Ver skill `nelson-document-processing` para la implementación completa con fallback pdfplumber.
+
 ## Proveedores soportados
 
 | Proveedor | Modelo tipico | Streaming | Costo | Uso ideal |
@@ -70,8 +142,14 @@ dependencies: [nelson-rag-pipeline, nelson-optillm]
 | **OpenAI** | gpt-4o-mini | Si | $$ | Produccion, balance calidad/precio |
 | **OpenAI** | gpt-4o | Si | $$$ | Produccion, calidad maxima |
 | **Ollama** | llama3.2, qwen2.5 | Si | Gratis | Desarrollo local, privacidad |
-| **Anthropic** | claude-3-5-sonnet | Si | $$$ | Razonamiento complejo, coding |
+| **Anthropic** | claude-sonnet-4-6, claude-opus-4-7, claude-haiku-4-5 | Si | $$$ | Razonamiento complejo, coding. Disponible via Anthropic público O Azure Foundry (single-user, autenticarse con `x-api-key` + `anthropic-version`, path `/anthropic` en baseUrl) |
 | **Groq** | llama-3.1-70b | Si | $ | Ultra rapido, baja latencia |
+| **Azure AI Foundry** | claude-sonnet-4-6, claude-opus-4-7 | Si | $$-$$$ | Claude via Azure (no API key propia de Anthropic) |
+| **FreeLLMAPI proxy (ai-server)** | auto (16 providers, 30+ modelos) | Si | Gratis (free tiers) | **Resiliencia + failover automatico, 1.7B tokens/mes agregados, multi-provider unificado. Deployado en :3101, custom providers via /api/keys/custom** |
+
+> **FreeLLMAPI proxy** está deployado en ai-server (http://100.110.8.13:3101). Apila los free tiers de 16 providers (Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, HF, Z.ai, Ollama Cloud, Kilo, Pollinations, LLM7) detrás de un solo endpoint OpenAI-compatible con failover automático. Drop-in replacement perfecto para los agentes: cambiás `base_url` y listo. Single-user, ToS gris (no para comercial). **Setup completo, URLs, endpoints, pitfalls y deploy actual:** ver [`references/freellmapi-deploy-and-usage.md`](references/freellmapi-deploy-and-usage.md).
+
+> **Azure AI Foundry:** Proporciona acceso a modelos Anthropic Claude via Azure sin necesidad de API key de Anthropic. Requiere `anthropic-version: 2023-06-01` header. El modelo `claude-opus-4-7` **no acepta `temperature`**. Ver [`references/azure-anthropic-foundry.md`](references/azure-anthropic-foundry.md) para detalles completos y script de prueba.
 
 > **Default del equipo: OpenCode Zen** para produccion (acceso a 356+ modelos via OpenRouter), **Ollama llama3.2** para desarrollo local.
 >
@@ -122,6 +200,70 @@ ollama run nombre-custom "Hola"
 > **Regla de VRAM:** El archivo GGUF ocupa aproximadamente su tamaño de archivo en VRAM, con un factor de expansión de ~1.1x. Ejemplo: archivo de 2.62 GB → ~2.9 GB VRAM. Archivo de 4.46 GB → ~5.0 GB VRAM. Siempre dejar margen: necesitás `archivo_GGUF * 1.1 < VRAM_disponible`.
 >
 > **Verificación:** Después de importar, correr `ollama ps` y `nvidia-smi` para confirmar que el modelo cargó en GPU y no hizo spill a CPU.
+
+## LLM como Generador de Código de DataFrame
+
+Patrón probado del equipo: el usuario describe en lenguaje natural qué quiere hacer con un DataFrame (cruces, filtros, cálculos, agrupaciones) y el LLM genera código Polars ejecutable.
+
+### Prompt Template (seguro)
+
+```python
+PROMPT_TEMPLATE = """Sos un experto en análisis de datos con Polars (Python).
+
+Tu tarea es:
+1. Entender la intención del usuario (cruces, filtros, cálculos, agrupaciones).
+2. Generar UNA ÚNICA expresión de código Python usando Polars (`import polars as pl`) que transforme el DataFrame `df`.
+3. La expresión debe devolver un nuevo DataFrame de Polars.
+4. No escribas explicaciones. Solo código. No uses markdown.
+
+REGLAS DE SEGURIDAD:
+- NO uses `eval()`, `exec()`, `open()`, `os`, `sys`, `subprocess`.
+- SOLO usa operaciones de Polars: filtros, joins, groupby, select, with_columns, etc.
+- El resultado debe ser un DataFrame de Polars.
+
+ESTRUCTURA DEL DATAFRAME:
+{schema_desc}
+
+MUESTRA DE DATOS (primeras {n} filas):
+{sample_str}
+
+DESCRIPCIÓN DEL USUARIO DE LO QUE QUIERE HACER:
+{user_prompt}
+
+GENERÁ SOLO EL CÓDIGO (una expresión que devuelva el DataFrame transformado):"""
+```
+
+### Ejecución segura
+
+```python
+import polars as pl
+
+def execute_llm_code(code: str, df: pl.DataFrame) -> pl.DataFrame:
+    local_ns = {"pl": pl, "df": df}
+    exec(code, {"__builtins__": {}}, local_ns)
+    result = local_ns.get("df", df)
+    for key, val in local_ns.items():
+        if isinstance(val, pl.DataFrame) and key != "df":
+            result = val
+            break
+    return result
+```
+
+### Modelo recomendado para esta tarea
+
+| Necesidad | Modelo NVIDIA NIM | Notas |
+|-----------|-------------------|-------|
+| Código / dataframes | `qwen/qwen3.5-397b-a17b` | Default recomendado. Estable para generar código |
+| Docs largos (>50 páginas) | `mistralai/mistral-medium-3.5-128b` | 128K contexto |
+| Visión / tablas en imágenes | `meta/llama-3.2-90b-vision-instruct` | Análisis de imágenes |
+
+### Checklist de implementación
+
+- [ ] Prompt incluye esquema + muestra de datos (evita alucinaciones de columnas)
+- [ ] Temperatura baja (0.1-0.2) para determinismo en código
+- [ ] Namespace aislado sin `__builtins__` (seguridad)
+- [ ] Fallback si el código generado falla: devolver df original
+- [ ] Limpiar markdown del código generado antes de exec()
 
 ## Servicio LLM
 
@@ -419,3 +561,40 @@ pip install openai anthropic groq ollama tenacity
 - **OpenCode Zen / OpenRouter:** Si recibís 401 "Missing Authentication header", verificar que el header `Authorization: Bearer <key>` esté presente. Algunas keys de OpenCode Zen funcionan via OpenRouter (`https://openrouter.ai/api/v1`) pero pueden requerir headers adicionales (`HTTP-Referer`, `X-Title`). Ver `references/opencode-zen-setup.md`
 - **OpenCode Zen / OpenRouter:** El listado de modelos (`/v1/models`) puede funcionar mientras que `/v1/chat/completions` da 401 si la key no tiene créditos o permisos. Verificar en el dashboard de OpenCode Zen.
 - **OpenCode Zen / OpenRouter:** Los model IDs son del formato `provider/model` (ej: `moonshotai/kimi-k2.6`, `minimax/minimax-m2.7`). No usar nombres cortos.
+- **Azure AI Foundry (Anthropic Claude):** No usar `Authorization: Bearer`. Azure requiere `x-api-key: <key>` + `anthropic-version: 2023-06-01`. El modelo `claude-opus-4-7` rechaza `temperature` con error 400; `claude-sonnet-4-6` sí lo acepta. Ver `references/azure-anthropic-foundry.md`
+- **FreeLLMAPI / puerto 3001:** El WhatsApp Gateway de Hermes ocupa 3001 en ai-server. Usar siempre `PORT=3101` o superior en `.env` del proxy. El mapping del container es `HOST:3101 → INT:3001`.
+- **FreeLLMAPI / `POST /api/keys` no acepta `baseUrl`:** Para cargar OpenAI directo, Anthropic, llama.cpp, vLLM, o cualquier endpoint OpenAI-compatible custom, usar `POST /api/keys/custom` con `{baseUrl, model, displayName, apiKey}`. El endpoint básico es solo para providers nativos del catálogo.
+- **FreeLLMAPI / `model: "auto"` cae en reasoning models:** El router prioriza por intelligenceRank, y los modelos top (Nemotron 3 Super, OpenAI o-series, Qwen3-Thinking, DeepSeek-R1) consumen `max_tokens` en razonamiento chain-of-thought. Con `max_tokens: 20` se truncan. Usar `max_tokens: 1000+` o evitar reasoning models para respuestas cortas.
+- **FreeLLMAPI / DB persistente:** El volumen `freellmapi-data` guarda users, sessions, keys encriptadas, analytics. Sobrevive a `docker compose down`. Si el user admin se perdió la pass, hay que `docker compose down -v` (nuclear) o recuperarla del password manager.
+- **FreeLLMAPI / unified key vs admin token:** Son cosas distintas. `unified key` (`freellmapi-...`) es para clientes del proxy (OpenAI SDK). `admin token` (de `/api/auth/setup` o `/login`) es para gestionar keys/models via API admin. El primero se genera automático en el primer boot; el segundo requiere crear el primer user.
+- **FreeLLMAPI / Azure Anthropic `/anthropic` path prefix:** Azure Anthropic Foundry requiere el path `/anthropic` antes de `/v1/messages` (parte del URL del recurso Azure, no de la API Anthropic). Endpoint correcto: `https://<resource>.services.ai.azure.com/anthropic/v1/messages`. Anthropic público (api.anthropic.com) NO requiere ese prefijo. Al cargar como `anthropic` o `custom` con `baseUrl`, el path se preserva verbatim — el usuario debe incluir `/anthropic` en el URL. Si el adapter da 404 "Resource not found" pero un `curl` directo al URL completo da 200, casi siempre es mismatch entre el `baseUrl` guardado y la construcción `baseUrl + /v1/messages` que hace el provider.
+- **FreeLLMAPI / discovery de deployments Azure:** Los nombres de deployment en Azure Anthropic Foundry **NO** son los nombres genéricos del modelo. Aunque `claude-sonnet-4-6` exista como modelo público, tu recurso Azure puede no tenerlo deployado. Probar con `GET <baseUrl>/openai/v1/models` con `api-key: <key>` para ver los deployment IDs reales. Catálogo típico: `claude-sonnet-4-6` (preview), `claude-haiku-4-5-20251001`, `claude-opus-4-1-20250805`, `claude-sonnet-4-5-20250929`. No todos los que aparecen en docs de Anthropic están deployados en un recurso Azure dado.
+- **FreeLLMAPI / `POST /api/keys` ahora acepta `baseUrl` opcional:** A partir de la integración del provider Anthropic nativo, el schema Zod de `POST /api/keys` se extendió para aceptar `baseUrl` opcional. Solo lo usan los providers que enrutan per-endpoint (`custom` y `anthropic`); el resto lo ignora. Para OpenAI directo sigue siendo más limpio `POST /api/keys/custom` (registra el modelo en el catálogo). Pero `POST /api/keys` con `baseUrl` también funciona y crea una key con `base_url` guardado en la columna correspondiente de `api_keys`.
+- **FreeLLMAPI / `claude-sonnet-4-6` con `max_tokens: 20` se trunca en reasoning:** Los modelos Claude con extended thinking habilitado consumen tokens antes de responder. Subir `max_tokens` a 100+ o no usar este modelo para one-word answers.
+- **OpenCode Zen key `sk-EASBo2t...5bEtHu` da Cloudflare error 1010:** Bloqueada por Cloudflare a nivel de edge (no es problema de header de auth ni de formato de key). **Descartada del router y de cualquier uso.** Cualquier key con ese error code es inutilizable aunque la key parezca válida en otros lugares. Si `curl` al endpoint con la key da 1010, no cargar al router ni intentar variantes de header (`Authorization`, `x-api-key`, `api-key`, `Basic`) — Cloudflare bloquea antes de que llegue al backend.
+- **Regla de routing LLM Nelson (2026-06-06):** Para el agente JARVIS / uso personal, **siempre Anthropic** (Azure Foundry `yizlafclc001.services.ai.azure.com/anthropic`, `claude-sonnet-4-6`, env `AZURE_ANTHROPIC_API_KEY`). Para PoCs, **cascada de fallback en este orden estricto:** (1) OpenAI directo (gpt-4o-mini, gpt-4o, o4-mini vía `custom` provider) → (2) Groq (llama-3.3-70b-versatile) → (3) OpenRouter free (21 modelos autodetectados al cargar key) → (4) Keyless trial (Kilo Gateway, Pollinations, LLM7). **OpenCode Zen NO** (key descartada, ver pitfall arriba).
+
+## Provider adapter pattern (FreeLLMAPI, lessons from Anthropic integration)
+
+**Cuándo aplica:** cuando FreeLLMAPI necesita hablar un protocolo distinto a OpenAI-compatible (Anthropic nativo, Google Gemini, Cohere v1, etc.) y el provider adapter base (`OpenAICompatProvider`) no sirve.
+
+**Patrón del adapter (clase TS):**
+1. Extender `BaseProvider` (de `server/src/providers/base.ts`) e implementar `chatCompletion`, `streamChatCompletion`, `validateKey`.
+2. Si la wire format difiere del OpenAI shape, hacer mapping bidireccional:
+   - **Request:** OpenAI `messages` + `tools` → wire format del provider (ej. Anthropic `system` separado, `tool_use`/`tool_result` blocks).
+   - **Response:** wire format → OpenAI `ChatCompletionResponse` shape con `_routed_via: {platform, model}`.
+   - **Stream:** mapear eventos SSE del provider (`message_start`, `content_block_delta`, `message_delta`, `message_stop` en Anthropic) → OpenAI `ChatCompletionChunk` con `delta.content` / `delta.tool_calls` y `finish_reason` al final.
+3. **No magic rewriting de paths.** El provider concatena `${baseUrl}/v1/messages`. El usuario carga el `baseUrl` correcto incluyendo prefijos necesarios. Documentar en el adapter qué paths asume (ej. Azure Anthropic requiere `/anthropic` en el baseUrl).
+4. **Si el provider tiene endpoints con auth distinta** (ej. Anthropic `x-api-key` + `anthropic-version: 2023-06-01`, no `Authorization: Bearer`), implementar `authHeaders(apiKey)` privado.
+5. **Per-key baseUrl:** agregar al `resolveProvider(platform, baseUrl)` un branch que use `withBaseUrl(url)` sobre el singleton. Router llama `resolveProvider('anthropic', key.base_url)` por cada key, no el singleton directo. Mismo patrón que `custom`.
+6. **Catalog seeding:** el `POST /api/keys` no inserta modelos. Para built-ins seedear en `db/index.ts` (en `migrateModelsV*`); para custom, el dashboard/backend tiene `POST /api/keys/custom` que sí los inserta. Built-ins nuevos requieren migración + rebuild Docker.
+7. **Antes de tocar código, validar con `scripts/probe_provider.py`:** corre el flujo de discovery (lista modelos OpenAI-compat, prueba deployment names Anthropic conocidos) sin levantar el router. Imprime qué modelos están vivos y cuáles no. **Si la Azure Anthropic Foundry resource no tiene Claude Opus deployado pero sí Sonnet, esto lo dice antes de que modifiques el adapter.**
+
+**Catálogo real de providers con `baseUrl` per-key:** `custom` (cualquier OpenAI-compat), `anthropic` (público + Azure Foundry). Los demás tienen un único endpoint global registrado en `providers/index.ts`.
+
+**Cómo debuggear un provider nuevo:**
+1. Probar el endpoint con `curl` directo (sanity check, evita perder tiempo en código).
+2. Probar con un POST simple desde un script Python, logueando el body exacto que envía.
+3. Después probar a través del router, logueando `docker logs` para ver `API error 4xx: ...` con el mensaje real del provider.
+4. **Si el error genérico "Resource not found" no aparece en docs, casi siempre es path prefix mal armado o deployment name que no existe en el recurso.**
+5. **Patrón de diagnóstico rápido:** si el adapter da 404 con `X-Routed-Via: <platform>/<model>` pero `curl` directo al endpoint completo da 200, comparar las dos URLs carácter por carácter. El adapter concatena `${baseUrl}/<path-template>`. Si el provider requiere un prefijo (`/anthropic`, `/v1api`, etc.) que el usuario incluyó en el baseUrl, todo bien. Si el prefijo está en el `path-template` del adapter pero no en el baseUrl, hay mismatch. **Fix:** el baseUrl debe incluir cualquier path que el provider requiera antes de `<path-template>`. En Azure Anthropic: baseUrl = `https://<resource>.services.ai.azure.com/anthropic` (no `...azure.com` solo).
