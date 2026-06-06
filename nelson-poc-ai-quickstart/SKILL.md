@@ -331,10 +331,41 @@ grep -i "x-routed-via" /tmp/h.txt
 | `POST /api/keys/custom` | Cargar key + modelo custom |
 | `GET /api/models` | Catálogo FreeLLMAPI completo |
 
+## Sobre contribuir a upstream (regla Nelson, 2026-06-06)
+
+**Decisión explícita de Nelson:** **NO** hacer PR upstream de cambios a proyectos free-tier externos (ej. tashfeenahmed/freellmapi, VLM repos, etc.). Reglas:
+
+- ❌ **No** abrir PR al repo upstream de un free-tier project, ni siquiera si el cambio es "limpio y útil".
+- ✅ **Sí** mantener los cambios en el fork local o en su propio repo (`nelson-brainstorming`, `nelson-hermes-skills`, etc.) con nota de qué se patcheó.
+- ✅ **Sí** documentar el workaround / patch en la skill `nelson-llm-generation` con sus `references/` para que el equipo pueda aplicarlo al rebuild local.
+
+**Razonamiento:** upstream free-tier puede cambiar de licencia, de dueño, o desaparecer. Mantener los cambios localmente preserva el trabajo y la decisión sobre el deploy.
+
+**Anti-patterns:**
+- ❌ "Es contribución limpia, no hace daño" → no aplica, la regla es absoluta.
+- ❌ "Pero upstream lo necesita" → no es nuestro problema, la comunidad lo resolverá.
+- ❌ Forkear upstream solo para tener la versión patched y mantener dos repos divergentes → preferir mantener en el repo de skills (`nelson-hermes-skills`) con su `references/` documentando el patch.
+
 ## Próximos pasos opcionales (no urgentes)
 
 - **Alegent LLM Router v0.1** — wrapper Python encima del proxy que agregue `prefer: quality|speed|cost` + `task: code|vision|reasoning|chat` → capability routing explícito. Tiempo: 1-2 hs. No es necesario forkear FreeLLMAPI.
-- **PR upstream** del provider Anthropic nativo a `tashfeenahmed/freellmapi`. Contribución limpia, sin dependencias externas.
+- **Latency-aware routing** — wrapper que mide p95 latencia de los últimos N requests y re-rankea el chain dinámicamente. Útil cuando el "orden manual" del chain ya no refleja la realidad. Tiempo: 1-2 hs.
+- **Build verification step** en pipelines — un `scripts/verify-build.sh` que corra `npm ci` → `npm run build` → `docker compose up -d --build` → smoke test contra el proxy. Para CI/CD de skills que deployan infra.
+
+## Pitfall: build local de FreeLLMAPI (no usar la imagen pre-built)
+
+**La imagen `ghcr.io/tashfeenahmed/freellmapi:latest` NO incluye cambios al código local.** Si modificás el adapter (ej. agregaste `anthropic.ts`), la imagen pre-built sigue siendo la original. Para deployar cambios:
+
+```bash
+cd /home/server/proyectos/freellmapi
+npm ci                # instala deps + tsc
+npm run build         # compila server+client
+docker compose up -d --build   # Dockerfile multi-stage compila
+```
+
+El `docker-compose.yml` ya tiene `build: { context: ., dockerfile: Dockerfile }` que usa código local, no la imagen pre-built. Pero **si tu compose usa `image: ghcr.io/...`** en vez de `build:`, está trayendo la imagen vieja. Verificar.
+
+Tiempo de build Docker: ~2 min. **Si ves que tu cambio no se aplica después de `docker compose restart`, hacer `up -d --build`.**
 
 ## Referencias
 
