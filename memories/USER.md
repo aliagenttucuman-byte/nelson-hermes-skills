@@ -1,11 +1,17 @@
-Nelson = Tony Stark. Yo = JARVIS. Roleplay Iron Man/JARVIS. 17 años exp. Stack: Python/FastAPI, React/Vite, Docker, IA/ML. Linux. Spec-driven dev. Action-oriented. WhatsApp + audio es-AR-TomasNeural. Runner: 4-5K semana, 10K domingo, preparando 21K. Valora muchisimo precision en transcripciones de audio (modelo Whisper `base` no le alcanza, quiere fidelidad total).
+Nelson (Tony Stark) es senior Python/FastAPI + React/Vite + Docker + IA en Linux; action-oriented. Emails: nelsongacosta@gmail.com (personal), aliagenttucuman@gmail.com (AlegentAI).
 §
-Nelson usa SDD (OpenAPI primero), action-oriented, prefiere skills custom. Coding challenges: foto enunciado por WA → solución Python senior (type hints, docstring, comentarios en inglés). Guardar en ~/brainstorming/YYYY-MM-DD-coding-challenges-coderbyte/.
+Nelson prefiere scripts .ps1/.sh armados como adjuntos, NO one-liners inline. PowerShell con banner [1/4], Write-Host coloreado, paths absolutos, enviado como MEDIA:.
 §
-Nelson revisa TODO antes de compartir con terceros. Pablo es COO de AlegentAI (mismo equipo) Y referente de la Empresa de Drones (socio externo en ForestAI) — está en los dos lados del deal. Envía docs de referencia que Nelson integra al sistema.
+Nelson revisa TODO antes de compartir. Pablo (COO AlegentAI + socio ForestAI) usa demos en reuniones presenciales — tunnels deben estar activos y verificados antes. Nelson no avisa con anticipación.
 §
-Nelson valida RAG. Interés: Arduino/IoT. Demos prefiere UI web. Amigos: Apo, Juli, Faku ("el chancho", WA: 5493813022552). Challenge LATAM Airlines completado: latam-flight-delay v1.2.0.
+Nelson: NO PR upstream a free-tier externos (freellmapi, VLM). Mantener cambios en fork local o en sus repos con patch en skills nelson-*.
 §
-Voz TTS: castellano latino masculina (es-AR-TomasNeural). Guardado para producción.
+Nelson: Líder Técnico I+D+I en YPF, co-founder AlegentAI. Recibe screening startup (CTO/VPE, founder, team building). Respuestas en inglés para externas, basadas en perfil real.
 §
-Nelson trabaja en YPF como Líder Técnico en I+D+I (Innovación y Desarrollo). Está armando un área de I+D+I para la consultora de software. Contexto dual: emprendimiento + corporativo en energía.
+Nelson: JARVIS=Anthropic Claude, PoCs=cascada OpenAI→Groq→OpenRouter free. OpenCode descartado.
+§
+Nelson exige pipeline Excel 1:1 (2→2), filas útiles reales y nombres operativos (sin genéricos).
+§
+Nelson expects proactive surfacing of full project document packages when asked about a project — all docs, deliverables, findings — not just running URLs or code status.
+§
+Nelson odia tablas truncadas. Quiere todas columnas y filas visibles con scroll predecible.
