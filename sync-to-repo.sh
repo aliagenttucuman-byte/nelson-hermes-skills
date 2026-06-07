@@ -15,6 +15,7 @@ SKILLS=(
   nelson-ai-vision
   nelson-audio-processing
   nelson-automation-n8n
+  nelson-backup-dr
   nelson-background-jobs
   nelson-brainstorming
   nelson-browser-agent
@@ -45,10 +46,12 @@ SKILLS=(
   nelson-frontend-stack
   nelson-frontend-testing
   nelson-generative-ui
+  nelson-incident-response
   nelson-lean-ctx
   nelson-llm-generation
   nelson-meta-orchestrator
   nelson-monitoring-observability
+  nelson-multi-tenancy
   nelson-observability
   nelson-optillm
   nelson-os-security
@@ -56,6 +59,7 @@ SKILLS=(
   nelson-pricing-model
   nelson-project-bootstrap
   nelson-project-constitution
+  nelson-project-tracking
   nelson-rag-pipeline
   nelson-react-doctor
   nelson-robotocore
