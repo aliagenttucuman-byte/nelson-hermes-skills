@@ -335,3 +335,34 @@ When Nelson shares a link to a research paper, blog post, or web article, use th
 - **pdfplumber en Docker slim**: necesita `libgl1-mesa-glx` en el Dockerfile.
 - **Excel con MarkItDown**: convierte a tabla Markdown. Si las celdas tienen fórmulas, extrae el valor calculado, no la fórmula.
 - **YouTube URLs**: pasar la URL directamente a `MarkItDown().convert(url)` — extrae la transcripción automática del video.
+
+## Tecnologías a evaluar — Roadmap
+
+### OpenDataLoader PDF (2025)
+https://github.com/opendataloader-project/opendataloader-pdf | Apache 2.0
+
+Alternativa más liviana a Docling — evaluar para reemplazar o complementar en el pipeline RAG.
+
+Por qué importa:
+- #1 en benchmarks — 0.907 accuracy general, 0.928 en tablas (supera Docling, PyMuPDF, Surya)
+- Más liviano — modo local determinístico a 0.015s/página, sin modelos pesados en memoria
+- Salida directa para RAG — Markdown + JSON con bounding boxes por elemento, listo para chunking
+- Modo híbrido — páginas simples local, páginas complejas con IA (tablas complejas, fórmulas LaTeX, OCR 80+ idiomas)
+- LangChain integration nativa
+- SDKs — Python, Node.js, Java (requiere Java 11+)
+
+Instalación:
+```bash
+pip install opendataloader-pdf
+```
+
+```python
+import opendataloader_pdf
+opendataloader_pdf.convert(
+    input_path=["file.pdf"],
+    output_dir="output/",
+    format="markdown,json"
+)
+```
+
+Acción: benchmarkear vs Docling/Surya en documentos reales del equipo (contratos, reportes MRV, licitaciones). Si supera en velocidad y accuracy, evaluar como capa 1 del pipeline.
