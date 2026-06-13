@@ -245,46 +245,6 @@ def ingest(doc_id: str, text: str, metadata: dict | None = None):
     return pipeline.ingest_document(doc_id, text, metadata or {})
 ```
 
-## Patrón Orchestrator + PM Instances (Nelson)
-
-Cuando el chat de JARVIS debe responder con contexto operativo del equipo, priorizar estas fuentes antes de documentos externos:
-
-1. **Task Memory** (`/tasks/history`, `/tasks/pending`)
-2. **Timeline del orquestador** (tabla `orchestration_events`)
-3. **Subtasks del orquestador** (tabla `task_graph`)
-4. **Brainstorming local** (`~/brainstorming/YYYY-MM-DD-*`)
-5. **Repos GitHub del equipo** (owners configurables)
-
-### Endpoint recomendado para Resumen PM
-
-Agregar endpoint agregado para el dashboard PM:
-
-- `GET /pm/instances?limit=80`
-- Devuelve grupos por tipo (`poc`, `brainstorming`, `github`), conteos y lista unificada ordenada por `updated_at`.
-
-Formato sugerido de salida:
-
-```json
-{
-  "generated_at": "2026-05-29T23:00:00Z",
-  "counts": {"total": 35, "poc": 9, "brainstorming": 17, "github": 9},
-  "groups": {"poc": [], "brainstorming": [], "github": []},
-  "instances": []
-}
-```
-
-Esto habilita un **desplegable de instancias en “Resumen PM”** para navegar contexto concreto (PoCs, brainstormings y repos) desde la UI.
-
-### Embeddings fallback para no bloquear PoC
-
-Si falta `OPENAI_API_KEY`, usar embedding local determinístico (hashing trick) para mantener RAG operativo en PoC.
-
-- Mantener la misma dimensión en index/query (ej. 256).
-- Normalizar vector para similitud coseno.
-- Exponer `embedding_backend` en endpoint de status para observabilidad.
-
-Ver detalle y snippets en `references/orchestrator-rag-pm-instances.md`.
-
 ## Prompt Engineering para RAG
 
 ### System prompt efectivo
@@ -410,24 +370,6 @@ environment:
   - OLLAMA_HOST=http://172.17.0.1:11434  # NO host.docker.internal en Linux
 ```
 
-## PM Portfolio Indexing (Proyectos en Resumen PM)
-
-Cuando el chat/PM debe nutrirse de **proyectos reales** (no solo documentos sueltos), usar este patrón:
-
-1. Un endpoint agregador (`/pm/instances` o equivalente) que devuelva **projects + brainstorming + github** en una lista unificada.
-2. Cada item debe incluir campos operativos mínimos:
-   - `economic_weight` (score 0-100, bucket, factors)
-   - `next_steps` (lista accionable)
-   - `updated_at`, `summary`, `type`, `project_status`, `project_kind`
-3. Para evitar reindexar todo en cada request:
-   - firma local de cambios (`local_signature`) basada en mtimes de proyecto
-   - TTL de fuentes remotas (ej. GitHub)
-   - caché persistente con `schema_version` para invalidar estructuras viejas
-4. Si no hubo cambios: responder desde caché (`from_cache=true`).
-5. Si hubo cambios: recalcular counts + payload y persistir.
-
-Esto permite que el selector PM muestre datos reales por proyecto y que JARVIS tenga contexto accionable por selección.
-
 ## Testing y Validación
 
 Antes de entregar un sistema RAG, validar con un documento de prueba extenso y realizar consultas de diferentes tipos:
@@ -458,29 +400,6 @@ Antes de entregar un sistema RAG, validar con un documento de prueba extenso y r
 - [ ] Sources devueltas al frontend para verificacion
 - [ ] Rate limiting en endpoints RAG (costoso)
 - [ ] Documento de prueba subido y validado antes de entregar
-- [ ] Si el frontend es PM/operativo de Nelson, exponer fuentes como **proyectos** (PoC / Brainstorming / GitHub), no como "instancias"
-- [ ] Implementar indexación incremental (cache + signature/mtime) para no reindexar todo en cada request
-
-## Patrón operativo: PM Context Sources (PoC + Brainstorming + GitHub)
-
-Para el dashboard de orquestador de Nelson, el chat y Resumen PM deben consumir un inventario unificado de proyectos de contexto:
-
-1. Escanear fuentes locales (`~/brainstorming`, `~/proyectos`) y agrupar en:
-   - `poc`
-   - `brainstorming`
-2. Obtener repos de GitHub de owners configurables (`PM_GITHUB_OWNERS`).
-3. Guardar cache persistente (`pm_instances_cache.json`) con:
-   - `local_signature` (hash de nombre+mtime)
-   - `github_fetched_ts` (TTL)
-   - `counts`, `groups`, `instances/projects`
-4. En cada request:
-   - Si `local_signature` no cambió y GitHub está fresco: devolver cache (`from_cache=true`, `recalculated=false`).
-   - Si cambió algo local o venció TTL: recalcular y persistir (`recalculated=true`).
-5. Exponer endpoint de refresh manual (`POST /pm/instances/reindex`) para demos y validación.
-
-Ver referencia: `references/pm-project-sources-incremental-indexing.md`.
-
-- [ ] Exponer estado operacional del RAG (`/chat/rag/status`) y reindex manual (`/chat/rag/reindex`) para diagnósticos rápidos
 
 ## Arquitectura PoC Completa (Docker Compose)
 
@@ -740,8 +659,6 @@ ngrok http 8080 --authtoken TU_TOKEN
 
 ## Pitfalls
 
-- **Caché de portfolio sin versionado de schema**: si agregás campos nuevos (ej. `economic_weight`, `next_steps`) y no invalidás la caché, el frontend puede mostrar “datos vacíos” aunque el backend nuevo esté deployado. Solución: guardar `schema_version` en cache y forzar reindex cuando cambie.
-- **Firma local basada solo en mtime de carpeta raíz**: no detecta cambios internos (README/archivos hijos). Solución: usar mtime recursivo acotado (depth 1-2) para construir la `local_signature`.
 - **FLoCI no se une automáticamente a la red de Docker Compose**: al reemplazar MinIO por FLoCI en un `docker-compose.yml` existente, el contenedor `floci` a veces no se conecta a la red `default` del proyecto. Esto provoca que el backend no pueda resolver `http://floci:4566` (`Could not resolve host: floci`).
   - **Fix**: hacer un `docker compose down && docker compose up -d` completo (no solo restart) para que Docker Compose vuelva a crear la red y conecte todos los contenedores correctamente.
   - **Verificación**: `docker network inspect <proyecto>_default` debe listar `floci-1` con una IP asignada.
@@ -809,10 +726,11 @@ ngrok http 8080 --authtoken TU_TOKEN
     docker compose -p rag-minio -f docker-compose.minio.yml up -d
     ```
   - **Fix 3**: Mapear puertos distintos en cada stack (backend FLoCI 8000/frontend 8080, backend MinIO 8001/frontend 8081) para evitar colisiones externas, aunque el principal problema es la red Docker interna compartida.
-- **No devolver fuentes al frontend en respuestas de chat**: si el backend RAG recupera contexto pero no envía `sources` junto con el resultado final (ej. en SSE `done`), el usuario no puede auditar evidencia y pierde confianza operacional.
-  - **Fix**: incluir `sources` + bandera de contexto (`rag_enabled`) en el payload final del stream, y renderizar en UI una sección compacta “Fuentes RAG” (source + score).
-- **Falta de credenciales no debe bloquear todo el chat**: en entornos PoC suele faltar `OPENAI_API_KEY`. Si el pipeline depende 100% de embeddings remotos, el chat queda sin RAG aunque haya datos locales disponibles.
-  - **Fix**: implementar fallback local determinístico (ej. hashing embeddings) y reportarlo en `GET /chat/rag/status` como `embedding_backend=hashing-local`.
+- **Chunk size muy chico** = pierde contexto
+- Modelo de embedding diferente entre index y query = resultados malos
+- No filtrar por usuario/tenant = data leakage entre usuarios
+- No limitar contexto enviado al LLM = excede ventana de contexto
+- No incluir sources = usuario no puede verificar
 - **Qdrant point IDs deben ser UUIDs**: strings personalizadas como `doc_123_chunk_0` generan `400 Bad Request`. Usar `uuid.uuid4()` o enteros unsigned.
 - **Formulacion de la pregunta importa**: sinonimos o terminos tecnicos pueden no matchar bien con el embedding del chunk. Probar reformulaciones.
 - **Scores de retrieval bajos (< 0.6)**: indican que el embedding no esta encontrando chunks relevantes. Revisar chunk size, overlap y calidad del texto extraido.
@@ -860,15 +778,14 @@ Cuando se retoma un proyecto RAG despues de dias/semanas, seguir este checklist 
 
 ## Referencias
 
-- `references/pm-portfolio-indexing-pattern.md` — Patrón de indexación incremental de proyectos para Resumen PM: cache con schema_version, detección de cambios locales y campos `economic_weight` + `next_steps`.
 - `references/retomar-poc-rag-mayo-2026.md` — Flujo concreto de retomada de un proyecto RAG existente, verificacion de Ollama y modelos
 - `references/rag-poc-etapa1-etapa2.md` — Detalles de la PoC con etapas 1 y 2 (FastAPI + React + MinIO + Qdrant)
 - `references/rag-query-tips.md` — Tips para formular queries efectivas
-- `references/meta-orchestrator-chat-rag-qdrant-may-2026.md` — Integración concreta del chat del meta-orchestrator con Qdrant, endpoints `/chat/rag/*`, SSE con `sources`, y fallback `hashing-local` cuando no hay `OPENAI_API_KEY`
+- `references/debug-rag-poc-etapa2-mayo-2026.md` — Fixes concretos de compatibilidad encontrados en retomada: Qdrant sin curl, langchain-text-splitters, qdrant-client query_points(), Ollama IP en Linux, env vars Docker
 - `references/cloudflared-expose-services.md` — Patron para exponer servicios locales via Cloudflared quick tunnel (demos, acceso remoto temporal)
 - `references/session-rag-floci-minio-parallel-mayo-2026.md` — Sesion completa: despliegue en paralelo de FLoCI vs MinIO, problema de frontend apuntando a localhost, confusion de directorios Docker Compose, URLs finales y verificacion
 - `references/parallel-backend-comparison-mayo-2026.md` — Deploy triple (FLoCI-AWS + MinIO + FLoCI-Azure) en paralelo con demo package para Pablo. Tabla comparativa, URLs publicas, flujo end-to-end, y lecciones para futuras demos comparativas
-- `references/agentscope-architecture-reference.md` — AgentScope 2.0 (Alibaba, 26k stars): análisis comparativo vs LangGraph/CrewAI, patrones de Agent Service multi-tenant, Message Hub y Event Stream relevantes para el meta-orquestador de Nelson.
+- `references/floci-az-overview.md` — FLoCI-az: emulador local de Azure Storage + Functions, connection strings, Docker Compose, comparativa con Azurite
 - `templates/docker-compose.minio.yml` — Template Docker Compose para stack RAG con MinIO (puertos alternativos, persistente en disco)
 - `scripts/verify-rag-deployment.sh` — Script de verificacion rapida para detectar frontend apuntando a localhost, CORS fallido, o backend sin documentos
 - `scripts/rag-health-monitor.sh` — Monitoreo de salud de RAGs en paralelo. Cada 5 min revisa si los backends responden, reinicia automaticamente si estan caidos, y envia alerta si no se recuperan.

@@ -1,0 +1,98 @@
+{
+  "id": "8316487bc6e44b9c",
+  "name": "Monitor Servidor ai-server → WhatsApp",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{"field": "minutes", "minutesInterval": 5}] }
+      },
+      "id": "cron-trigger",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "command": "CPU=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1 | tr -d ' ,')\nRAM_USED=$(free | awk '/^Mem:/{printf \"%.0f\", $3/$2*100}')\nDISK=$(df / | awk 'NR==2{printf \"%.0f\", $5}' | tr -d '%')\n\nFORESTAI=$(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8010/health 2>/dev/null || echo \"000\")\nBISONTE=$(ss -tlnp 2>/dev/null | grep -c ':9000' || echo \"0\")\nWHATSAPP=$(ss -tlnp 2>/dev/null | grep -c ':3001' || echo \"0\")\nFORESTAI_DOCKER=$(docker ps --filter name=forestai-poc --format '{{.Status}}' 2>/dev/null | grep -c 'Up' || echo \"0\")\n\nALERTS=\"\"\nSTATUS=\"ok\"\n\nCPU_INT=$(printf \"%.0f\" ${CPU:-0} 2>/dev/null || echo \"0\")\n[ \"${CPU_INT:-0}\" -gt 80 ] && ALERTS=\"${ALERTS}🔴 CPU: ${CPU}% (umbral 80%)\\n\" && STATUS=\"alert\"\n[ \"${RAM_USED:-0}\" -gt 85 ] && ALERTS=\"${ALERTS}🔴 RAM: ${RAM_USED}% (umbral 85%)\\n\" && STATUS=\"alert\"\n[ \"${DISK:-0}\" -gt 80 ] && ALERTS=\"${ALERTS}🔴 Disco: ${DISK}% (umbral 80%)\\n\" && STATUS=\"alert\"\n[ \"$FORESTAI_DOCKER\" -eq 0 ] && ALERTS=\"${ALERTS}🔴 ForestAI Docker CAIDO\\n\" && STATUS=\"alert\"\n[ \"${BISONTE:-0}\" -eq 0 ] && ALERTS=\"${ALERTS}🟡 Expreso Bisonte :9000 CAIDO\\n\" && STATUS=\"alert\"\n[ \"${WHATSAPP:-0}\" -eq 0 ] && ALERTS=\"${ALERTS}🔴 WhatsApp Gateway :3001 CAIDO\\n\" && STATUS=\"alert\"\n\nprintf '{\"status\":\"%s\",\"alerts\":\"%s\",\"cpu\":\"%s\",\"ram\":\"%s\",\"disk\":\"%s\",\"forestai_docker\":\"%s\",\"bisonte\":\"%s\",\"whatsapp\":\"%s\"}' \\\n  \"$STATUS\" \"$ALERTS\" \"${CPU:-?}\" \"${RAM_USED:-?}\" \"${DISK:-?}\" \"$FORESTAI_DOCKER\" \"${BISONTE:-0}\" \"${WHATSAPP:-0}\""
+      },
+      "id": "check-server",
+      "name": "Check Servidor",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.stdout.trim();\nconst d = JSON.parse(raw);\nreturn [{ json: d }];"
+      },
+      "id": "parse-json",
+      "name": "Parsear JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "alert",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-alert",
+      "name": "¿Hay alertas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst now = new Date().toLocaleString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires'});\nconst msg = `🚨 *ALERTA ai-server* — ${now}\\n\\n${d.alerts.replace(/\\\\n/g,'\\n')}\\n📊 *Estado actual:*\\n• CPU: ${d.cpu}%\\n• RAM: ${d.ram}%\\n• Disco: ${d.disk}%\\n• ForestAI: ${d.forestai_docker > 0 ? '✅' : '❌ CAIDO'}\\n• Bisonte: ${d.bisonte > 0 ? '✅' : '⚠️ CAIDO'}\\n• WhatsApp GW: ${d.whatsapp > 0 ? '✅' : '❌ CAIDO'}`;\nreturn [{ json: { to: '5493816240691', message: msg } }];"
+      },
+      "id": "build-message",
+      "name": "Armar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:3001/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{"name": "Content-Type", "value": "application/json"}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.to, message: $json.message }) }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "Cada 5 minutos": {"main": [[{"node": "Check Servidor", "type": "main", "index": 0}]]},
+    "Check Servidor": {"main": [[{"node": "Parsear JSON", "type": "main", "index": 0}]]},
+    "Parsear JSON": {"main": [[{"node": "¿Hay alertas?", "type": "main", "index": 0}]]},
+    "¿Hay alertas?": {
+      "main": [
+        [{"node": "Armar mensaje", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Armar mensaje": {"main": [[{"node": "Enviar WhatsApp", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

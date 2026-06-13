@@ -1086,6 +1086,34 @@ sudo systemctl status nelson-task-memory
 
 ---
 
+## Playbook operativo — "¿Qué nos quedó pendiente?"
+
+Cuando Tony/Nelson pide un estado rápido de pendientes entre sesiones, no alcanza con una sola fuente. Usar este orden de chequeo para evitar falsos "todo limpio":
+
+1. **Task Memory (fuente principal):**
+   - Consultar `pending` + `in_progress` (+ opcional `failed` recientes).
+   - Si está vacío, continuar igual con los pasos 2–4.
+2. **TODO runtime del agente:**
+   - Revisar la lista `todo` de la sesión actual.
+3. **Historial de sesiones (session_search):**
+   - Buscar términos de continuidad: `pendiente`, `TODO`, `falta`, `próximo`, nombres de proyectos (`ForestAI`, `Fleet`, `EduAI`) y `tunnel/cloudflare/deploy`.
+   - Marcar como "posible pendiente histórico" cuando el indicio viene de transcript parcial.
+4. **Backlog documental en brainstorming:**
+   - Buscar en `~/brainstorming` headings tipo `## Próximos pasos` y archivos `ideas-pendientes-*`.
+5. **Jobs programados:**
+   - Listar cronjobs para detectar tareas pausadas/deshabilitadas que representen pendiente operativo.
+
+### Formato de respuesta recomendado (WhatsApp, conciso)
+
+- `Estado tareas formales`
+- `Pendientes en docs`
+- `Automatizaciones`
+- `Posibles pendientes históricos`
+
+Este formato prioriza legibilidad ejecutiva (rápido de leer en móvil) y separa pendientes confirmados vs indicios históricos.
+
+Referencia ampliada: `references/pending-triage-checklist.md`.
+
 ## Resumen rápido — Qué hace cada componente
 
 | Componente              | Función                                                   |

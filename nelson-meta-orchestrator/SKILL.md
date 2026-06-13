@@ -1,6 +1,6 @@
 ---
 name: nelson-meta-orchestrator
-description: Meta-orquestador del equipo AI de Nelson. Define el loop de decisión maestro: descomponer un goal, asignar subtareas a los agentes correctos, ejecutar en el orden adecuado, verificar resultados e iterar hasta la entrega. Es el cerebro que coordina a Julián, Mercedes, Beto, Ricky, Nico, Diego, Alma y JARVIS.
+description: "Meta-orquestador del equipo AI de Nelson. Define el loop de decisión maestro: descomponer un goal, asignar subtareas a los agentes correctos, ejecutar en el orden adecuado, verificar resultados e iterar hasta la entrega. Es el cerebro que coordina a Julián, Mercedes, Beto, Ricky, Nico, Diego, Alma y JARVIS."
 tags: [orchestrator, meta-agent, multi-agent, workflow, sdd, nelson]
 related_skills:
   - nelson-spec-driven-workflow
@@ -215,6 +215,10 @@ Dependencias: T1 → {T2, T3} → T4
 | **Diego**    | DevOps                 | Docker, CI/CD, despliegues, infra, monitoreo, variables de entorno            | Docker, GitHub Actions, cloud            |
 | **Alma**     | QA                     | Tests unitarios, integración, e2e, regresión, validación de criterios         | pytest, Playwright, testing en general   |
 | **JARVIS**   | Orchestrator / Senior  | Code review, specs, coordinación técnica, verificación de entrega             | Full stack awareness                     |
+| **Julián+JARVIS** | IOT              | Arduino, ESP32, MQTT, sensores, telemetría                                    | nelson-iot-arduino-spike                 |
+| **JARVIS**   | AUTOMATION             | n8n workflows, triggers, automatización de procesos                           | nelson-automation-n8n                    |
+| **JARVIS+Nelson** | DOMAIN          | ForestAI, MRV carbono, NetFlora, índices multiespectrales, Fleet forestal     | nelson-forestai-roadmap, nelson-mrv-reports, nelson-netflora |
+| **Nico**     | SCRAPING               | Sitrack, portales web, extracción de datos de flota                           | nelson-sitrack-scraper, nelson-browser-agent |
 
 ### Reglas de routing
 
@@ -649,6 +653,8 @@ OUTPUT → Tony:
 
 El estado del Meta-Orchestrator **debe persistirse** en `nelson-task-memory` después de cada transición. Si el proceso se cae en EXECUTING, debe poder retomar desde el último batch completado, no desde cero.
 
+Además de checkpoints en task-memory, para operación real conviene persistir eventos finos por run (timeline) y estado de control por sub-tarea (pause/resume/cancel/retry). Ver referencia: `references/timeline-subtask-control-2026-05-29.md`.
+
 ```python
 def transition(self, new_state: MetaAgentState, data: dict = None):
     self.state = new_state
@@ -662,7 +668,150 @@ def transition(self, new_state: MetaAgentState, data: dict = None):
 
 ---
 
+## Operación en caliente: timeline persistente + control manual de subtareas
+
+Desde esta sesión, el patrón recomendado para evolución segura del orquestador incluye dos piezas:
+
+1) Timeline persistente por run (SQLite)
+- Tabla `orchestration_events` con eventos `planned`, `execute_started`, `verify`, `completed/failed`, `subtask_control`.
+- Cada transición relevante debe llamar `_log_event(...)`.
+- Esto evita perder trazabilidad cuando la UI se recarga o cambia de sesión.
+
+2) Control manual de subtareas
+- Tabla `subtask_control` con `control_state` (`active`, `paused`, `cancelled`).
+- API de control por subtask: `pause`, `resume`, `cancel`, `retry`.
+- En el loop de ejecución, filtrar por `control_state` antes de ejecutar.
+
+Endpoints de operación (FastAPI):
+- `GET /runs/{task_id}/timeline`
+- `GET /runs/{task_id}/subtasks`
+- `POST /runs/{task_id}/subtasks/{subtask_id}/control`
+
+Regla de implementación:
+- `cancel` debe marcar subtask en `cancelled` y excluirla de ejecución.
+- `retry` debe limpiar `result/error` y volver `status=pending`.
+
+### Shadow deploy sin tocar producción
+
+Cuando no se puede reiniciar systemd de producción (falta sudo o ventana de cambio), validar cambios así:
+
+1. Levantar backend parcheado en puerto alterno (ej. `8754`).
+2. Levantar dashboard con proxy al backend alterno usando env vars:
+   - `ORCH_API_URL=http://127.0.0.1:8754`
+   - `ORCH_WS_URL=ws://127.0.0.1:8754`
+3. Exponer dashboard por Cloudflare quick tunnel y validar E2E.
+
+Esto reduce riesgo: se prueba todo el circuito UI+API sin impactar el servicio principal (`8744`).
+
+Ver runbook detallado en `references/timeline-subtask-control-and-shadow-deploy-2026-05-29.md`.
+
+## API operativa recomendada (timeline + control de subtareas)
+
+Para operación real desde dashboard, exponer endpoints de observabilidad y control fino por run:
+
+- `GET /runs/{task_id}/timeline` → eventos persistentes de la ejecución.
+- `GET /runs/{task_id}/subtasks` → subtareas con `control_state`.
+- `POST /runs/{task_id}/subtasks/{subtask_id}/control` con acción `pause|resume|cancel|retry`.
+
+Patrón de persistencia:
+- Tabla `orchestration_events` para timeline.
+- Tabla `subtask_control` para estado manual por subtask.
+- Loggear eventos en hitos: `planned`, `execute_started`, `verify`, `completed|failed`, `subtask_control`.
+
+Regla operativa:
+- Antes de ejecutar batch, leer `control_state` y excluir `paused/cancelled`.
+- `cancelled` debe reflejarse en `TaskStatus.CANCELLED` para evitar ejecución accidental.
+
+Referencia completa: `references/timeline-subtask-control.md`.
+
+## Agregar categorías al executor.py
+
+Cuando hay un nuevo dominio de tareas no cubierto por las categorías existentes, agregar en `/home/server/nelson/meta-orchestrator/nelson_orchestrator/executor.py`:
+
+**1. En `CATEGORY_SKILLS`:**
+```python
+"IOT":        ["equipo-nelson", "nelson-iot-arduino-spike", "nelson-external-integrations"],
+"AUTOMATION": ["equipo-nelson", "nelson-automation-n8n", "nelson-background-jobs"],
+"DOMAIN":     ["equipo-nelson", "nelson-forestai-roadmap", "nelson-mrv-reports", "nelson-netflora"],
+"SCRAPING":   ["equipo-nelson", "nelson-browser-agent", "nelson-sitrack-scraper"],
+```
+
+**2. En `KEYWORD_SKILLS`** (para inferencia automática por keywords del goal):
+```python
+"iot":      "nelson-iot-arduino-spike",
+"n8n":      "nelson-automation-n8n",
+"mrv":      "nelson-mrv-reports",
+"sitrack":  "nelson-sitrack-scraper",
+```
+
+**3. En `CATEGORY_AGENT`** (para logging):
+```python
+"IOT":        "Julián + JARVIS",
+"AUTOMATION": "JARVIS",
+"DOMAIN":     "JARVIS + Nelson",
+"SCRAPING":   "Nico",
+```
+
+**4. En el docstring inicial** — actualizar el mapa de categorías.
+
+**Verificar compilación:**
+```bash
+python3 -m py_compile nelson_orchestrator/executor.py && echo "OK"
+```
+
+Las categorías activas al 2026-05-31: BACKEND, FRONTEND, RAG/AI, SPEC, QA, INFRA, DOCS, SECURITY, BROWSER, VISION, AUDIO, EXTERNAL, IOT, AUTOMATION, DOMAIN, SCRAPING, UNKNOWN.
+
+## Evolución incremental (anti-duplicación)
+
+Cuando el usuario pida “llevarlo a META-Agente completo”, la acción correcta es **extender el Orchestrator existente** y no crear una plataforma paralela.
+
+Regla operativa:
+1. Auditar gap sobre la base actual.
+2. Definir hardening por fases (gates, handoff, policy, observabilidad).
+3. Implementar en el repo actual con backward compatibility.
+4. Validar compile + smoke E2E antes de rollout.
+
+Referencia de implementación real: `references/incremental-hardening-gates-handoffs-policy-2026-06.md`
+
+## Hardening incremental del Orchestrator (regla Tony)
+
+Cuando el usuario pida evolucionar el sistema META-Agente, **no crear un sistema paralelo** ni re-brandear como “v2” si ya existe una base funcional.
+
+Regla operativa:
+1. Auditar primero lo existente (endpoints, tablas, UI, hooks).
+2. Publicar GAP "actual vs objetivo".
+3. Implementar por fases sobre el repo actual (hardening incremental).
+4. Validar E2E por fase sin romper plan/confirm/execute/timeline/subtasks.
+
+Frase gatillo del usuario que activa esta regla:
+- “no quiero que hagamos las cosas 2 veces”
+
+Aplicación recomendada (orden):
+- Fase 1: gates + handoff base + métricas run
+- Fase 2: política declarativa de transición + validación estricta de handoff
+- Fase 3: registro de conectores con capabilities/fallback + health summary
+
+Ver detalle implementado en: `references/meta-orchestrator-hardening-2026-06-02.md`
+
 ## Pitfalls (No cagarse en estas)
+
+### 0. Duplicar el sistema en vez de endurecer el existente
+
+**Problema:** crear un “Orchestrator v2” paralelo cuando el orquestador actual ya tiene loop, timeline, control de subtareas y dashboard.
+
+**Regla:** aplicar mejoras como **hardening incremental** sobre el repo actual. Reusar primero, extender después. Evitar rebranding técnico o caminos duplicados.
+
+Referencia de implementación validada: `references/meta-orchestrator-hardening-2026-06-02.md`.
+
+### 0. Duplicar el orquestador (prohibido)
+
+**Problema:** Proponer "Orchestrator v2" o sistema paralelo cuando el actual ya cubre el flujo base.
+
+**Impacto:** retrabajo, desalineación con Tony y pérdida de foco operativo.
+
+**Regla:** evolución incremental sobre el repo actual. Antes de diseñar algo nuevo, auditar: qué existe, qué falta, y cómo extender DB/API/UI sin romper plan→confirm→execute→verify.
+
+Referencia práctica: `references/hardening-fase1-gates-handoffs-metrics-2026-06-02.md`.
 
 ### 1. El God Task
 
@@ -736,77 +885,220 @@ task = Task(
 
 **Regla:** Serializar el task graph a `nelson-task-memory` después de cada modificación (creación, asignación, completado de tarea).
 
-### 10. Olvidar que JARVIS es también orquestador
+### 11. Ejecutar sin respetar control manual de sub-tareas
 
-**Problema:** Tratar a JARVIS como un agente más de implementación.
+**Problema:** El operador pausa/cancela una sub-tarea pero el loop de ejecución igual la procesa en el siguiente batch.
 
-**Regla:** JARVIS es el orquestador de fallback y el auditor de calidad. Si el Meta-Orchestrator no puede resolver algo, JARVIS es el primer escalón antes de llegar a Tony.
+**Regla:** Antes de cada iteración de EXECUTING, leer control por sub-tarea y filtrar:
+- `paused` -> no ejecutar en ese ciclo
+- `cancelled` -> marcar `TaskStatus.CANCELLED` y excluir
+- `retry` -> volver a `pending` limpiando `result/error`
+
+Usar endpoint explícito de control y dejar rastro en timeline persistente.
+
+### 13. No expandir categorías del executor cuando crece el dominio
+
+**Problema:** El executor tiene categorías hardcodeadas. Cuando el equipo agrega skills de nuevos dominios (IoT, automatización, ForestAI, Fleet), el routing va a UNKNOWN en vez del agente correcto.
+
+**Regla:** Cuando se crean 2+ skills de un dominio cohesivo, agregar la categoría al executor. Criterio: ¿hay un agente natural responsable? ¿hay keywords propias que aparecen en goals reales? Si sí a ambas → nueva categoría. Siempre correr `py_compile` después del patch.
+
+Ver: `references/executor-routing-expansion-2026-05-31.md`
+
+## Capa de memoria semántica — Honcho (pendiente integración)
+
+Honcho deployado en ai-server :8008 como servicio permanente (2026-06-12).
+Plan de integración: `nelson-honcho-memory` skill + `/home/server/brainstorming/2026-06-12-honcho-jarvis-memory/DEPLOY-PLAN.md`
+
+Cuando Nelson diga "integremos Honcho", cargar skill `nelson-honcho-memory` y ejecutar los 5 pasos:
+1. `pip install honcho-ai` + init workspace `jarvis-nelson` + peers `nelson`/`jarvis`
+2. `~/.hermes/scripts/honcho_store.py` — guarda intercambios importantes post-turn
+3. `~/.hermes/scripts/honcho_context.py` — recupera contexto semántico pre-turn
+4. Comando para mostrar Conclusions (perfil adaptativo de Nelson)
+5. Integrar en el loop JARVIS (pre-turn: recuperar, post-turn: guardar async)
+
+### 14. Vista de proyecto sin match en índice PM
+
+**Problema:** La página de ForestAI o Fleet muestra todo vacío porque el nombre en el índice PM no coincide con los keywords del config.
+
+**Regla:** Los keywords del `ProjectConfig` deben ser substrings del nombre real de la instancia PM (lowercase). Verificar con "Actualizar datos del PM" primero, luego ajustar keywords.
+
+Ver: `references/dashboard-project-view-pattern-2026-05-31.md`
+
+### 12. Timeline solo en memoria de UI
+
+**Problema:** El dashboard muestra eventos locales, pero al refrescar se pierde trazabilidad.
+
+**Regla:** Exponer timeline persistente por run (`/runs/{task_id}/timeline`) y consumirlo como fuente principal. La UI local puede actuar solo como fallback temporal.
+
+---
+
+## Referencias de implementación reciente
+
+- `references/mission-mode-timeline-controls-2026-05-29.md` — patrón aplicado para evolucionar el dashboard al Modo Misión y preparar timeline persistente + control de subtareas en backend.
+
+## Resumen PM como agrupador de proyectos (regla operativa)
+
+Cuando el usuario diga "Resumen PM", esa solapa debe actuar como **agrupador de trabajos** (no solo estado de runs):
+- Ideas y brainstormings
+- PoCs y spikes
+- MVPs
+- Repositorios GitHub del equipo
+- Proyectos en curso o terminados
+
+### Contrato recomendado para `/pm/instances`
+
+- Mantener `instances` por compatibilidad, pero exponer también `projects` (naming del usuario).
+- Entregar conteos agregados y por clase:
+  - `counts.total`, `counts.project`, `counts.brainstorming`, `counts.github`
+  - `counts.by_kind` (mvp/poc/spike/idea/project)
+  - `counts.by_status` (active/done/idea)
+- Cada item de proyecto local debería incluir:
+  - `project_kind` (mvp/poc/spike/idea/project)
+  - `project_status` (active/done/idea)
+
+### Indexación incremental (no recalcular siempre)
+
+Aplicar caché persistente y recalcular solo cuando cambie algo:
+1. Calcular firma local (`local_signature`) con carpeta + `mtime` en `~/proyectos` y `~/brainstorming`.
+2. Si la firma no cambió, reusar inventario local desde caché.
+3. GitHub refrescar por TTL (`PM_GITHUB_REFRESH_SECONDS`) y no en cada request.
+4. Si cambia un proyecto/carpeta: reindexar, incorporar el dato nuevo y recalcular conteos.
+5. Exponer flags diagnósticos en respuesta:
+   - `from_cache`
+   - `recalculated`
+
+### Endpoint de control
+
+Agregar endpoint de forcing:
+- `POST /pm/instances/reindex`
+
+Útil para demos/soporte cuando el usuario pide "actualizá ya".
+
+## Referencias de implementación
+
+- `references/implementacion-real-2026-05-26.md` — Primera implementación real del orquestador
+- `references/executor-real-diseno.md` — Diseño detallado del executor con hermes CLI
+- `references/dashboard-chat-jarvis-2026-05-26.md` — Dashboard + chat JARVIS integrado
+- `references/executor-routing-expansion-2026-05-31.md` — **Expansión de categorías IOT/AUTOMATION/DOMAIN/SCRAPING + keywords ForestAI/Fleet**
+- `references/dashboard-project-view-pattern-2026-05-31.md` — **Patrón ProjectView por proyecto con hitos + valuación dinámica + sidebar con dividers**
+
+## Contexto estratégico
+
+ForestAI y Fleet Optimizer son los **dos productos principales de la consultora AlegentAI** (Tony + Pablo). No son PoCs descartables — son los productos que generan ingresos reales. El dashboard del orquestador es el **panel de mando ejecutivo** donde Tony y Pablo ven el estado de ambas iniciativas: valuación económica, hitos, próximos pasos, y pueden lanzar tareas al orquestador desde adentro.
+
+Lo que diferencia a AlegentAI de una consultora que manda PowerPoints: un **sistema vivo** que opera, aprende y muestra resultados en tiempo real. Cada skill que se agrega, cada categoría del executor, cada feature del dashboard — todo alimenta ese sistema.
+
+## Categorías del Executor (routing real)
+
+Las categorías de CATEGORY_SKILLS del executor real están documentadas en
+[`references/executor-categorias-2026-05-31.md`](references/executor-categorias-2026-05-31.md).
+
+Categorías activas: BACKEND, FRONTEND, RAG/AI, SPEC, QA, INFRA, DOCS, SECURITY,
+BROWSER, VISION, AUDIO, EXTERNAL, **IOT**, **AUTOMATION**, **DOMAIN**, **SCRAPING**, UNKNOWN.
+
+Las nuevas (IOT/AUTOMATION/DOMAIN/SCRAPING) cubren los dominios reales de ForestAI y Fleet.
+
+## Performance y Scalability
+
+El orquestador escanea directorios de proyectos locales y brainstormings para el Resumen PM. El scan recursivo sin filtros puede colgarse minutos si recorre `node_modules`, `venv`, `.git`, etc.
+
+Ver referencia completa: `references/performance-pitfalls.md`
+
+Reglas rápidas:
+- **Siempre filtrar directorios pesados** antes de `rglob("*")`
+- **Medir con `time curl`** antes y después del fix
+- **TTL de caché** (24h para GitHub, firma local para locales) reduce recálculos
+
+### 11. Escaneo recursivo de filesystem sin filtros
+
+**Problema:** Una función que calcula el mtime más reciente de un directorio usando `path.rglob("*")` sin filtros recorre `node_modules`, `.git`, `.venv`, `dist`, `build`, etc. En proyectos con dependencias, esto tarda minutos y causa timeouts en endpoints como `/pm/instances`.
+
+**Síntoma:** El endpoint `/pm/instances` se cuelga o devuelve timeout. El servidor parece congelado mientras calcula la firma de proyectos locales.
+
+**Fix:** Agregar `SKIP_DIRS` estándar antes del bucle `rglob`:
+```python
+SKIP_DIRS = {"node_modules", "venv", ".venv", "__pycache__", ".git", "dist", "build", ".next", "target", "vendor"}
+
+def _dir_latest_mtime(path: Path) -> float:
+    latest = 0.0
+    for child in path.rglob("*"):
+        # Saltar directorios pesados
+        if any(skip in child.parts for skip in SKIP_DIRS):
+            continue
+        if child.is_file():
+            latest = max(latest, child.stat().st_mtime)
+    return latest
+```
+
+**Resultado:** El tiempo de respuesta baja de minutos a ~350ms.
+
+**Regla:** Cualquier escaneo recursivo de filesystem en producción debe tener filtros de directorios. Nunca confiar en `rglob("*")` sin excluir artefactos de build y dependencias.
 
 ---
 
 ## OTel Tracing nativo (patrón AgentScope)
 
-AgentScope usa OpenTelemetry para trazar cada agent call, tool call y batch de ejecución. Integrarlo en nuestro meta-orquestador permite visualizar el trace completo en Jaeger o cualquier backend OTLP, y correlacionar con el timeline SQLite existente.
+AgentScope define su `Task` con campos `blocks` y `blocked_by` para representar el DAG de dependencias directamente en el modelo. Adoptamos este patrón en nuestro task graph para eliminar la necesidad de un objeto DAG separado.
 
 ```python
-# nelson_orchestrator/tracing.py
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
+# nelson_orchestrator/models.py — Task enriquecida con patrón AgentScope
+from pydantic import BaseModel, Field
+from typing import Any, Literal
+from datetime import datetime
+import uuid
 
-def setup_tracing(service_name: str = "nelson-meta-orchestrator") -> trace.Tracer:
-    resource = Resource.create({"service.name": service_name})
-    provider = TracerProvider(resource=resource)
-    exporter = OTLPSpanExporter(endpoint="http://localhost:4317", insecure=True)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
-    return trace.get_tracer(service_name)
+class Task(BaseModel):
+    """Tarea del meta-orquestador con dependencias nativas (patrón AgentScope)."""
 
-tracer = setup_tracing()
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+    subject: str                          # nombre corto: "backend-auth"
+    description: str                      # qué hay que hacer exactamente
+    assigned_to: str                      # nombre del agente
+    layer: str = ""                       # "backend" | "frontend" | "infra" | "qa" | "arch"
+    complexity: int = 1                   # 1=low, 2=medium, 3=high
+    state: Literal[
+        "pending", "in_progress", "completed", "failed", "cancelled", "paused"
+    ] = "pending"
+    control_state: Literal[
+        "active", "paused", "cancelled", "retry"
+    ] = "active"
 
-async def execute_task(task: Task) -> TaskResult:
-    with tracer.start_as_current_span(f"task.{task.subject}") as span:
-        span.set_attribute("task.id",         task.id)
-        span.set_attribute("task.agent",      task.assigned_to)
-        span.set_attribute("task.layer",      task.layer)
-        span.set_attribute("task.complexity", task.complexity)
-        try:
-            result = await _run_agent(task)
-            span.set_attribute("task.result", "success")
-            return TaskResult(success=True, data=result)
-        except Exception as e:
-            span.record_exception(e)
-            span.set_attribute("task.result", "failure")
-            return TaskResult(success=False, error=str(e))
+    # DAG de dependencias — patrón AgentScope
+    blocks: list[str] = Field(default_factory=list)      # IDs que YO bloqueo
+    blocked_by: list[str] = Field(default_factory=list)  # IDs que me bloquean a MÍ
 
-async def run_batch(batch: list[Task], run_id: str) -> dict:
-    with tracer.start_as_current_span("batch.parallel") as span:
-        span.set_attribute("batch.size",   len(batch))
-        span.set_attribute("batch.run_id", run_id)
-        results = await asyncio.gather(*[execute_task(t) for t in batch])
-        return dict(zip([t.id for t in batch], results))
-```
+    # Contexto explícito para el agente
+    context: dict[str, Any] = Field(default_factory=dict)
+    expected_output: str = ""             # descripción del output esperado
 
-**Docker Compose Jaeger local:**
-```yaml
-services:
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    ports:
-      - "16686:16686"  # UI
-      - "4317:4317"    # OTLP gRPC
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-```
+    # Metadata de ejecución
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    started_at: str | None = None
+    completed_at: str | None = None
+    result: str = ""
+    error: str = ""
+    owner: str | None = None             # orquestación padre si es sub-tarea
 
-UI en `http://localhost:16686`. Correlacionar `run_id` con el timeline SQLite existente.
+def is_ready(task: Task, completed_ids: set[str]) -> bool:
+    """Una tarea está lista si todos sus bloqueantes están completados."""
+    return all(dep in completed_ids for dep in task.blocked_by)
 
-**Pitfall:** `grpcio` puede fallar en entornos sin compilador. Alternativa HTTP: `pip install opentelemetry-exporter-otlp-proto-http` + endpoint `http://localhost:4318`.
+def build_batches(tasks: list[Task]) -> list[list[Task]]:
+    """Topological sort → batches paralelos. Algoritmo Kahn."""
+    remaining = {t.id: t for t in tasks}
+    completed: set[str] = set()
+    batches = []
 
----
+    while remaining:
+        ready = [t for t in remaining.values() if is_ready(t, completed)]
+        if not ready:
+            raise ValueError("Ciclo detectado en el task graph")
+        batches.append(ready)
+        for t in ready:
+            completed.add(t.id)
+            del remaining[t.id]
 
+    return batches
 ## Convenciones del Equipo Nelson
 
 - **IDs de tareas:** formato `{módulo}-{número}`, ej: `NOTIF-001`, `NOTIF-002`
@@ -815,4 +1107,44 @@ UI en `http://localhost:16686`. Correlacionar `run_id` con el timeline SQLite ex
 - **Máximo de iteraciones:** 3 ciclos VERIFYING → EXECUTING antes de escalar a Tony
 - **Timeout por tarea:** 2 horas de trabajo de agente. Si supera, FailureType.TIMEOUT
 - **Idioma de specs y tasks:** castellano técnico (este documento es el ejemplo)
+- **UX operativa del dashboard:** en la vista Orchestrator, el bloque de entrada de objetivo (`Objetivo de misión`) va al inicio del flujo, antes de tarjetas de diagnóstico/telemetría.
+- **Prioridad de fuentes para valuación ejecutiva en cards de proyecto:** `project > github > brainstorming` para evitar que spikes/ideas pisen la valuación del producto principal.
 - **El orchestrator no implementa.** Si el Meta-Orchestrator se encuentra escribiendo código de negocio, algo salió mal en la descomposición.
+
+Referencia de implementación: `references/dashboard-flow-and-valuation-priority-2026-06-02.md`
+
+## Resumen PM como agrupador de proyectos
+
+Cuando el usuario pida "Resumen PM", tratar la solapa como **agrupador de trabajos** (no solo runs del orquestador):
+- Proyectos en `~/proyectos` (incluye PoC, Spike, MVP, ideas y activos)
+- Brainstormings en `~/brainstorming/YYYY-MM-DD-*`
+- Repositorios GitHub del equipo
+
+### Contrato recomendado para `/pm/instances`
+
+- Mantener `instances` por compatibilidad y exponer `projects` como alias principal.
+- Entregar `counts.total`, `counts.project`, `counts.brainstorming`, `counts.github`.
+- Agregar clasificación:
+  - `counts.by_kind` (mvp/poc/spike/idea/project)
+  - `counts.by_status` (active/done/idea)
+- Cada proyecto local debe incluir `project_kind` y `project_status`.
+
+### Indexación incremental
+
+No recalcular siempre:
+1. Persistir caché de inventario PM (ej. `pm_instances_cache.json`).
+2. Calcular `local_signature` con carpetas + mtimes de `~/proyectos` y `~/brainstorming`.
+3. Si la firma no cambia, reutilizar inventario local.
+4. Refrescar GitHub por TTL (`PM_GITHUB_REFRESH_SECONDS`) en vez de cada request.
+5. Exponer flags diagnósticos: `from_cache` y `recalculated`.
+
+### Endpoint de control
+
+- `POST /pm/instances/reindex` para forzar recalculo cuando Tony lo pide.
+
+## Pitfall específico de despliegue alterno
+
+Si el dashboard alterno (ej. `:5175`) muestra `Error cargando proyectos PM`, verificar que su backend alterno (ej. `:8754`) esté activo.
+Validar siempre ambos caminos:
+- `http://127.0.0.1:<frontend>/api/orchestrate/pm/instances`
+- `http://127.0.0.1:<backend>/pm/instances`

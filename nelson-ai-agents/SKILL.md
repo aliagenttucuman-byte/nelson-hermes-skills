@@ -263,128 +263,7 @@ class Orchestrator:
         return final
 ```
 
-## Patron Event Stream (AgentScope 2.0)
-
-AgentScope introduce un stream de eventos granulares por paso del agente. Permite observar en tiempo real cada fase del loop ReAct: thinking, tool call, tool result, texto delta. Ideal para UI en tiempo real en el dashboard.
-
-```python
-# Patrón de consumo del event stream — adaptable a nuestro FastAPI
-from enum import Enum
-from typing import AsyncGenerator
-from dataclasses import dataclass
-
-class EventType(str, Enum):
-    REPLY_START          = "reply_start"
-    REPLY_END            = "reply_end"
-    THINKING_START       = "thinking_start"
-    THINKING_DELTA       = "thinking_delta"
-    THINKING_END         = "thinking_end"
-    TEXT_DELTA           = "text_delta"
-    TOOL_CALL_START      = "tool_call_start"
-    TOOL_CALL_END        = "tool_call_end"
-    TOOL_RESULT_START    = "tool_result_start"
-    TOOL_RESULT_END      = "tool_result_end"
-    REQUIRE_CONFIRMATION = "require_confirmation"   # Human-in-the-loop
-    EXCEED_MAX_ITERS     = "exceed_max_iters"
-
-@dataclass
-class AgentEvent:
-    type: EventType
-    data: dict
-
-# En nuestro executor.py — emitir eventos por SSE al frontend
-async def run_agent_stream(task: str) -> AsyncGenerator[AgentEvent, None]:
-    yield AgentEvent(type=EventType.REPLY_START, data={"task": task})
-
-    async for step in agent.react_loop(task):
-        if step.is_thinking:
-            yield AgentEvent(type=EventType.THINKING_DELTA, data={"text": step.text})
-        elif step.is_tool_call:
-            yield AgentEvent(type=EventType.TOOL_CALL_START, data={"tool": step.tool_name, "args": step.args})
-            result = await execute_tool(step.tool_name, step.args)
-            yield AgentEvent(type=EventType.TOOL_RESULT_END, data={"result": result})
-        elif step.is_text:
-            yield AgentEvent(type=EventType.TEXT_DELTA, data={"text": step.text})
-
-    yield AgentEvent(type=EventType.REPLY_END, data={})
-```
-
-**Por qué importa para nosotros:** el dashboard ya tiene timeline persistente (SQLite). Conectar el stream de eventos al `_log_event()` del orquestador le da visibilidad en tiempo real por paso, no solo por subtarea completa.
-
-## Patron Permission Engine (Human-in-the-loop)
-
-AgentScope tiene un `PermissionEngine` que pausa la ejecución del agente antes de acciones potencialmente peligrosas y espera confirmación humana. Implementar este patrón en nuestro meta-orquestador para operaciones destructivas.
-
-```python
-# app/agents/permissions.py
-from enum import Enum
-from typing import Callable, Any
-from dataclasses import dataclass
-
-class PermissionMode(str, Enum):
-    AUTO    = "auto"      # ejecutar sin confirmación
-    CONFIRM = "confirm"   # pedir confirmación al usuario
-    DENY    = "deny"      # denegar siempre
-
-@dataclass
-class PermissionRule:
-    tool_name: str
-    mode: PermissionMode
-    reason: str = ""
-
-class PermissionEngine:
-    """Decide si una tool call requiere confirmación humana."""
-
-    DEFAULT_RULES: list[PermissionRule] = [
-        # Operaciones destructivas → siempre confirmar
-        PermissionRule("delete_file",       PermissionMode.CONFIRM, "operación destructiva"),
-        PermissionRule("drop_table",        PermissionMode.CONFIRM, "operación destructiva"),
-        PermissionRule("run_migration",     PermissionMode.CONFIRM, "modifica schema de DB"),
-        PermissionRule("deploy_production", PermissionMode.CONFIRM, "deploy a producción"),
-        PermissionRule("send_email",        PermissionMode.CONFIRM, "comunicación externa"),
-        # Lectura y generación → automático
-        PermissionRule("read_file",         PermissionMode.AUTO),
-        PermissionRule("search_qdrant",     PermissionMode.AUTO),
-        PermissionRule("generate_text",     PermissionMode.AUTO),
-    ]
-
-    def __init__(self, rules: list[PermissionRule] = None):
-        self.rules = {r.tool_name: r for r in (rules or self.DEFAULT_RULES)}
-
-    def check(self, tool_name: str) -> PermissionMode:
-        rule = self.rules.get(tool_name)
-        if rule:
-            return rule.mode
-        return PermissionMode.CONFIRM  # default: confirmar si no hay regla
-
-    def requires_confirmation(self, tool_name: str) -> bool:
-        return self.check(tool_name) == PermissionMode.CONFIRM
-
-
-# En el executor — verificar antes de cada tool call
-class ToolExecutor:
-    def __init__(self, permission_engine: PermissionEngine, notify_fn: Callable):
-        self.permissions = permission_engine
-        self.notify = notify_fn  # envía evento REQUIRE_CONFIRMATION al frontend
-
-    async def execute(self, tool_name: str, args: dict, task_id: str) -> Any:
-        if self.permissions.requires_confirmation(tool_name):
-            # Pausar y esperar OK del usuario via WebSocket/SSE
-            confirmed = await self.notify({
-                "event": "require_confirmation",
-                "task_id": task_id,
-                "tool": tool_name,
-                "args": args,
-            })
-            if not confirmed:
-                raise PermissionDeniedError(f"Usuario denegó ejecución de {tool_name}")
-
-        return await self._run_tool(tool_name, args)
-```
-
-**Cuándo usar CONFIRM vs AUTO:**
-- CONFIRM: cualquier operación con efecto secundario externo (deploy, email, DB write, delete)
-- AUTO: operaciones de lectura, búsqueda, generación de texto local
+## Function Calling nativo (OpenAI)
 
 ```python
 # Alternativa moderna: usar function calling nativo de OpenAI
@@ -456,7 +335,6 @@ class FunctionCallingAgent:
 ## Referencias
 
 - [Extracción de cookies de Epiphany para autenticación de agentes](references/epiphany-cookie-extraction.md) — cómo extraer sesiones de GNOME Web para Playwright y herramientas que requieren auth de Google.
-- [Identidad Multi-Plataforma](references/user-identity-multiplatform.md) — arquitectura completa para reconocer al mismo usuario desde WhatsApp, Telegram y Teams usando un canonical_id unificado + Holographic Memory. Incluye pitfall crítico de Teams (`aadObjectId` vs `from.id`), flujos de aprobación, IdentityResolver Python, y deploy de SIE como potenciador.
 
 ## Pitfalls
 
@@ -466,14 +344,10 @@ class FunctionCallingAgent:
 - Memoria crece sin limite; resumir o truncar periodicamente
 - Tools lentas bloquean al agente; usar async cuando sea posible
 - Costos: cada iteracion es una llamada al LLM; monitorizar tokens
-- **Identidad multi-plataforma:** En Teams, NUNCA usar `from.id` (inestable). Siempre `from.aadObjectId` (UUID de Azure AD, inmutable). Ver `references/user-identity-multiplatform.md`.
-- **Identidad multi-plataforma:** Sin un Identity Map explícito, el mismo usuario visto desde WhatsApp/Telegram/Teams genera 3 perfiles distintos en Holographic — la memoria no se comparte.
 
 ## Orquestacion Multi-Agente con Frameworks Externos
 
-Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencias:
-- `references/multi-agent-frameworks.md` — comparativa de 9 frameworks
-- `references/agentscope-integration.md` — integración de AgentScope 2.0 con nuestro stack
+Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencia comparativa en `references/multi-agent-frameworks.md`.
 
 ### Decision rapida
 
@@ -485,7 +359,6 @@ Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion 
 | Equipo de agents con roles, brainstorming | **CrewAI** (probar con locales primero) |
 | RAG complejo, pipelines de documentos | **LlamaIndex Workflows** |
 | Automatizaciones, notificaciones, integraciones | **n8n** (complementario) |
-| Multi-agente con message hub + MCP + A2A + voz | **AgentScope 2.0** (Alibaba, 26k stars, Apache 2.0) |
 
 ### Arquitectura hibrida recomendada (Equipo Nelson)
 

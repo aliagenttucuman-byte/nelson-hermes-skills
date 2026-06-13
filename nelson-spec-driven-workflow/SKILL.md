@@ -19,86 +19,25 @@ Skill maestra que documenta el flujo completo de **Spec-Driven Development (SDD)
 
 Este flujo está basado en la metodología de [GitHub Spec Kit](https://github.com/github/spec-kit), pero **adaptado a nuestro stack y estructura de 2 equipos**. No dependemos del repositorio externo: usamos nuestras propias skills.
 
-## Flujo de 8 Fases (+ Fase 0 Transversal)
+## Flujo de 8 Fases
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  NELSON SPEC-DRIVEN DEVELOPMENT (SDD)                          │
 │                                                                │
-│  FASE 0: NOTEBOOK  ──→  Captura de conocimiento stakeholder   │
-│  1. CONSTITUCIÓN   ──→  Principios del proyecto               │
-│  2. SPECIFICAR     ──→  Qué construir (OpenAPI)               │
-│  3. CLARIFICAR     ──→  Revisar ambigüedades                  │
-│  4. PLANEAR        ──→  Cómo construir (tech stack)           │
-│  5. ESTIMAR        ──→  Costos reales antes de codear        │
-│  6. ANALIZAR       ──→  Coherencia spec→plan→estimación      │
-│  7. TAREAS         ──→  Breakdown para agentes                │
-│  8. CHECKLIST      ──→  Validar antes de codear               │
-│  9. IMPLEMENTAR    ──→  Ejecutar con agentes                   │
+│  1. CONSTITUCIÓN  ──→  Principios del proyecto                │
+│  2. SPECIFICAR    ──→  Qué construir (OpenAPI)                │
+│  3. CLARIFICAR    ──→  Revisar ambigüedades                   │
+│  4. PLANEAR       ──→  Cómo construir (tech stack)            │
+│  5. ESTIMAR       ──→  Costos reales antes de codear         │
+│  6. ANALIZAR      ──→  Coherencia spec→plan→estimación       │
+│  7. TAREAS        ──→  Breakdown para agentes                 │
+│  8. CHECKLIST     ──→  Validar antes de codear                │
+│  9. IMPLEMENTAR   ──→  Ejecutar con agentes                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **Nota sobre Fase 0:** Es un servicio transversal (no una fase formal del SDD). Se activa antes de la Constitución y persiste durante todo el ciclo de vida del proyecto. Ver detalle abajo.
-
 ## Fases Detalladas
-
-### FASE 0: NOTEBOOK → Captura de Conocimiento del Stakeholder (Transversal)
-
-**Quién:** JARVIS + Tony (automático + validación)
-
-**Qué hace:** Antes de escribir la Constitución, se crea un **notebook RAG** del proyecto que ingesta automáticamente todo el material que recibe Nelson de stakeholders: documentos, audios de reuniones, emails, imágenes, specs incompletos. El notebook permite consultar el conocimiento en lenguaje natural con citas a las fuentes originales.
-
-> **Si el proyecto es una PoC con IA, el notebook usa el FreeLLMAPI proxy** (skill `nelson-poc-ai-quickstart`) para embeddings (`/v1/embeddings`, family-based routing) y opcionalmente para resúmenes/chunks (`/v1/chat/completions` con `claude-sonnet-4-6`). NO llamar directo a OpenAI/Anthropic — siempre vía proxy.
-
-**Cuándo se activa:**
-- Inmediatamente después de crear la carpeta del proyecto en `~/brainstorming/`
-- Cada vez que Nelson recibe nuevo material del stakeholder (nuevo audio, email, documento)
-
-**Stack reutilizado del equipo:**
-- Ingesta: `nelson-document-processing` (MarkItDown + Chunking)
-- Embeddings: `nelson-embeddings` (OpenAI / SentenceTransformers)
-- Vector DB: `nelson-vector-databases` (Qdrant)
-- Audio: `nelson-audio-processing` (Whisper + edge-tts)
-- Backend: FastAPI — modelo `Notebook`, `Source`, `Note`
-
-**Ingestas automáticas:**
-| Fuente | Procesamiento | Destino |
-|--------|--------------|---------|
-| `specs/openapi.yaml` | MarkItDown + chunking | Qdrant |
-| `docs/*.pdf` | MarkItDown + chunking | Qdrant |
-| `audio/*.mp3` | Whisper → transcript + chunking | Qdrant |
-| `img/*.png/.jpg` | Vision OCR → descripción + chunking | Qdrant |
-| `email/*.eml` | Texto plano + chunking | Qdrant |
-| Decisiones manuales | Notas en markdown | Qdrant + PostgreSQL |
-
-**Consultas típicas (Chat con Contexto):**
-```
-Tony: "¿Qué requisitos no funcionales mencionó Pablo en la reunión?"
-JARVIS: "En la reunión del 2026-06-03 (audio/reunion-kickoff.mp3, min 12), 
-Pablo estableció que el límite de registros debe ser de 10.000 filas. 
-Cita: '...no queremos que el sistema se trabe...'"
-```
-
-**Transformaciones automáticas:**
-- Resumen ejecutivo del proyecto a partir de todas las fuentes
-- Extracción de requisitos funcionales y no funcionales
-- Detección de inconsistencias entre fuentes
-- Briefing auditivo (podcast multi-speaker) para stakeholders
-
-**Relación con otras fases:**
-- **Fase 1 (Constitución):** El notebook alimenta directamente la escritura del `CONSTITUTION.md` con requisitos extraídos de las fuentes.
-- **Fase 2 (Spec):** El OpenAPI spec se indexa como fuente más del notebook.
-- **Fase 3+:** Cada decisión técnica se guarda como nota en el notebook.
-- **Post-implementación:** El notebook se convierte en documentación viva para onboarding y mantenimiento.
-
-**Regla:** El notebook es un índice sobre el filesystem, no un reemplazo. Los archivos originales siguen en `~/brainstorming/YYYY-MM-DD-proyecto/`. Si Qdrant falla, todo sigue legible en archivos markdown.
-
-**Anti-patterns:**
-- NO reemplazar el filesystem — el notebook es índice, no almacén primario.
-- NO duplicar el orchestrator — el notebook engine es documentación, no control de tareas.
-- NO bloquear el flujo SDD — la ingesta es asíncrona y opt-in.
-
----
 
 ### 1. CONSTITUCIÓN → `nelson-project-constitution`
 
@@ -112,13 +51,6 @@ Cita: '...no queremos que el sistema se trabe...'"
 - Reglas de negocio clave
 - Principios UX (móvil-first, accesibilidad)
 - Restricciones (presupuesto, tiempo, compliance)
-
-> **Si el proyecto usa IA/LLM, agregar también:**
-> - Sección "LLM Strategy" referenciando `nelson-poc-ai-quickstart` (reglas Nelson, FreeLLMAPI proxy, modelo default)
-> - Decisión de modelo por HU (gpt-4o-mini / claude-sonnet-4-6 / auto)
-> - Política de costos: max tokens por request, rate limits, budget mensual
-> - Manejo de PII y datos sensibles (qué se puede mandar al LLM, qué no)
-> - Plan de fallback si FreeLLMAPI no está disponible
 
 **Regla:** Sin CONSTITUTION, no hay proyecto. Es la "constitución" que todos los agentes deben respetar.
 
@@ -311,44 +243,6 @@ CRITERIOS DE ACEPTACIÓN:
 
 **Regla:** Si falta algún check, se completa antes de implementar.
 
-### Regla anti-duplicación (sistemas ya existentes)
-
-Cuando el pedido sea evolucionar un sistema que ya existe (ej. Meta-Orchestrator), **no abrir un "proyecto nuevo" paralelo**. Antes de planear implementación, ejecutar mini-auditoría obligatoria:
-
-1. Inventario de capacidades actuales (qué ya resuelve hoy).
-2. GAP explícito `actual vs objetivo`.
-3. Roadmap incremental sobre el mismo repo/módulos.
-
-Si una propuesta implica rehacer componentes ya operativos, debe traer justificación técnica explícita de por qué no se pueden extender.
-
-Referencia rápida: `references/anti-duplicacion-orchestrator.md`
-
-Para evoluciones de orquestadores ya operativos, usar además `references/orchestrator-phase4-audit-metrics.md` (patrón incremental de auditoría exportable + KPIs por ventana 24h/7d).
-
----
-
-### Pitfall: URLs de Demo Expiradas (Cloudflare Tunnels)
-
-> **Contexto:** Pablo (COO) usa las demos en reuniones presenciales sin avisar con anticipación. Las URLs de Cloudflare quick tunnels expiran tras ~30 min de inactividad o cuando se reinicia el proceso.
-
-**Regla de oro antes de cualquier demo:**
-1. Verificar que el túnel está activo: `curl -s --max-time 10 <URL>/health`
-2. Si falla, regenerar: `cloudflared tunnel --url http://127.0.0.1:<PORT>`
-3. Validar la nueva URL antes de compartirla
-4. **NO asumir que una URL de ayer sigue activa hoy**
-
-**Ports estándar del equipo:**
-- Orchestrator dashboard: 5180 (vite preview) → tunnel → URL pública
-- ForestAI frontend: 3010 (nginx container) → tunnel → URL pública
-- ForestAI backend: 8010 (FastAPI container) → tunnel → URL pública
-
-**Comando de verificación rápida:**
-```bash
-curl -s --max-time 15 '<URL>/health' || echo "TUNNEL CAÍDO"
-```
-
-Si el tunnel está caído, regenerar inmediatamente y notificar a Tony con la nueva URL. Nunca pasar una URL sin verificar primero.
-
 ---
 
 ### 9. IMPLEMENTAR → `subagent-driven-development`
@@ -394,43 +288,6 @@ Si el tunnel está caído, regenerar inmediatamente y notificar a Tony con la nu
 
 ---
 
-## Capa de compresión de contexto en SDD (Headroom / equivalente)
-
-Cuando el objetivo es optimizar costo/latencia del trabajo de agentes, la compresión debe ubicarse en fases de **análisis y síntesis**, no en pipelines determinísticos de negocio.
-
-### Dónde SÍ aplicar
-
-1. **Discovery / Relevamiento**
-   - Salidas largas de tools, logs, dumps, tablas y JSON masivos.
-   - Útil para extraer requisitos y reglas sin enviar todo crudo al LLM.
-
-2. **Verification / QA / Debug**
-   - Stack traces extensos, resultados de tests masivos, diffs grandes.
-   - Reduce tokens por iteración sin tocar la lógica funcional.
-
-3. **Spec review (fase posterior, condicional)**
-   - Compresión de historial y material de soporte para revisar SDD/OpenAPI.
-   - Solo si se valida primero que no degrada claridad contractual.
-
-### Dónde NO aplicar
-
-- Pipeline operacional determinístico (transformaciones 1:1 auditables de negocio).
-- Cálculos o validaciones donde se requiere fidelidad cruda total del input.
-
-### Regla de scope (anti-desvío)
-
-Si Tony pide evaluar una tecnología “a nivel SDD/JARVIS”, **no proponer primero integración en una PoC operativa específica**. Primero definir ubicación transversal por fase SDD y recién después, si aplica, bajar a proyectos concretos.
-
-### Criterio de adopción mínimo
-
-- ahorro de tokens promedio >= 35%
-- sin degradación funcional/semántica
-- sin aumento de retrabajo
-
-Ver detalle operativo y benchmark: `references/headroom-sdd-rollout-2026-06-03.md`.
-
----
-
 ## Flujo Simplificado para I+D+I (Experimentación)
 
 El equipo I+D+I (Tony + 2 agentes) trabaja con un flujo **ultra-liviano** para validar hipótesis rápido.
@@ -470,9 +327,6 @@ Dentro de **Python + React**, el equipo I+D+I puede experimentar con:
    - ¿Qué queremos probar?
    - Stack a usar (puede ser experimental)
    - Criterio de éxito (¿qué resultado valida la hipótesis?)
-
-   >>> Si la PoC usa LLM/IA, cargar skill `nelson-poc-ai-quickstart` primero.
-   >>> Template: ~/brainstorming/templates/poc-ai-quickstart.md
 
 2. PLANEAR (30 min)
    JARVIS + agentes I+D+I hacen plan ultra-breve:

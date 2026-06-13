@@ -368,7 +368,6 @@ def get_client(model_key: str) -> tuple[OpenAI, str]:
 |-----------|--------------------|
 | Chat/agentes rápido | `deepseek_pro` |
 | Razonamiento paso a paso | `deepseek_flash` (thinking) o `qwen397b` |
-| Coding / generación de código / dataframes | `qwen397b` (default del equipo) |
 | Análisis de imágenes/tablas/diagramas | `llama_vision` |
 | RAG sobre docs largos (>50 páginas) | `mistral` (128K ctx) |
 | Coding complejo / arquitectura | `qwen_coder` (480B) |

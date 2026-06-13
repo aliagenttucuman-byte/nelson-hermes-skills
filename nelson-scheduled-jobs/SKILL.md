@@ -79,6 +79,95 @@ def send_whatsapp(to: str, message: str):
 ## Templates
 
 - `templates/rss-aggregator.py` — script base para monitorear feeds RSS/Atom con filtro de keywords. Ver comentarios inline para adaptar FEEDS y HIGHLIGHT_KEYWORDS.
+- `templates/linkedin-oauth2-server.py` — servidor FastAPI OAuth2 para LinkedIn (AlegentAI). Scopes, redirect URI, y flujo completo para obtener access_token.
+
+---
+
+## Pipeline LinkedIn — AlegentAI (publicación automatizada)
+
+Para publicar posts en LinkedIn desde la cuenta personal de Nelson (aliagenttucuman@gmail.com) usando la API oficial v2 con OAuth2.
+
+### App registrada
+
+- **Nombre:** Alegent AI investigations
+- **Client ID:** 77djcvwzhlbcak
+- **Producto aprobado:** Share on LinkedIn ✅ — scope `w_member_social` ✅
+- **Credenciales:** `/home/server/brainstorming/2026-05-31-linkedin-feed-pipeline/auth/.env`
+- **Tokens:** `/home/server/brainstorming/2026-05-31-linkedin-feed-pipeline/auth/tokens.json`
+
+### Flujo OAuth2 (una sola vez)
+
+```bash
+cd ~/brainstorming/2026-05-31-linkedin-feed-pipeline
+python3 server.py
+# Levantar túnel CF:
+cloudflared tunnel --url http://localhost:8090 2>&1 | tee /tmp/cf_linkedin.log &
+# Obtener URL del túnel → abrir en browser → Autorizar en LinkedIn
+```
+
+Tras autorizar, el token se guarda en `auth/tokens.json` con `access_token` (válido 60 días) y `person_id`.
+
+### Publicar un post
+
+```python
+from publisher import publish_post
+result = publish_post("Texto del post con #hashtags")
+```
+
+### Endpoint de publicación (UGC Posts v2)
+
+```
+POST https://api.linkedin.com/v2/ugcPosts
+Authorization: Bearer {access_token}
+X-Restli-Protocol-Version: 2.0.0
+
+{
+  "author": "urn:li:person:{person_id}",
+  "lifecycleState": "PUBLISHED",
+  "specificContent": {
+    "com.linkedin.ugc.ShareContent": {
+      "shareCommentary": {"text": "..."},
+      "shareMediaCategory": "NONE"
+    }
+  },
+  "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+}
+```
+
+### PITFALL CRÍTICO — Scopes LinkedIn
+
+LinkedIn valida ESTRICTAMENTE los scopes contra los productos aprobados.
+**Solo pedir `w_member_social`** — nada más para esta app.
+
+```python
+SCOPES = "w_member_social"   # CORRECTO
+
+# INCORRECTO — causa invalid_scope_error inmediato:
+SCOPES = "openid profile email w_member_social"
+SCOPES = "w_member_social r_liteprofile r_emailaddress"
+```
+
+Para obtener `person_id` sin `r_liteprofile`: hardcodearlo en `tokens.json` o sacarlo de la URL del perfil LinkedIn.
+
+### PITFALL — Redirect URI con Cloudflare Tunnel
+
+Cloudflare genera URL nueva en cada restart → Redirect URI debe actualizarse:
+
+1. `python3 server.py` en :8090
+2. `cloudflared tunnel --url http://localhost:8090` → capturar URL
+3. Actualizar `.env` `LINKEDIN_REDIRECT_URI`
+4. Actualizar LinkedIn Developer → Auth → Authorized Redirect URLs
+5. Reiniciar server.py
+
+### Otros pitfalls LinkedIn
+
+- **Client Secret formato WPL_AP1**: `WPL_AP1.xxxxx.xxx==` es el valor correcto, aunque no parezca hex. Usarlo tal cual.
+- **Procesos zombie con scopes viejos**: `pkill -9 -f "server.py" && fuser -k 8090/tcp` antes de relanzar.
+- **Endpoint de perfil**: con `r_liteprofile` usar `/v2/me` (campos: `localizedFirstName`, `id`). Con OpenID usar `/v2/userinfo`.
+- **Rate limits**: ~100 posts/día (API básica). Para producción: 1-3 posts/día.
+
+Ver `references/linkedin-oauth2-pitfalls.md` para el registro completo de errores de la sesión 2026-05-31.
+Ver `templates/linkedin-oauth2-server.py` para el servidor OAuth2 completo.
 
 ## References
 

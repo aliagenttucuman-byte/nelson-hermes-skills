@@ -357,6 +357,55 @@ Esto aplica a: builds, deploys, configuraciones de infra, debugging, cualquier p
 - [ ] Logging estructurado (no print)
 - [ ] Tests unitarios con fixtures tipados
 
+## Pitfall — Terminal enmascara secrets en .env con `***`
+
+Cuando el terminal muestra `***` en lugar del valor real de un secret, cualquier script que
+lea ese output como string y reescriba el `.env` va a guardar el literal `***`.
+Esto rompe silenciosamente DATABASE_URL, API keys, passwords.
+
+**Regla:** nunca leer/reescribir .env pasando el contenido como string por el terminal.
+Siempre escribir un script Python en `/tmp/fix_env.py` y ejecutarlo.
+
+Para LEER una key real y usarla en otro archivo (ej: deploy de nuevo servicio), guardarla en /tmp:
+
+```python
+python3 -c "
+with open('/home/server/.hermes/.env') as f:
+    for line in f:
+        if line.startswith('OPENAI_API_KEY=sk-'):
+            val = line.strip().split('=', 1)[1]
+            open('/tmp/oai_key.txt', 'w').write(val)
+            print(f'OK len={len(val)} {val[:8]}...{val[-6:]}')
+            break
+"
+# Luego leer con Python en el script que la necesita:
+# key = open('/tmp/oai_key.txt').read().strip()
+```
+
+Limpiar `/tmp/oai_key.txt` después de usarla.
+
+```python
+import re
+path = '/home/server/proyectos/MiProyecto/.env'
+with open(path) as f:
+    content = f.read()
+content = re.sub(r'^MI_VAR=.*$', 'MI_VAR=nuevo_valor', content, flags=re.M)
+with open(path, 'w') as f:
+    f.write(content)
+# Verificar integridad
+for line in content.splitlines():
+    if 'KEY' in line or 'URL' in line or 'PASS' in line:
+        k, _, v = line.partition('=')
+        print(f"{k}= len={len(v)} prefix={v[:8]}")
+```
+
+Si DATABASE_URL quedó con password `***`, resetear desde dentro del container db:
+```bash
+docker exec <proyecto>-db-1 psql -U <user> -d <db> \
+  -c "ALTER USER <user> WITH PASSWORD 'nueva_pass';"
+# Luego corregir .env con el script Python
+```
+
 ## Pitfalls
 
 - `Any` es la excepcion, no la regla
