@@ -288,5 +288,9 @@ Bloques:
 ## Contactos
 
 - **Pablo**: COO AlegentAI + socio ForestAI, usa la app en reuniones con clientes
+
+## Perfil completo de Bisonte
+
+Ver `references/bisonte-empresa-perfil.md` — 6 líneas de servicio, 5 sucursales, sistemas Transoft + Sitrack, gerenta general como stakeholder principal (3-5 hs diarias lunes a lunes haciendo procesos Excel manuales).
 - **Gerenta Expreso Bisonte**: operativa, conocimiento tácito del cruce CDO↔PF
 - **Mensaje demo**: "Mirá, este es el CDO crudo que te baja el sistema. Y este es el mismo CDO con la justificación que vos ponés a mano. La app te los muestra juntos para que vos toques solo lo que falta. Lo mismo con Pte Fact."

@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  honcho-db:
+    image: pgvector/pgvector:pg15
+    container_name: honcho-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: honcho
+      POSTGRES_PASSWORD: honcho2026
+      POSTGRES_DB: honcho
+    volumes:
+      - honcho_pgdata:/var/lib/postgresql/data
+    # NO exponer puerto al host — solo interno
+
+  honcho:
+    image: plasticlabs/honcho:latest
+    container_name: honcho
+    restart: unless-stopped
+    ports:
+      - "8086:8000"   # host:container — 8086 fijo para ai-server
+    environment:
+      DATABASE_URL: postgresql+asyncpg://honcho:honcho2026@honcho-db:5432/honcho
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Dialectic usa OpenAI para inferencia de perfil
+    depends_on:
+      - honcho-db
+
+volumes:
+  honcho_pgdata:
