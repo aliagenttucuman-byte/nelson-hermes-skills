@@ -1,8 +1,8 @@
 Tony Stark (Nelson) prefiere comunicarse por WhatsApp con audios. Es action-oriented, no le gusta leer mucho texto largo. Quiere que le responda con audios concisos. El roleplay es Iron Man / JARVIS.
 §
-Equipo I+D+I (innovacion, PoCs): Tony + 2 agentes IA — Julián (backend) y Mercedes (frontend).
+Equipo I+D+I: Tony + Julián (backend) + Mercedes (frontend). Stack mobile: Expo SDK 56, expo-dev-client (nunca Expo Go), EAS Build+OTA. ML en FastAPI :9000, Expo consume via Server Actions.
 §
-Puerto 3001 ai-server: WhatsApp Gateway (Node, NO Docker). Usar 3101+ para proxies OpenAI. FreeLLMAPI en 3101, ver skill nelson-llm-generation. n8n :5678, login: nelsongacosta@gmail.com / BuenosAires435!. Health server n8n :9099 (python3 /home/server/n8n-docker/health_server.py).
+Puerto 3001 ai-server: WhatsApp Gateway (Node, NO Docker). FreeLLMAPI en 3101. n8n :5678 login: nelsongacosta@gmail.com/BuenosAires435!.
 §
 Tailscale: nelsondev=100.76.143.33 Win, ai-server=100.110.8.13 Linux. ai-server sudo: srv2026.
 §
@@ -18,4 +18,6 @@ DNS ai-server: Tailscale DNS no resuelve externos. Fix: sudo resolvectl dns wlo1
 §
 En Expreso Bisonte, Nelson exige flujo 1:1 (CDO Sistema + PTE Fact Sistema -> CDO/PF Trabajada), UI con esos nombres y conteos operativos reales (no preview).
 §
-Expreso Bisonte PoC: Pablo (COO). Infra: FastAPI :9000, spa_proxy :9090, next :3000. Túnel CF→:9090. Repo: github.com/aliagenttucuman-byte/expreso-bisonte-excel-poc. UPLOAD_DIR=/tmp/excel-merger — se borra en reinicio. NO venv, NO pip install — levantar directo.
+Bisonte Contado: INICIAL+SISTEMA→FINAL. Sin filtro estado. Prefijos nro: A.B.R. EXISTENTES: ESTADO de SISTEMA, REFERENTE vacío→succobro. NUEVOS: idem+VER DIF. UPSERT en DB. CC=4d resto=7d. :5435. Sin prioridad UI. Solo celda DIAS_ATRASO coloreada.
+§
+Expreso Bisonte PoC: Pablo (COO). Infra: FastAPI :9000, spa_proxy :9090. CF→:9090. Repo: github.com/aliagenttucuman-byte/expreso-bisonte-excel-poc. NO venv. Pitfall: reiniciar spa_proxy tras build. WS: usar window.location.host, no hostname:9000.

@@ -970,9 +970,49 @@ Para ForestAI específicamente: puerto 3011, `python3 /home/server/proyectos/for
 
 3. **Quick tunnels con DNS que no propagan inmediatamente:** Los túneles temporales de trycloudflare.com a veces tardan 30-60 segundos en propagar el DNS. Si el curl desde el servidor falla con "Could not resolve host", es el DNS de Tailscale bloqueando resolución externa (pitfall conocido). Verificar con `dig +short NOMBRE.trycloudflare.com @1.1.1.1` — si resuelve una IP, el túnel existe. El browser del usuario (que no usa Tailscale) lo verá correctamente.
 
-4. **VITE_API_URL vacío en el build:** Si se omite el `ARG` en el Dockerfile
+## Pitfall CRÍTICO: WebSocket con puerto hardcodeado rompe CF
 
-2. **VITE_API_URL vacío en el build:**
+**Síntoma:** El HTML carga, la página aparece, pero la app no funciona — el WS no conecta y las llamadas a la API fallan. No hay error visible para el usuario.
+
+**Causa:** El hook de WebSocket usa `window.location.hostname + ':PUERTO_INTERNO'`. Desde CF, ese puerto interno no es accesible — solo existe el 443 del túnel.
+
+```ts
+// ❌ MAL — rompe CF y cualquier reverse proxy
+const proto    = window.location.protocol === 'https:' ? 'wss' : 'ws'
+const hostname = window.location.hostname
+return `${proto}://${hostname}:9000/api/v1/ws/contado`
+
+// ✅ BIEN — usa el host completo del browser (incluye puerto si aplica)
+const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+const host  = window.location.host  // "screens-cafe.trycloudflare.com" o "localhost:9090"
+return `${proto}://${host}/api/v1/ws/contado`
+```
+
+**Regla general:** Nunca hardcodear el puerto del backend en el frontend. `window.location.host` funciona en local Y por CF sin cambios.
+
+**Verificación post-fix:**
+```bash
+grep -r ':9000\|:8000\|:3000' frontend/dist/assets/*.js | grep -v 'node_modules' | head -5
+# Si hay hits → hay puertos hardcodeados → rebuild requerido
+```
+
+**IMPORTANTE después de cualquier fix de frontend:**
+```bash
+# 1. Rebuild
+cd frontend && npm run build
+
+# 2. Reiniciar el proxy (sirve el dist nuevo — NO alcanza solo hacer rebuild)
+kill $(pgrep -f spa_proxy.py)
+cd .. && python3 spa_proxy.py &
+
+# 3. CF NO necesita reiniciarse — sigue apuntando al mismo puerto del proxy
+```
+
+---
+
+## Pitfalls de build
+
+1. **VITE_API_URL vacío en el build:**
    Si el `.env` tiene `VITE_API_URL=http://localhost:8030`, Vite lo hornea en el JS. Desde el tunnel, el browser del usuario hace fetch a su propio `localhost` → falla silenciosamente.
     - **Fix `.env`:** `VITE_API_URL=` (vacío, sin valor)
     - **Diagnóstico:** `grep -o '"http://localhost' frontend/dist/assets/index-*.js | wc -l` → si > 0 el valor está horneado, rebuild requerido.
@@ -1494,6 +1534,7 @@ Después de relanzar: **mandar la URL nueva por WhatsApp** (texto + audio). Las 
 | ForestAI | :3010 | `/tmp/cf_forestai.log` |
 | Fleet | :8020 | `/tmp/cf_fleet.log` |
 | Orchestrator Dashboard | :5174 | `/tmp/cf_orch_dash.log` |
+| Expreso Bisonte | :9090 | `/tmp/cf_bisonte.log` |
 | YoloV PoC | :9020 | `/tmp/cf_yolov.log` |
 
 ### Recuperación automática por watch_pattern

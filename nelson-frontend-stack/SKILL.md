@@ -4,7 +4,7 @@ title: Frontend Stack - React + TypeScript + Vite + Tailwind
 description: Stack frontend estandar del equipo Nelson. React 18, TypeScript, Vite, Tailwind CSS, React Query, Axios, React Router DOM. Convenciones de carpetas, hooks, patterns.
 skill: nelson-frontend-stack
 author: equipo-nelson
-version: 1.0.0
+version: "2.0.0"
 keywords: [react, typescript, vite, tailwind, react-query, axios, frontend]
 dependencies: []
 ---
@@ -782,6 +782,29 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
 
 - **`noUnusedLocals: true` en tsconfig.app.json de Vite:** El build (`tsc -b`) fallará en variables declaradas pero no usadas, aunque `npx tsc --noEmit` las pase silenciosamente a veces. Siempre eliminar variables intermedias no usadas antes de hacer build.
 - **Verificar TS antes del build:** Correr `npx tsc --noEmit` primero para ver todos los errores de TypeScript antes de lanzar `npm run build`. El build de Vite usa `tsc -b` (composite build) que puede reportar errores diferentes a `--noEmit`.
+
+- **Patch en archivos TSX grandes puede borrar líneas críticas — siempre verificar el parse después.** Al usar `patch()` en componentes largos (+500 líneas), el old_string puede matchear parcialmente y eliminar código crítico (ej: borrar `if (!data) {` de una función). El síntoma: error TS1128 o esbuild en la ÚLTIMA línea del archivo (no donde está el bug real). Diagnóstico correcto:
+  ```bash
+  # 1. esbuild da más info que tsc:
+  node -e "
+  const {transformSync} = require('esbuild');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { transformSync(code, {loader:'tsx', target:'es2020'}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message); }
+  "
+  # 2. Babel da el error semántico real (ej: 'return outside of function'):
+  node -e "
+  const {parse} = require('@babel/parser');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { parse(code, {sourceType:'module', plugins:['typescript','jsx']}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message.split('\n')[0], 'loc:', JSON.stringify(e.loc)); }
+  "
+  # 3. Ver el diff de git para encontrar qué línea fue borrada:
+  git diff HEAD src/pages/HomePage.tsx | grep '^-' | head -20
+  ```
+  Regla: después de cualquier patch en un componente TSX grande, siempre correr el check de babel antes de seguir.
 - **Verificar existencia de versiones antes de implementar:** el usuario puede pedir versiones que aun no existen (ej: React 22 no existe, la ultima estable es React 19). Siempre confirmar en npm/registry antes de actualizar.
 - **TypeScript 6+ — `baseUrl` deprecado:** En TS 6, usar `baseUrl` + `paths` para alias `@/` genera `TS5101`. Fix: agregar `"ignoreDeprecations": "6.0"` al `tsconfig.app.json`. Ejemplo completo:
   ```json
@@ -856,6 +879,28 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
   </nav>
   ```
   Con `overflowX: "auto"` + `minWidth: 70` + `flexShrink: 0` (alternativa scroll): funciona en teoria pero en mobile position:fixed el scroll táctil es errático. Preferir grid.
+
+- **Diagnóstico de error TSX `Unexpected "}"` o `'return' outside of function` en última línea:** El error de tsc/esbuild en la última línea del archivo indica un desbalance de llaves causado por un patch previo que borró una línea intermedia. NO intentar parchar el final del archivo — buscar el error real con Babel parser:
+  ```bash
+  node -e "
+  const {parse} = require('@babel/parser');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { parse(code, {sourceType:'module', plugins:['typescript','jsx']}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message.split('\n')[0], 'loc:', JSON.stringify(e.loc)); }
+  "
+  ```
+  Babel reporta la línea REAL del error (ej: `'return' outside of function. (1142:2)`). Luego verificar el diff con `git diff HEAD src/pages/NombreComponente.tsx` para ver qué línea fue borrada por el patch.
+
+- **`btoa()` revienta con blobs Excel grandes (>few MB):** `btoa(String.fromCharCode(...new Uint8Array(buf)))` lanza `Maximum call stack size exceeded` con archivos grandes. Fix robusto para convertir un blob/ArrayBuffer a base64:
+  ```typescript
+  const buf = await blob.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  const b64 = btoa(binary)
+  ```
+  Usar este patrón siempre que se envíe un archivo Excel o binario como base64 en el body de una request.
 
 - **Panel aplastado en flex container (padding/width reducido):** cuando un componente tiene `width: "100%"` pero visualmente sigue comprimido, la causa es que el flex container lo puede shrinkear igual. Fix: agregar `minWidth: 0` y `flex: 1` al contenedor raíz del componente hijo, y `width: "100%"` al wrapper en el padre:
   ```tsx
@@ -947,3 +992,138 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
   ```
   Si no se configura `preview.allowedHosts`, el HTML puede abrir pero requests desde el host remoto quedan bloqueadas. Ver referencia `references/tunneling-demos.md` para patrones de exposicion remota.
 - **Proxy dual en Vite (múltiples backends):** Cuando el frontend habla con dos servicios distintos (ej: Task Memory :8742 y Router :8743), configurar múltiples entradas en `server.proxy` con prefijos `/api/X` y `rewrite` para quitar el prefijo antes de forwarded al backend. Ver template `templates/vite.config.dual-proxy.ts`.
+
+---
+
+## Mobile — Expo SDK 56 (stack oficial del equipo desde jun 2026)
+
+Expo es el stack mobile del equipo. Mercedes porta React 18 + TypeScript directo. Un codebase para iOS + Android + Web.
+
+### Por qué Expo y no alternativas
+- React Native CLI: Mercedes/Julián manejan Xcode y Android Studio desde día 1. Sin OTA. Descartado.
+- Flutter: Dart — el equipo empieza de cero. Descartado.
+- Expo SDK 56: mismo TypeScript, Expo Router = file-based como Next.js, EAS = deploys sin fricción.
+
+### Quickstart
+
+```bash
+npx create-expo-app@latest mi-proyecto --template tabs
+npx expo install expo-dev-client   # SIEMPRE — nunca Expo Go
+npx expo run:ios                   # simulador iOS (solo en macOS)
+npx expo run:android               # emulador Android
+npx expo start --web               # web
+```
+
+> CRÍTICO: usar siempre expo-dev-client, NUNCA Expo Go. Los proyectos del equipo necesitan módulos nativos custom.
+
+### Expo Router v4 — estructura estándar
+
+```
+app/
+  _layout.tsx          # Layout raíz (providers, auth)
+  (tabs)/
+    _layout.tsx        # Tab bar nativo (UITabBar iOS real)
+    index.tsx
+    dashboard.tsx
+  [id].tsx             # Ruta dinámica tipada
+  +not-found.tsx
+```
+
+```typescript
+import { router } from 'expo-router'
+router.push('/dashboard')          // tipado
+router.dismissTo('/home')          // volver a ruta específica del stack
+```
+
+### Patrón ML: el modelo vive en FastAPI, Expo lo consume
+
+```
+Expo App ──Server Action──► FastAPI :9000 (XGBoost / LocateAnything / Polars)
+```
+
+```typescript
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://100.110.8.13:9000'
+
+export async function predictDelay(data: FlightInput) {
+  const res = await fetch(`${API_BASE}/predict-delay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return res.json() as Promise<DelayPrediction>
+}
+```
+
+### Paquetes por proyecto
+
+ForestAI:
+```bash
+npx expo install expo-camera expo-image-manipulator expo-location expo-sqlite expo-file-system
+```
+
+```typescript
+// Captura frame → preprocesa → envía al servidor ForestAI
+const photo = await cameraRef.current?.takePictureAsync({ quality: 0.8 })
+const processed = await ImageManipulator.manipulateAsync(
+  photo!.uri,
+  [{ resize: { width: 640, height: 640 } }],
+  { format: ImageManipulator.SaveFormat.JPEG }
+)
+const formData = new FormData()
+formData.append('image', { uri: processed.uri, type: 'image/jpeg', name: 'frame.jpg' } as any)
+const result = await fetch(`${API_BASE}/detect`, { method: 'POST', body: formData })
+```
+
+Offline en campo:
+```typescript
+import * as SQLite from 'expo-sqlite'
+const db = SQLite.openDatabaseSync('forestai.db')
+// Guardar detecciones offline → sync cuando hay red
+```
+
+LAN Chile:
+```bash
+npx expo install expo-notifications victory-native react-native-svg
+```
+
+Bisonte:
+```bash
+npx expo install expo-document-picker expo-file-system expo-sharing
+```
+
+### EAS Build + OTA
+
+```bash
+npm install -g eas-cli && eas login && eas build:configure
+eas build --platform ios          # build App Store
+eas build --platform android      # build Play Store
+eas update --branch production --message "fix: dashboard"  # OTA sin review
+```
+
+### Variables de entorno
+
+```bash
+# .env.local
+EXPO_PUBLIC_API_URL=http://100.110.8.13:9000  # ai-server Tailscale
+EXPO_PUBLIC_WA_GATEWAY=http://100.110.8.13:3001
+```
+
+> Prefijo EXPO_PUBLIC_ = accesible en cliente. Sin prefijo = solo Server Components.
+
+### Módulo nativo custom (ForestAI on-device >10 FPS)
+
+```bash
+npx create-expo-module forest-vision-module
+# Genera boilerplate Swift (iOS CoreML) + Kotlin (Android TFLite) + TypeScript API
+```
+
+Presupuestar 1-2 semanas. Para el MVP, el patrón servidor (frame → FastAPI → resultado) es suficiente.
+
+### Pitfalls Expo
+
+- Expo Go: NO usar. Usar expo-dev-client siempre.
+- SDK upgrades: salen ~3/año. No saltar más de 1 versión.
+- iOS simulator en Linux: no existe. Usar EAS Build en la nube o macOS.
+- android emulator: requiere KVM. Verificar: `kvm-ok` en ai-server.
+- expo-image-manipulator nueva API: usar uri directo en FormData, NO base64.
+- Nueva arquitectura (Fabric) habilitada por defecto desde SDK 52: verificar compatibilidad de libs de terceros antes de instalar.

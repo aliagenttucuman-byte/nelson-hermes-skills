@@ -406,6 +406,19 @@ docker exec <proyecto>-db-1 psql -U <user> -d <db> \
 # Luego corregir .env con el script Python
 ```
 
+## WebSocket en FastAPI — patrón colaborativo
+
+Para colaboración en tiempo real (múltiples usuarios editando la misma tabla):
+
+1. `router = APIRouter()` + `@router.websocket("/ws/<nombre>")` en endpoint dedicado
+2. Singleton `Room` con: `connections: Dict[str,WebSocket]`, `users: Dict[str,dict]`, `locks: Dict[tuple,str]`
+3. Protocolo mínimo: `join`, `editing` (lock), `update` (broadcast+unlock), `leave` (unlock sin valor), `ping/pong`
+4. Hook React con reconexión automática (retry 3s en `onclose`)
+5. Updates remotos via `CustomEvent` en el objeto WS para desacoplar hook de componente
+
+PITFALL — spa_proxy Python puro no soporta WebSocket upgrade.
+Si el stack usa `http.server` como proxy, el frontend conecta el WS directo al backend (:9000), no al proxy. Con nginx: `proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";`
+
 ## Pitfalls
 
 - `Any` es la excepcion, no la regla

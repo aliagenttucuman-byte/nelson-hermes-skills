@@ -6,7 +6,7 @@ Nelson revisa TODO antes de compartir. Pablo (COO AlegentAI + socio ForestAI) y 
 §
 Nelson: NO PR upstream a free-tier externos (freellmapi, VLM). Mantener cambios en fork local o en sus repos con patch en skills nelson-*.
 §
-Nelson: Líder Técnico I+D+I en YPF, co-founder AlegentAI. Recibe screening startup (CTO/VPE, founder, team building). Respuestas en inglés para externas, basadas en perfil real.
+Nuevo cliente: LAN Chile (LATAM group) — proyectos de finanzas con Python, ML, IA. Stack: Polars (NO pandas), scikit-learn, XGBoost, LightGBM, Prophet, SHAP. KPIs: CASK, RASK, Load Factor, Yield. Códigos IATA grupo LATAM: LA, XL, 4M, JJ, LP, UC.
 §
 Nelson: JARVIS=Claude, PoCs=OpenAI→Groq→OpenRouter. "se ensució"=scope creep. Al levantar servicios: TODO de una vez sin pasos intermedios ni confirmaciones — solo la URL al final.
 §

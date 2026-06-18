@@ -264,6 +264,18 @@ JARVIS necesita saber (viene del PLAN.md + preguntas a Tony):
 | Business | Hasta 200 | Hasta 1.000 | $1.000 |
 | Enterprise | Hasta 1.000 | Hasta 5.000 | $2.000+ |
 
+### Paquetes de Gestión Operativa (PoC sin LLM — tipo Bisonte)
+
+Para proyectos de automatización operativa que no usan LLM (Excel mergers, dashboards, pipelines de datos):
+
+| Paquete | Qué incluye | Dev | Suscripción |
+|---------|-------------|-----|-------------|
+| Módulo 1 | Análisis + DB + Backend + Frontend + Deploy | $7.200 | $300/mes |
+| Módulo 2+ | Feature nueva sobre infra existente | $1.200-$3.600 | incluido |
+| Plataforma completa (10 módulos) | Todos los flujos operativos | $21.000-$27.000 | $300/mes |
+
+> Argumento de venta: "El primer módulo es el más caro porque construimos toda la base. Los siguientes módulos son más baratos porque reutilizamos todo."
+
 ---
 
 ## Paquetes Estándar para RAG (PoC → Producción)
@@ -350,6 +362,22 @@ JARVIS necesita saber (viene del PLAN.md + preguntas a Tony):
 
 > **Nota:** Si el cliente necesita algo que no está en ningún paquete → Feature aparte cotizada por hora ($30/h).
 
+## Entregable: .docx para Pablo (no ESTIMACION.md)
+
+Cuando la cotización es para llevar a una reunión con un cliente real, el entregable es **un .docx Word profesional**, no el ESTIMACION.md en markdown. Usar python-docx.
+
+Template base reutilizable en `templates/cotizacion_docx.py`. Incluye helpers `h1()`, `h2()`, `bullet()`, `tabla()` con colores corporativos AlegentAI.
+
+Secciones obligatorias del .docx:
+1. Portada (título + nombre cliente + fecha + "Confidencial")
+2. Resumen ejecutivo (tabla: Desarrollo one-time / Suscripción / Total N meses)
+3. Detalle de lo entregado por componente
+4. Cotización con horas por componente
+5. Proyección de módulos siguientes (argumento de venta: los módulos 2+ son más baratos)
+6. Plan de pagos por hito
+7. Condiciones generales
+8. Pie con datos AlegentAI
+
 ## Flujo de Uso
 
 ### Paso 1: Tony describe el proyecto
@@ -395,7 +423,35 @@ proyecto/
 └── README.md
 ```
 
-## Variantes
+## Cotización de trabajo ya entregado (retroactivo)
+
+Cuando Nelson pide cotizar trabajo **ya hecho** (no planificado), el flujo es diferente al ESTIMACION.md pre-desarrollo:
+
+1. Inventariar lo construido con `find + wc -l` para tener LOC reales por componente
+2. Traducir LOC a horas estimadas usando la regla: ~100-150 LOC/hora para código de negocio complejo (API + lógica), ~200-250 LOC/hora para frontend estándar
+3. Sumar horas de relevamiento, reuniones, deploy e infra (siempre se subestiman)
+4. Usar $30/h como rate base
+5. Generar documento Word (.docx con python-docx) con portada + resumen ejecutivo + desglose por componente + proyección de módulos futuros + plan de pagos
+
+Formato del entregable: DOCX profesional, NO texto plano. Nelson lo manda a Pablo directamente.
+
+Pitfall: No generar solo el resumen — incluir SIEMPRE la proyección de módulos futuros. Pablo la usa para dimensionar el proyecto total en las reuniones.
+
+### Cotización Retroactiva (trabajo ya entregado)
+
+Cuando Tony pide cotizar trabajo que ya fue entregado (sin PLAN.md previo), el flujo cambia:
+
+1. **Inventariar lo real** — correr `find <proyecto> -name '*.py' -o -name '*.ts' -o -name '*.tsx' | xargs wc -l` para contar líneas reales.
+2. **Mapear a componentes** — agrupar archivos en bloques (análisis, DB, backend, frontend, infra) y asignar horas reales a cada uno.
+3. **No inventar horas** — basarse en la complejidad real del código entregado, no en estimaciones teóricas.
+4. **Formato .docx** — la cotización retroactiva siempre se entrega como documento Word profesional (no ESTIMACION.md), para que Pablo la lleve a reunión. Usar python-docx con colores corporativos AlegentAI: azul oscuro #1F3764, azul medio #2E4A8C, naranja #C05000.
+5. **Incluir proyección de módulos siguientes** — siempre adjuntar tabla de módulos futuros con costos estimados menores (porque la infra ya existe). Argumento de venta: el primer módulo es el más caro, los siguientes son más baratos.
+
+**Tarifas validadas para PoC de gestión operativa (sin LLM):**
+- Rate base: $30/hora
+- Módulo 1 (análisis + DB + backend + frontend + infra, ~240h): $7.200
+- Suscripción mensual mínima (infra propia, sin cloud): $300/mes
+- Módulos siguientes (reutilizan infra existente, ~60-120h c/u): $1.200 - $3.600
 
 ### Proyecto Interno (herramienta propia)
 - No se cobra al cliente
@@ -415,6 +471,20 @@ proyecto/
 ## Notas
 
 - La estimación es una **guía**, no una promesa. El scope puede cambiar.
+
+## Cotización de trabajo ya entregado (post-hoc)
+
+Cuando el cliente pide cotización de trabajo que YA se hizo (no estimación futura):
+
+1. Contar líneas reales: `find . -name '*.py' -o -name '*.ts' -o -name '*.tsx' | xargs wc -l`
+2. Contar tablas DB: `SELECT table_name FROM information_schema.tables WHERE table_schema='public'`
+3. Contar endpoints: grep de `@router.` en el backend
+4. Traducir a horas: ~30-40 LOC/hora para código de negocio real
+5. Referencia Bisonte jun 2026: Relevamiento 40h + DB 40h + Backend 80h + Frontend 60h + Infra 20h = 240h = $7.200
+
+**Pitfall:** No inflar horas si el cliente puede contrastar con tiempo real transcurrido. Defender con calidad, no cantidad.
+
+**Formato entregable:** generar .docx con python-docx (no PDF — el cliente necesita poder editar). Incluir proyección de módulos futuros con precios decrecientes (reutilizan infra ya hecha).
 - Si el cliente pide cambios de scope, se re-estima.
 - El rate de $30/hora es base. Puede negociarse para clientes grandes o proyectos largos.
 - La suscripción mensual se factura por adelantado (primero del mes).
