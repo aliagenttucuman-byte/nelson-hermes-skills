@@ -935,6 +935,19 @@ tasks show a1b2c3d4
 
 ---
 
+## Boards activos (setup 2026-06-19)
+
+2 boards creados para los 2 frentes técnicos de Nelson:
+- `alegent-ai` — proyectos propios AlegentAI (Bisonte, ForestAI, infra, demos)
+- `lan-latam` — proyectos LAN/LATAM (finanzas, ML, GCP)
+- YPF — gestión de equipo, NO tiene board en Hermes
+
+Ver `references/kanban-proyectos-setup.md` para tareas iniciales y comandos.
+
+PITFALL: `--board` va ANTES del subcomando:
+✓ `hermes kanban --board alegent-ai list`
+✗ `hermes kanban list --board alegent-ai`
+
 ## Pitfalls y consideraciones
 
 ### 1. Concurrencia sobre SQLite

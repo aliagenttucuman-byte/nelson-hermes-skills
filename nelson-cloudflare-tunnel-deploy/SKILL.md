@@ -1012,6 +1012,19 @@ cd .. && python3 spa_proxy.py &
 
 ## Pitfalls de build
 
+0. **WebSocket hardcodeado con hostname:puerto — ROMPE por CF tunnel:**
+   Si el frontend tiene `ws://${hostname}:9000/api/v1/ws/...` hardcodeado, el WebSocket intenta conectar al puerto 9000 directamente. Por Cloudflare Tunnel ese puerto no existe — solo hay 443. Fix: usar `window.location.host` (que incluye el puerto del browser) en vez de `hostname` + puerto fijo:
+   ```typescript
+   // ❌ ROMPE por CF tunnel (puerto 9000 no accesible externamente)
+   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+   return `${proto}://${window.location.hostname}:9000/api/v1/ws/contado`
+
+   // ✅ CORRECTO — usa el mismo host y puerto del browser
+   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+   return `${proto}://${window.location.host}/api/v1/ws/contado`
+   ```
+   Después del fix: rebuild del frontend + reiniciar el servidor estático/proxy para que sirva el dist nuevo.
+
 1. **VITE_API_URL vacío en el build:**
    Si el `.env` tiene `VITE_API_URL=http://localhost:8030`, Vite lo hornea en el JS. Desde el tunnel, el browser del usuario hace fetch a su propio `localhost` → falla silenciosamente.
     - **Fix `.env`:** `VITE_API_URL=` (vacío, sin valor)

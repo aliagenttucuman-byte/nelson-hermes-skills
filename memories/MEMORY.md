@@ -16,8 +16,10 @@ Telegram: @Jarvis_Alegent_bot. Nelson aprobado (ID 8896858194). Notificar nombre
 §
 DNS ai-server: Tailscale DNS no resuelve externos. Fix: sudo resolvectl dns wlo1 8.8.8.8 o sudo tailscale set --accept-dns=false. /etc/hosts también sirve.
 §
-En Expreso Bisonte, Nelson exige flujo 1:1 (CDO Sistema + PTE Fact Sistema -> CDO/PF Trabajada), UI con esos nombres y conteos operativos reales (no preview).
-§
-Bisonte Contado: INICIAL+SISTEMA→FINAL. Sin filtro estado. Prefijos nro: A.B.R. EXISTENTES: ESTADO de SISTEMA, REFERENTE vacío→succobro. NUEVOS: idem+VER DIF. UPSERT en DB. CC=4d resto=7d. :5435. Sin prioridad UI. Solo celda DIAS_ATRASO coloreada.
+En Expreso Bisonte: colores por CELDA (no fila). sucdest==CC tolerancia=0, resto=7 días. OBSERVACIÓN rojo si "VER DIF". fechaedit rojo si DIAS_ATRASO supera tolerancia. Campo clave: sucdest (no succobro).
 §
 Expreso Bisonte PoC: Pablo (COO). Infra: FastAPI :9000, spa_proxy :9090. CF→:9090. Repo: github.com/aliagenttucuman-byte/expreso-bisonte-excel-poc. NO venv. Pitfall: reiniciar spa_proxy tras build. WS: usar window.location.host, no hostname:9000.
+§
+GitHub token aliagenttucuman-byte: [REDACTED-PAT]
+§
+LAN Chile / LATAM: infra GCP + Terraform. Nelson va a pasar repos para generar skills nelson-gcp-terraform.

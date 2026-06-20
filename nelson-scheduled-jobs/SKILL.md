@@ -59,6 +59,17 @@ def send_whatsapp(to: str, message: str):
     urllib.request.urlopen(req, timeout=10)
 ```
 
+## Reporte diario de tokens y costo IA (job activo)
+
+Job ID: 15723ca8f99b — corre todos los días a las 23:00 UTC
+Consulta http://localhost:8787/stats (Headroom proxy) y manda el resumen por WhatsApp a Nelson.
+
+El prompt del job debe pedir:
+- Hoy: requests, tokens enviados, tokens ahorrados, % ahorro, costo USD
+- Acumulado lifetime: total tokens, total ahorrado por compresión + prefix cache, ahorro USD total
+
+Para correr manualmente: usar cronjob action=run con el job_id.
+
 ## Pitfalls
 
 - **NO usar path absoluto en cron job** — Hermes rechota. Usar solo nombre del script en `~/.hermes/scripts/`
