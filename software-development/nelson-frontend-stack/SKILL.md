@@ -557,6 +557,9 @@ Checklist rápido antes de compartir URL:
 ## Referencias de soporte
 
 - `references/dashboard-mapa-websocket-chat.md` — Template completo: dashboard React con Leaflet + WebSocket live + chat IA flotante (validado FleetOptimizer PoC)
+- `references/css-overlay-redesign-legacy-inline.md` — Rediseño visual completo de PoC con inline styles legacy sin tocar JSX. Inyectar `design-system.css` global + override por selectores de atributo (`div[style*="background: rgb(255, 255, 255)"]`). Validado en Bisonte (1341 LoC HomePage.tsx, 0 líneas de lógica tocadas).
+- `references/css-overlay-reskinning.md` — Rediseño visual de apps React con inline styles masivos SIN tocar JSX. Patrón overlay CSS via attribute selectors `[style*="..."]`. Estilo Linear × Bloomberg incluido (validado Bisonte PoC jun 2026).
+- `references/css-overlay-reskin.md` — Re-skin completo de un componente React con cientos de inline styles SIN tocar JSX, usando CSS attribute selectors + design tokens. Patrón "Linear × Bloomberg" para apps operativas (Bisonte). Reversible borrando 1 import.
 - `references/excel-pipeline-operational-mode.md` — Guía de UI mínima operativa para pipelines Excel (sin IA/demo), con foco en conteo de filas útiles.
 - `references/excel-poc-white-screen-500-debug.md` — Postmortem corto: pantalla blanca por Axios multipart global + 500 en merge encadenado; fixes y checks de verificación.
 - `references/white-screen-triage-cloudflare.md` — Runbook rápido para "pantalla blanca" en demos por tunnel (verificación HTML/JS/API + secuencia de recuperación)
@@ -782,6 +785,29 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
 
 - **`noUnusedLocals: true` en tsconfig.app.json de Vite:** El build (`tsc -b`) fallará en variables declaradas pero no usadas, aunque `npx tsc --noEmit` las pase silenciosamente a veces. Siempre eliminar variables intermedias no usadas antes de hacer build.
 - **Verificar TS antes del build:** Correr `npx tsc --noEmit` primero para ver todos los errores de TypeScript antes de lanzar `npm run build`. El build de Vite usa `tsc -b` (composite build) que puede reportar errores diferentes a `--noEmit`.
+
+- **Patch en archivos TSX grandes puede borrar líneas críticas — siempre verificar el parse después.** Al usar `patch()` en componentes largos (+500 líneas), el old_string puede matchear parcialmente y eliminar código crítico (ej: borrar `if (!data) {` de una función). El síntoma: error TS1128 o esbuild en la ÚLTIMA línea del archivo (no donde está el bug real). Diagnóstico correcto:
+  ```bash
+  # 1. esbuild da más info que tsc:
+  node -e "
+  const {transformSync} = require('esbuild');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { transformSync(code, {loader:'tsx', target:'es2020'}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message); }
+  "
+  # 2. Babel da el error semántico real (ej: 'return outside of function'):
+  node -e "
+  const {parse} = require('@babel/parser');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { parse(code, {sourceType:'module', plugins:['typescript','jsx']}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message.split('\n')[0], 'loc:', JSON.stringify(e.loc)); }
+  "
+  # 3. Ver el diff de git para encontrar qué línea fue borrada:
+  git diff HEAD src/pages/HomePage.tsx | grep '^-' | head -20
+  ```
+  Regla: después de cualquier patch en un componente TSX grande, siempre correr el check de babel antes de seguir.
 - **Verificar existencia de versiones antes de implementar:** el usuario puede pedir versiones que aun no existen (ej: React 22 no existe, la ultima estable es React 19). Siempre confirmar en npm/registry antes de actualizar.
 - **TypeScript 6+ — `baseUrl` deprecado:** En TS 6, usar `baseUrl` + `paths` para alias `@/` genera `TS5101`. Fix: agregar `"ignoreDeprecations": "6.0"` al `tsconfig.app.json`. Ejemplo completo:
   ```json
@@ -856,6 +882,28 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
   </nav>
   ```
   Con `overflowX: "auto"` + `minWidth: 70` + `flexShrink: 0` (alternativa scroll): funciona en teoria pero en mobile position:fixed el scroll táctil es errático. Preferir grid.
+
+- **Diagnóstico de error TSX `Unexpected "}"` o `'return' outside of function` en última línea:** El error de tsc/esbuild en la última línea del archivo indica un desbalance de llaves causado por un patch previo que borró una línea intermedia. NO intentar parchar el final del archivo — buscar el error real con Babel parser:
+  ```bash
+  node -e "
+  const {parse} = require('@babel/parser');
+  const fs = require('fs');
+  const code = fs.readFileSync('src/pages/HomePage.tsx', 'utf8');
+  try { parse(code, {sourceType:'module', plugins:['typescript','jsx']}); console.log('OK'); }
+  catch(e) { console.log('ERROR:', e.message.split('\n')[0], 'loc:', JSON.stringify(e.loc)); }
+  "
+  ```
+  Babel reporta la línea REAL del error (ej: `'return' outside of function. (1142:2)`). Luego verificar el diff con `git diff HEAD src/pages/NombreComponente.tsx` para ver qué línea fue borrada por el patch.
+
+- **`btoa()` revienta con blobs Excel grandes (>few MB):** `btoa(String.fromCharCode(...new Uint8Array(buf)))` lanza `Maximum call stack size exceeded` con archivos grandes. Fix robusto para convertir un blob/ArrayBuffer a base64:
+  ```typescript
+  const buf = await blob.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  let binary = ''
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  const b64 = btoa(binary)
+  ```
+  Usar este patrón siempre que se envíe un archivo Excel o binario como base64 en el body de una request.
 
 - **Panel aplastado en flex container (padding/width reducido):** cuando un componente tiene `width: "100%"` pero visualmente sigue comprimido, la causa es que el flex container lo puede shrinkear igual. Fix: agregar `minWidth: 0` y `flex: 1` al contenedor raíz del componente hijo, y `width: "100%"` al wrapper en el padre:
   ```tsx

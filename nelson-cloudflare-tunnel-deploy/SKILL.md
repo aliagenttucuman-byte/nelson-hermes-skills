@@ -214,7 +214,7 @@ grep -o 'localhost' dist/assets/*.js | wc -l  # debe ser 0
 | Seguridad | Mejor | Peor |
 | Rebuild por URL cambiada | No | Sí (VITE_API_URL se hornea) |
 
-## Diagnostic Rápido Antes de Debuggear el Tunnel
+## Diagnóstico Rápido Antes de Debuggear el Tunnel
 
 **Regla:** Si el frontend carga pero la app no funciona, verificar el BACKEND primero, no el tunnel.
 
@@ -238,71 +238,6 @@ source venv/bin/activate 2>/dev/null || true
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/orchestrator_backend.log 2>&1 &
 sleep 5 && curl -sf http://localhost:8000/health
 ```
-
-### Tunnel "vivo" pero UI rota — patrón SPA-proxy (un solo puerto)
-
-Cuando un proyecto usa el patrón **un solo puerto con proxy SPA** (ej. Expreso Bisonte: FastAPI/uvicorn en `:9000` + mini-proxy Python en `:9090` que sirve dist + proxyea `/api/*` al backend), un solo túnel apunta al proxy. Síntomas típicos de falla:
-
-- El túnel responde con el HTML del SPA pero las llamadas API devuelven 404 o el HTML mismo.
-- El usuario ve la app cargada pero ningún botón funciona.
-- Nelson reporta "la URL no funciona" / "está caída" aunque el túnel esté técnicamente vivo.
-
-**Árbol de decisión (ejecutar en este orden):**
-
-```bash
-# 1. ¿El cloudflared está vivo y a qué puerto apunta?
-ps -ef | grep cloudflared | grep -v grep
-# → Buscar la línea: cloudflared tunnel --url http://localhost:PUERTO
-
-# 2. ¿Ese puerto está escuchando?
-ss -tlnp | grep PUERTO
-#   Si NO aparece → el proceso destino está caído, levantarlo
-#   Si aparece → seguir paso 3
-
-# 3. ¿El puerto es el SPA-proxy o el backend real?
-#   Si es el SPA-proxy (ej. :9090 con script spa_proxy.py), el proxy redirige /api/* al backend real (otro puerto, ej. :9000).
-#   Verificar que el backend real también escucha:
-ss -tlnp | grep PUERTO_BACKEND_REAL
-#   Si el backend real no escucha → levantarlo, el proxy solo no sirve
-
-# 4. Verificar el prefijo de rutas del backend
-curl -s http://localhost:PUERTO_BACKEND/openapi.json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(p) for p in d['paths']]"
-#   Pitfall frecuente: las rutas son /api/v1/... no /api/... Si el frontend llama /api/health y el backend expone /api/v1/health,
-#   todas las llamadas fallan con 404 (y el SPA-proxy devuelve el HTML del index como fallback → la URL parece "viva pero rota").
-```
-
-**Caso real Expreso Bisonte (junio 2026):**
-- cloudflared apuntaba a `:9090` (SPA-proxy)
-- SPA-proxy proxyeaba `/api/*` a `:9000` (FastAPI backend)
-- Backend tenía rutas en `/api/v1/excel/*` no `/api/excel/*`
-- Resultado: el browser veía el HTML del SPA, las llamadas a `/api/...` devolvían 404 con fallback al `index.html`, y Nelson reportó "la URL no funciona"
-- Fix: confirmar prefijo real con `openapi.json` y ajustar el frontend (o reescribir las rutas)
-
-**Pitfall crítico:** el SPA-proxy hace fallback a `index.html` para cualquier ruta que no sea `/api/*` y no exista como archivo estático. Eso significa que un 404 del backend se "esconde" devolviendo el HTML del frontend — el usuario ve la app pero sin datos. **Siempre probar endpoints API con `curl` directo al backend real, no solo a la URL del tunnel.**
-
-## PITFALL — Cloudflare Quick Tunnel limita uploads a ~100MB
-
-Los quick tunnels (trycloudflare.com sin cuenta) rechazan uploads grandes con un error de red genérico en el browser — el XHR dispara `onerror` en vez de dar un HTTP 413. El backend y nginx pueden estar perfectos.
-
-**Síntoma:** "Error de red al subir archivo" en el frontend, pero `curl` directo al :9020 devuelve 200 OK.
-
-**Diagnóstico:**
-```bash
-# Verificar que el backend funciona directo (sin tunnel)
-curl -X POST http://localhost:9020/api/v1/upload \
-  --form "file=@/ruta/al/archivo.tif" \
-  -w "\nHTTP %{http_code}\n" --max-time 30 -s | tail -3
-# Si devuelve 200 → el problema es Cloudflare, no el stack
-```
-
-**Fix:** usar acceso directo por Tailscale — sin límite de tamaño:
-```
-http://100.110.8.13:9020   ← IP del ai-server en Tailscale
-```
-
-**Nota:** La IP Tailscale del ai-server es `100.110.8.13`, NO `100.76.143.33` (esa es la del nelsondev/cliente).
-
----
 
 ## Fix: DNS de Tailscale Bloquea cloudflared
 
@@ -338,71 +273,30 @@ echo "srv2026" | sudo -S resolvectl default-route $IFACE true
 
 **Nota:** Con `--accept-dns=false`, Tailscale MagicDNS sigue funcionando (resolución de otros nodos de la red), pero el DNS global queda en manos de la interfaz de red normal.
 
-## Diagnostic Rápido Antes de Debuggear el Tunnel
+## Troubleshooting: UI inaccesible / "sigue caída"
 
-**Regla:** Si el frontend carga pero la app no funciona, verificar el BACKEND primero, no el tunnel.
+Cuando el dashboard no carga, revisar en este orden ANTES de tocar el tunnel:
 
 ```bash
-# 1. ¿Backend vivo?
-curl -sf http://localhost:8000/health && echo "OK" || echo "CAÍDO"
+# 1. ¿El backend está corriendo?
+curl -sf http://localhost:8000/health && echo "backend OK" || echo "backend DOWN"
 
-# 2. ¿Frontend vivo?
-curl -sf http://localhost:5174 -o /dev/null -w "%{http_code}"
+# 2. ¿El Vite frontend está corriendo?
+curl -sf http://localhost:5174 -o /dev/null -w "HTTP %{http_code}\n"
 
-# 3. ¿Tunnel conectado?
-grep -E "Registered tunnel|trycloudflare.com" /tmp/cf_*.log | tail -3
+# 3. ¿El tunnel sigue conectado?
+grep -E "Registered tunnel|failed" /tmp/cf_*.log | tail -3
 ```
 
-Si el backend está caído, levantarlo es el fix — el tunnel puede estar perfecto.
+El backend caído es la causa más frecuente de "UI que no carga" — el frontend levanta pero sin API no puede hacer nada. Levantar con:
 
 ```bash
-# Levantar backend del orquestador
 cd /home/server/nelson/meta-orchestrator
 source venv/bin/activate 2>/dev/null || true
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/orchestrator_backend.log 2>&1 &
-sleep 5 && curl -sf http://localhost:8000/health
+# background=true, watch Application startup complete
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### Tunnel "vivo" pero UI rota — patrón SPA-proxy (un solo puerto)
-
-Cuando un proyecto usa el patrón **un solo puerto con proxy SPA** (ej. Expreso Bisonte: FastAPI/uvicorn en `:9000` + mini-proxy Python en `:9090` que sirve dist + proxyea `/api/*` al backend), un solo túnel apunta al proxy. Síntomas típicos de falla:
-
-- El túnel responde con el HTML del SPA pero las llamadas API devuelven 404 o el HTML mismo.
-- El usuario ve la app cargada pero ningún botón funciona.
-- Nelson reporta "la URL no funciona" / "está caída" aunque el túnel esté técnicamente vivo.
-
-**Árbol de decisión (ejecutar en este orden):**
-
-```bash
-# 1. ¿El cloudflared está vivo y a qué puerto apunta?
-ps -ef | grep cloudflared | grep -v grep
-# → Buscar la línea: cloudflared tunnel --url http://localhost:PUERTO
-
-# 2. ¿Ese puerto está escuchando?
-ss -tlnp | grep PUERTO
-#   Si NO aparece → el proceso destino está caído, levantarlo
-#   Si aparece → seguir paso 3
-
-# 3. ¿El puerto es el SPA-proxy o el backend real?
-#   Si es el SPA-proxy (ej. :9090 con script spa_proxy.py), el proxy redirige /api/* al backend real (otro puerto, ej. :9000).
-#   Verificar que el backend real también escucha:
-ss -tlnp | grep PUERTO_BACKEND_REAL
-#   Si el backend real no escucha → levantarlo, el proxy solo no sirve
-
-# 4. Verificar el prefijo de rutas del backend
-curl -s http://localhost:PUERTO_BACKEND/openapi.json | python3 -c "import json,sys; d=json.load(sys.stdin); [print(p) for p in d['paths']]"
-#   Pitfall frecuente: las rutas son /api/v1/... no /api/... Si el frontend llama /api/health y el backend expone /api/v1/health,
-#   todas las llamadas fallan con 404 (y el SPA-proxy devuelve el HTML del index como fallback → la URL parece "viva pero rota").
-```
-
-**Caso real Expreso Bisonte (junio 2026):**
-- cloudflared apuntaba a `:9090` (SPA-proxy)
-- SPA-proxy proxyeaba `/api/*` a `:9000` (FastAPI backend)
-- Backend tenía rutas en `/api/v1/excel/*` no `/api/excel/*`
-- Resultado: el browser veía el HTML del SPA, las llamadas a `/api/...` devolvían 404 con fallback al `index.html`, y Nelson reportó "la URL no funciona"
-- Fix: confirmar prefijo real con `openapi.json` y ajustar el frontend (o reescribir las rutas)
-
-**Pitfall crítico:** el SPA-proxy hace fallback a `index.html` para cualquier ruta que no sea `/api/*` y no exista como archivo estático. Eso significa que un 404 del backend se "esconde" devolviendo el HTML del frontend — el usuario ve la app pero sin datos. **Siempre probar endpoints API con `curl` directo al backend real, no solo a la URL del tunnel.**
 ## DNS de Tailscale bloqueando Cloudflare Tunnel
 
 Cuando el servidor usa Tailscale y `cloudflared` falla con `no such host` para `api.trycloudflare.com`, el problema es que systemd-resolved usa el DNS de Tailscale (`100.100.100.100`) como default y no resuelve dominios externos.
@@ -426,30 +320,15 @@ sudo resolvectl dns wlo1 8.8.8.8 192.168.100.1
 IP=$(dig api.trycloudflare.com @8.8.8.8 +short | head -1)
 echo "$IP api.trycloudflare.com" | sudo tee -a /etc/hosts
 ```
-## Alternativa más estable: Acceder por Tailscale directo sin tunnel
 
+**Alternativa más estable:** Acceder por Tailscale directo sin tunnel:
 ```
 http://100.110.8.13:5174   # Dashboard
 http://100.110.8.13:8000   # Backend API
 ```
+Tailscale directo es más rápido, sin intermediarios, y sin depender de DNS externo.
 
-Tailscale directo es más rápido, sin intermediarios, sin depender de DNS externo, y la URL **nunca cambia** (es la IP Tailscale del nodo). Para servicios **single-user / desarrollo interno / PoC del equipo Nelson**, es la opción preferida. Solo usar Cloudflare Tunnel cuando:
-- El destinatario NO está en la red Tailscale (ej: stakeholder externo, demo público)
-- Se necesita HTTPS con dominio propio (no IP cruda)
-- El servicio debe sobrevivir a que el servidor se desconecte de Tailscale
-
-**Servicios deployados accesibles por Tailscale directo** (ver `nelson-server-services` para el mapa completo):
-- ForestAI frontend: http://100.110.8.13:3010
-- Fleet Optimizer AR: http://100.110.8.13:8020
-- FreeLLMAPI dashboard: http://100.110.8.13:3101
-- Meta-Orchestrator: http://100.110.8.13:8744
-- JARVIS Demo Shell: http://100.110.8.13:3789
-
-**Patrón de decisión rápido:**
-- ¿El usuario es Nelson o alguien en su tailnet? → Tailscale directo
-- ¿Es un stakeholder externo? → Cloudflare Tunnel ephemeral (y mandar URL nueva por WhatsApp)
-- ¿Necesita HTTPS sin tunnel? → `tailscale serve` o `tailscale funnel`
-## Patrón Alternativo A: FastAPI sirve el dist (sin nginx)
+## Patrón Alternativo: FastAPI sirviendo el dist (sin nginx)
 
 Cuando el backend FastAPI ya existe y el frontend se buildea como SPA estática, no hace falta nginx ni Docker. FastAPI puede servir el `dist/` directamente.
 
@@ -488,88 +367,9 @@ Tunnel → :8030 (FastAPI)
 
 **Requisito crítico:** el frontend DEBE buildear con `VITE_API_URL=""` (string vacío). Ver pitfall #1.
 
-## Patrón Alternativo B: Mini-proxy Python (SPA + backend en un solo puerto)
+## Variante: FastAPI sirve el dist directamente (sin nginx)
 
-Para PoCs donde el backend es **Next.js / uvicorn en un puerto distinto al del frontend build**, se puede evitar configurar nginx con un mini-proxy Python de ~80 líneas. Sirve el `dist/` como static + proxyea `/api/*` al backend real. Un solo puerto, un solo túnel.
-
-```python
-# spa_proxy.py — junto al dist del frontend
-import http.server
-import urllib.request
-import os
-
-FRONTEND_DIST = "/path/to/frontend/dist"
-BACKEND_URL = "http://localhost:9000"   # backend real
-PORT = 9090                              # puerto que ve el túnel
-
-class SPAProxyHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=FRONTEND_DIST, **kwargs)
-
-    def do_GET(self):
-        if self.path.startswith("/api/"):
-            return self._proxy("GET")
-        # SPA fallback: cualquier ruta sin archivo existente -> index.html
-        rel = self.path.lstrip("/").split("?")[0]
-        if rel and not os.path.exists(os.path.join(FRONTEND_DIST, rel)):
-            self.path = "/index.html"
-        return super().do_GET()
-
-    def do_POST(self):
-        if self.path.startswith("/api/"): return self._proxy("POST")
-        self.send_error(404)
-    # do_PUT / do_DELETE / do_PATCH / do_OPTIONS análogos
-
-    def _proxy(self, method):
-        cl = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(cl) if cl > 0 else None
-        req = urllib.request.Request(BACKEND_URL + self.path, data=body, method=method)
-        for h, v in self.headers.items():
-            if h.lower() not in ("host", "content-length"):
-                req.add_header(h, v)
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            self.send_response(resp.status)
-            for h, v in resp.getheaders():
-                if h.lower() not in ("transfer-encoding", "connection"):
-                    self.send_header(h, v)
-            self.end_headers()
-            self.wfile.write(resp.read())
-
-with socketserver.ThreadingTCPServer(("0.0.0.0", PORT), SPAProxyHandler) as httpd:
-    httpd.serve_forever()
-```
-
-**Uso real (Expreso Bisonte, 2026-06-08):**
-```bash
-# Backend real en :9000
-cd /home/server/proyectos/excel-merger-poc/backend
-uvicorn app.main:app --host 0.0.0.0 --port 9000 &
-
-# Proxy SPA en :9090 (este script)
-python3 spa_proxy.py &
-
-# Túnel al proxy, no al backend
-cloudflared tunnel --url http://localhost:9090 > /tmp/cf_expreso.log 2>&1 &
-```
-
-```
-Tunnel → :9090 (spa_proxy)
-            ├── /api/*  →  http://localhost:9000/api/*  (backend real)
-            ├── /assets/* → static files
-            └── /*        → SPA fallback → index.html
-```
-
-**Cuándo usarlo vs el patrón A (FastAPI monta el dist):**
-- Usar **B** cuando el backend no es FastAPI (Next.js, Flask, uvicorn separado, o servicio externo) o cuando no querés modificar el código del backend para servir estáticos.
-- Usar **A** cuando el backend es FastAPI y podés modificarlo (más limpio, sin proceso extra).
-
-**Cuándo NO usar B:** producción real (sin HTTPS termination, sin caché headers, sin rate limiting). Solo para PoCs.
-
-**Diagnóstico clave cuando B falla:** el proxy NO tiene health endpoint en `/health` (devuelve index.html). Para chequear backend, pegale directo a `:9000`. Para chequear el proxy, mirá los logs del proceso Python.
-
-## Patrón Alternativo: FastAPI sirve el dist directamente (sin nginx)
-
-Cuando el backend FastAPI monta el frontend `dist/` como StaticFiles + SPA fallback, no se necesita nginx. Un solo proceso, un solo puerto, un solo tunnel.
+Cuando el backend FastAPI monta el frontend `dist/` como StaticFiles + SPA fallback, no se necesita nginx. Un solo proceso, un solo túnel.
 
 ```python
 # main.py
@@ -608,260 +408,7 @@ cloudflared tunnel --url http://localhost:8030 --protocol http2 2>&1 | tee /tmp/
 **Ventaja vs nginx:** Cero archivos extra. Ideal para PoCs rápidas.
 **Desventaja:** El SPA fallback por middleware es menos eficiente que nginx `try_files`. Para producción real, usar nginx.
 
-## Patrón Alternativo 2: Python mini-proxy para SPA + API separadas (sin Docker, sin nginx, sin FastAPI-as-server)
-
-Cuando el proyecto tiene **dos procesos independientes** (backend uvicorn en un puerto, frontend Vite preview/dist servido por otro proceso en OTRO puerto) y no querés tocar el código del backend para que sirva el dist, un mini-proxy Python de ~80 líneas resuelve todo.
-
-**Cuándo aplica:**
-- El `vite.config.ts` tiene `preview.port` distinto al puerto del backend (caso típico: frontend en :5178, backend en :8000)
-- El cliente API del frontend usa `baseURL: '/api/v1'` (URL relativa, sin localhost hardcodeado)
-- No querés modificar el backend para servir el dist
-- No tenés nginx ni caddy instalado y no querés instalarlos
-
-**El script** (template en `templates/spa_proxy.py`):
-
-```python
-"""
-Mini-proxy para SPA + API separadas.
-Sirve el frontend dist (con SPA fallback) + proxyea /api/* al backend.
-Un solo puerto → un solo tunnel.
-"""
-import http.server, socketserver, urllib.request, os, sys
-
-FRONTEND_DIST = "/ruta/al/frontend/dist"
-BACKEND_URL = "http://localhost:9000"  # puerto del backend uvicorn
-PORT = 9090  # puerto del proxy (≠ puerto del backend)
-
-class SPAProxyHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=FRONTEND_DIST, **kwargs)
-
-    def do_GET(self):
-        if self.path.startswith("/api/"):
-            self._proxy("GET"); return
-        # SPA fallback: si el path no es un archivo del dist, servir index.html
-        rel = self.path.lstrip("/").split("?")[0]
-        if rel and not os.path.exists(os.path.join(FRONTEND_DIST, rel)):
-            self.path = "/index.html"
-        return super().do_GET()
-
-    def do_POST(self):
-        if self.path.startswith("/api/"):
-            self._proxy("POST"); return
-        self.send_error(404)
-
-    # Repetir do_PUT / do_DELETE / do_PATCH igual que do_POST
-
-    def _proxy(self, method):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length) if content_length > 0 else None
-        target = BACKEND_URL + self.path
-        req = urllib.request.Request(target, data=body, method=method)
-        for h, v in self.headers.items():
-            if h.lower() not in ("host", "content-length"):
-                req.add_header(h, v)
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                payload = resp.read()
-                self.send_response(resp.status)
-                for h, v in resp.headers.items():
-                    if h.lower() not in ("transfer-encoding", "content-encoding", "connection"):
-                        self.send_header(h, v)
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-        except urllib.error.HTTPError as e:
-            payload = e.read() if e.fp else b""
-            self.send_response(e.code)
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-if __name__ == "__main__":
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("0.0.0.0", PORT), SPAProxyHandler) as httpd:
-        httpd.serve_forever()
-```
-
-**Deploy:**
-
-```bash
-# 1. Backend (ya corriendo)
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 9000 &
-
-# 2. Frontend dist ya compilado (NO necesita vite preview corriendo)
-ls frontend/dist/index.html  # debe existir
-
-# 3. Mini-proxy en :9090
-python3 spa_proxy.py &
-
-# 4. Un solo tunnel al proxy
-cloudflared tunnel --url http://localhost:9090 2>&1 | tee /tmp/cf_proyecto.log &
-sleep 12
-grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_proyecto.log | head -1
-```
-
-**Verificación end-to-end** (importante porque la URL es efímera):
-
-```bash
-URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_proyecto.log | head -1)
-IP=$(dig +short $(echo $URL | cut -d/ -f3) @1.1.1.1 | head -1)
-curl -s --resolve $(echo $URL | cut -d/ -f3):443:$IP "$URL" -o /dev/null -w "HTTP %{http_code}\n"
-curl -s --resolve $(echo $URL | cut -d/ -f3):443:$IP "$URL/api/v1/health"  # o algún endpoint del backend
-```
-
-**Ventajas vs FastAPI-sirviendo-dist:**
-- Cero cambios al código del backend
-- Funciona aunque el backend no sea FastAPI (cualquier HTTP server)
-- El script de 80 líneas es trivial de auditar
-
-**Ventajas vs nginx/caddy:**
-- Sin instalación adicional
-- Sin configuración de proxy_pass, try_files, CORS
-- Cero archivos extra en el repo (un solo `spa_proxy.py`)
-
-**Cuándo NO usarlo:**
-- Si ya tenés nginx/caddy y podés agregar un config
-- Si el backend es FastAPI y podés modificarlo (mejor patrón "Alternativo 1" arriba)
-- Producción real con carga (Python http.server no es performante)
-
-## Preferencia de estilo (Nelson): cuando piden "mandame una URL", ejecutar y entregar, NO analizar
-
-**Lección observada el 2026-06-07:** al pedir "mándame una URL" para Expreso Bisonte, JARVIS entró en modo análisis ("¿qué patrón usar? ¿qué archivo leer? ¿qué dependencias tiene?"). Nelson cortó con "No importa, no evalúes nada.. mándale la URL de expresión bisonte".
-
-**Regla para futuras sesiones:**
-
-Cuando Nelson pide **explícitamente** "mandame una URL" / "necesito una URL" / "armame el tunnel":
-1. NO comparar opciones
-2. NO preguntar "¿qué patrón preferís?"
-3. NO evaluar dependencias
-4. Elegir el patrón más simple y rápido (típicamente: tunnel al puerto que ya está sirviendo algo)
-5. Levantar y entregar la URL en el mismo turno
-6. Si el patrón simple no funciona, iterar — pero no abrir el menú de opciones
-
-Si el patrón simple no es viable (puerto no escucha, frontend SPA necesita proxy a backend separado, etc.), **resolvelo internamente sin preguntar**, y al final entregá la URL.
-
-Este principio aplica a TODO pedido que incluya "URL", "tunnel", "exponelo", "armame el deploy" en esta skill y en `nelson-server-services`.
-
-## Pitfall — Cloudflare Quick Tunnel límite de upload (~100MB)
-
-Cloudflare impone un límite de ~100MB en uploads via quick tunnels (sin cuenta). Cuando el archivo supera ese límite, el XHR del browser dispara `onerror` con el mensaje genérico "Error de red" — no hay un 413 ni un mensaje claro. El backend y nginx pueden estar perfectos.
-
-**Diagnóstico:**
-```bash
-# Verificar que el upload funciona directo (sin tunnel)
-curl -X POST http://localhost:PUERTO/api/v1/upload \
-  --form "file=@/ruta/al/archivo.tif" \
-  -w "\nHTTP %{http_code}\n" --max-time 30 -s | tail -3
-# Si da 200 → el problema es Cloudflare, no el backend
-```
-
-**Alternativas cuando el archivo supera 100MB:**
-1. **Tailscale directo** — `http://IP_TAILSCALE:PUERTO` (sin intermediario, sin límite). Verificar antes que Tailscale esté activo en el cliente: `tailscale status` debe mostrar el nodo del cliente como conectado (no `-` ni `offline`).
-2. **Endpoint de carga local** — agregar `GET /api/v1/local-files` que lista TIFs disponibles en el server y `POST /api/v1/load-local` que los copia al UPLOAD_DIR sin pasar por el browser. El usuario selecciona en la UI en vez de subir.
-3. **Cuenta Cloudflare con túnel autenticado** — sube el límite pero requiere setup.
-
-**Pitfall Tailscale como fallback:** antes de darle al usuario una IP Tailscale, verificar que su nodo aparece como activo:
-```bash
-tailscale status | grep "nelsondev\|NOMBRE_CLIENTE"
-# ✅ OK: "100.76.143.33  nelsondev  ...  windows  -" con conexión activa
-# ❌ Caído: aparece "offline" o "-" como estado
-```
-Si el cliente está offline, Tailscale no es un fallback válido.
-
-## Tailscale: IP del server vs IP del cliente
-
-La IP de Tailscale del servidor es **100.110.8.13** (ai-server), no 100.76.143.33 (nelsondev/Windows).
-Cuando Nelson quiere acceder directo sin tunnel usar `http://100.110.8.13:PUERTO`.
-`tailscale ip -4` en el server confirma la IP correcta.
-
-Cuando `tailscale status` muestra el nodo remoto como `-` (sin conexión activa), no significa
-que Tailscale esté caído en ese nodo — puede ser que esté conectado pero idle. Confirmar con ping
-o simplemente intentar acceder por HTTP.
-
-## Límite de upload en Quick Tunnels (Cloudflare Free)
-
-Cloudflare quick tunnels (trycloudflare.com) tienen un límite efectivo de ~100MB en uploads.
-El XHR dispara `onerror` genérico ("Error de red al subir archivo") — no da 413.
-El nginx y el backend pueden estar perfectos; el corte lo hace Cloudflare antes.
-
-**Diagnóstico:** probar el upload directo por red local:
-```bash
-curl -X POST http://localhost:PUERTO/api/v1/upload \
-  --form "file=@/ruta/archivo.tif" -w "\nHTTP %{http_code}\n" --max-time 60 -s | tail -3
-# Si responde 200 → el problema es Cloudflare, no el stack
-```
-
-**Solución preferida:** usar Tailscale directo (sin Cloudflare):
-```
-http://100.110.8.13:PUERTO   ← IP Tailscale del ai-server
-```
-Sin límite de tamaño, más rápido, sin intermediarios.
-
-**Ojo con la IP:** la IP Tailscale del AI-SERVER es 100.110.8.13, NO 100.76.143.33 (esa es nelsondev).
-
----
-
-## PITFALL — Quick Tunnels limitan uploads a ~100MB
-
-Cloudflare free quick tunnels rechazan uploads grandes con un error genérico.
-El XHR dispara `onerror` ("Error de red") sin dar HTTP status — no es un 413 visible.
-
-**Síntoma:** archivo de 36-60MB da "Error de red al subir archivo" desde el browser.
-El backend y nginx están perfectos — `curl` directo devuelve 200.
-
-**Fix inmediato:** usar acceso directo por Tailscale (sin tunnel):
-```
-http://IP_TAILSCALE_SERVER:PUERTO
-# Ej: http://100.110.8.13:9020
-```
-
-**Fix alternativo:** endpoint de carga local — el archivo ya está en el server,
-la UI lo selecciona por nombre sin upload. Útil para demos repetidas con los mismos TIFs.
-
-**Verificación:** si `curl --form "file=@archivo.tif" http://localhost:PUERTO/api/upload` 
-devuelve 200 pero el browser falla → es Cloudflare limitando el upload, no el backend.
-
----
-
 ## Pitfalls críticos — Servidor estático + Quick Tunnel
-
-### Tunnel al puerto equivocado del Orchestrator (confusión 5180 vs 8744)
-
-El orchestrator tiene **dos puertos activos** y es fuente frecuente de confusión:
-- **:8744** = Backend FastAPI (`main.py` uvicorn)
-- **:5180** = Vite preview del dashboard frontend (con proxies a 8742/8743/8744 en `vite.config.ts`)
-
-**Síntoma:** El usuario dice "no funciona la URL del orchestrator" y el túnel apunta a :8744. El navegador muestra JSON de API (`{"detail":"Not Found"}`) en vez del dashboard React.
-
-**Fix:** Siempre tunelar el **frontend (5180)**, no el backend (8744). El frontend tiene los proxies:
-```ts
-// vite.config.ts del dashboard
-proxy: {
-  '/api/orchestrate': { target: 'http://localhost:8744', ... },
-  '/api/chat':        { target: 'http://localhost:8744', ... },
-  '/api/tasks':       { target: 'http://localhost:8742', ... },
-  '/api/route':       { target: 'http://localhost:8743', ... },
-}
-```
-
-```bash
-# ✅ Correcto
-curl -s http://127.0.0.1:5180 | head -3   # Debe devolver HTML del dashboard
-cloudflared tunnel --url http://127.0.0.1:5180
-
-# ❌ Incorrecto — devuelve JSON de API, no UI
-cloudflared tunnel --url http://127.0.0.1:8744
-```
-
-**Verificación rápida:**
-```bash
-ss -tlnp | grep -E '5180|8744'
-# 5180 = node/vite → tunelar aquí
-# 8744 = python/uvicorn → no tunelar directo
-```
 
 ### El servidor debe escuchar en 0.0.0.0, NO en 127.0.0.1
 Cloudflare a veces conecta vía IPv6 (`::1`). Si el servidor escucha solo en `127.0.0.1`, Cloudflare falla silenciosamente — el túnel aparece como "registrado" en los logs pero no sirve nada.
@@ -874,40 +421,7 @@ python3 -m http.server 8031           # escucha en 127.0.0.1 por defecto
 python3 -m http.server 8031 --bind 0.0.0.0
 ```
 
-### No tunelar al backend directo cuando el frontend tiene proxies en Vite
-El orchestrator-dashboard (y cualquier proyecto Vite con `server.proxy`) espera que el browser hable con el frontend, y el frontend reenvía internamente a los backends. Si se crea el túnel apuntando directo al backend (ej. `:8744`), el frontend nunca se sirve y las rutas `/api/*` no existen en el backend puro.
-
-**Síntoma:** `curl https://XXXX.trycloudflare.com/` devuelve `{"detail":"Not Found"}` (respuesta del FastAPI backend, no del frontend). El dashboard no carga.
-
-**Fix:** Tunelar al puerto del Vite preview (donde corre `npx vite preview`), no al backend. Verificar:
-```bash
-# ¿El frontend responde HTML en el puerto de preview?
-curl -s http://127.0.0.1:5174/ | head -5   # debe ser <!doctype html>
-
-# ¿El proxy funciona?
-curl -s http://127.0.0.1:5174/api/orchestrate/health  # debe responder JSON del backend
-```
-Si el primer curl devuelve HTML y el segundo JSON → el proxy está bien, tunelar a :5174.
-
-### Vite preview no está corriendo — se cayó o nunca se levantó
-El `vite preview` es un proceso Node que se puede matar, cerrar, o nunca iniciar. El túnel queda apuntando a un puerto vacío.
-
-**Síntoma:** `curl https://XXXX.trycloudflare.com/` timeout o connection refused. Los logs de cloudflared muestran `connection refused`.
-
-**Diagnóstico:**
-```bash
-ss -tlnp | grep :5174   # ¿Hay algo escuchando?
-ps aux | grep "vite preview"  # ¿El proceso existe?
-```
-
-**Fix:**
-```bash
-cd /home/server/nelson/orchestrator-dashboard
-npx vite preview --host 0.0.0.0 --port 5174 &
-sleep 3
-curl -s http://127.0.0.1:5174/ | head -3  # verificar
-```
-Luego relanzar el túnel apuntando al puerto del preview.
+### No usar --protocol http2 con python http.server
 `python3 -m http.server` devuelve HTTP/1.0 — Cloudflare con `--protocol http2` puede tener problemas. Omitir el flag y dejar que cloudflared auto-negocie.
 
 ### Quick Tunnels son inestables — nunca son la solución definitiva
@@ -944,25 +458,7 @@ npx serve dist/ -p 8031 --single
 app.mount("/", StaticFiles(directory="dist", html=True), name="static")
 ```
 
-### Pitfall — Uploads grandes fallan con ERR_SSL_BAD_RECORD_MAC_ALERT
-
-Archivos >30MB enviados como multipart/form-data por quick tunnel fallan con:
-```
-ERR_SSL_BAD_RECORD_MAC_ALERT
-```
-El body se corta en tránsito. Cloudflare free tunnels tienen restricciones no documentadas para uploads grandes.
-
-**Solución:** Usar acceso directo por Tailscale + SPA Proxy local:
-```bash
-# Levantar spa_proxy.py en un puerto accesible por Tailscale
-python3 spa_proxy.py > /tmp/proxy.log 2>&1 &
-# Desde Windows (nelsondev): http://100.110.8.13:PUERTO/
-```
-El spa_proxy.py de Python puro no tiene límite de body y timeout de 600s.
-
-Para ForestAI específicamente: puerto 3011, `python3 /home/server/proyectos/forestai-poc/spa_proxy.py`
-
-
+## Pitfalls de build
 
 1. **VITE_API_URL vacío en el build:** Si se omite el `ARG` en el Dockerfile, Vite usa el default y las requests van a localhost. Siempre incluir `ARG VITE_API_URL=""`.
 
@@ -970,49 +466,9 @@ Para ForestAI específicamente: puerto 3011, `python3 /home/server/proyectos/for
 
 3. **Quick tunnels con DNS que no propagan inmediatamente:** Los túneles temporales de trycloudflare.com a veces tardan 30-60 segundos en propagar el DNS. Si el curl desde el servidor falla con "Could not resolve host", es el DNS de Tailscale bloqueando resolución externa (pitfall conocido). Verificar con `dig +short NOMBRE.trycloudflare.com @1.1.1.1` — si resuelve una IP, el túnel existe. El browser del usuario (que no usa Tailscale) lo verá correctamente.
 
-## Pitfall CRÍTICO: WebSocket con puerto hardcodeado rompe CF
+4. **VITE_API_URL vacío en el build:** Si se omite el `ARG` en el Dockerfile
 
-**Síntoma:** El HTML carga, la página aparece, pero la app no funciona — el WS no conecta y las llamadas a la API fallan. No hay error visible para el usuario.
-
-**Causa:** El hook de WebSocket usa `window.location.hostname + ':PUERTO_INTERNO'`. Desde CF, ese puerto interno no es accesible — solo existe el 443 del túnel.
-
-```ts
-// ❌ MAL — rompe CF y cualquier reverse proxy
-const proto    = window.location.protocol === 'https:' ? 'wss' : 'ws'
-const hostname = window.location.hostname
-return `${proto}://${hostname}:9000/api/v1/ws/contado`
-
-// ✅ BIEN — usa el host completo del browser (incluye puerto si aplica)
-const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-const host  = window.location.host  // "screens-cafe.trycloudflare.com" o "localhost:9090"
-return `${proto}://${host}/api/v1/ws/contado`
-```
-
-**Regla general:** Nunca hardcodear el puerto del backend en el frontend. `window.location.host` funciona en local Y por CF sin cambios.
-
-**Verificación post-fix:**
-```bash
-grep -r ':9000\|:8000\|:3000' frontend/dist/assets/*.js | grep -v 'node_modules' | head -5
-# Si hay hits → hay puertos hardcodeados → rebuild requerido
-```
-
-**IMPORTANTE después de cualquier fix de frontend:**
-```bash
-# 1. Rebuild
-cd frontend && npm run build
-
-# 2. Reiniciar el proxy (sirve el dist nuevo — NO alcanza solo hacer rebuild)
-kill $(pgrep -f spa_proxy.py)
-cd .. && python3 spa_proxy.py &
-
-# 3. CF NO necesita reiniciarse — sigue apuntando al mismo puerto del proxy
-```
-
----
-
-## Pitfalls de build
-
-1. **VITE_API_URL vacío en el build:**
+2. **VITE_API_URL vacío en el build:**
    Si el `.env` tiene `VITE_API_URL=http://localhost:8030`, Vite lo hornea en el JS. Desde el tunnel, el browser del usuario hace fetch a su propio `localhost` → falla silenciosamente.
     - **Fix `.env`:** `VITE_API_URL=` (vacío, sin valor)
     - **Diagnóstico:** `grep -o '"http://localhost' frontend/dist/assets/index-*.js | wc -l` → si > 0 el valor está horneado, rebuild requerido.
@@ -1042,179 +498,6 @@ cd .. && python3 spa_proxy.py &
    sudo resolvectl dns wlo1 8.8.8.8 192.168.100.1
    ```
    ⚠️ La IP en /etc/hosts puede quedar stale — si vuelve a fallar días después, regenerar con `dig @8.8.8.8 +short`.
-
-## Verificar que el tunnel realmente sigue vivo — no confiar en la URL en memoria
-
-Antes de pasar una URL a Nelson, SIEMPRE verificar que el proceso cloudflared esté corriendo Y que la URL responda:
-
-```bash
-# 1. Ver si el proceso existe
-ps aux | grep cloudflared | grep -v grep
-
-# 2. Ver la URL actual del log (puede haber cambiado)
-grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf_PROYECTO.log | tail -1
-
-# 3. Verificar que responde desde afuera (el servidor no puede resolver trycloudflare.com por Tailscale)
-curl -sk --resolve DOMINIO.trycloudflare.com:443:$(dig +short DOMINIO.trycloudflare.com @1.1.1.1 | head -1) \
-  https://DOMINIO.trycloudflare.com/ -o /dev/null -w '%{http_code}'
-# → 200 = funciona | 000 = tunnel caído o URL expirada
-```
-
-> **Pitfall real:** Un tunnel puede tener una URL en el log de una sesión anterior, con el proceso muerto. El log persiste, el proceso no. Siempre verificar `ps aux` primero.
-> Si el `http_code` es `000`, el tunnel está caído aunque el proceso figure en ps — relanzar.
-
-## Tunnels caídos — diagnóstico rápido con curl externo
-
-Antes de cualquier investigación, verificar si el tunnel responde desde afuera:
-
-```bash
-# Si DNS local no resuelve (Tailscale), resolver con 1.1.1.1 y forzar via --resolve
-IP=$(dig +short NOMBRE.trycloudflare.com @1.1.1.1 | head -1)
-curl -sk --resolve NOMBRE.trycloudflare.com:443:$IP https://NOMBRE.trycloudflare.com/ -o /dev/null -w '%{http_code}'
-# 200 → tunnel vivo. 000 → tunnel caído → regenerar.
-```
-
-**Síntoma de tunnel caído:** el log muestra `connection with edge closed` y `ERR` repetidos, aunque eventualmente intente reconectar. Si lleva horas así, la URL ya no responde — regenerar.
-
-**Causa común:** los quick tunnels (trycloudflare.com) tienen uptime no garantizado. Se caen solos, especialmente tras varias horas. No son un error del servidor local — el backend/frontend puede estar perfecto.
-
-**Rutina de verificación antes de pasar URL a Nelson:**
-```bash
-# 1. Verificar que el servicio local responde
-curl -s -o /dev/null -w '%{http_code}' http://localhost:PUERTO/health
-
-# 2. Verificar que el tunnel responde desde afuera (con DNS override)
-IP=$(dig +short NOMBRE.trycloudflare.com @1.1.1.1 | head -1)
-curl -sk --resolve NOMBRE.trycloudflare.com:443:$IP https://NOMBRE.trycloudflare.com/ -o /dev/null -w '%{http_code}'
-# Solo pasar la URL si ambos dan 200
-```
-
-## Tunnels que se caen solos (sin reinicio del proceso)
-
-Los quick tunnels de trycloudflare.com pueden caerse incluso cuando `cloudflared` sigue corriendo.
-El proceso aparece en `ps aux` y el log dice `Registered tunnel connection`, pero `curl` devuelve `000`.
-
-**Diagnóstico definitivo:**
-```bash
-# 1. Verificar que el proceso existe
-ps aux | grep cloudflared | grep -v grep
-
-# 2. Leer URL actual del log
-grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf_PROYECTO.log | tail -1
-
-# 3. Probar desde afuera (no usar curl directo — DNS Tailscale falla)
-IP=$(dig +short NOMBRE.trycloudflare.com @1.1.1.1 | head -1)
-curl -sk --resolve NOMBRE.trycloudflare.com:443:$IP https://NOMBRE.trycloudflare.com/ -o /dev/null -w '%{http_code}'
-# 000 o 52x = túnel caído. 200 = funcionando.
-```
-
-**Fix cuando la URL devuelve 000:**
-```bash
-pkill -f 'cloudflared.*PUERTO'
-sleep 1
-cloudflared tunnel --url http://localhost:PUERTO 2>&1 | tee /tmp/cf_PROYECTO.log &
-sleep 18
-grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf_PROYECTO.log | tail -1
-```
-
-**Pitfall:** No basta con que el proceso esté vivo — el edge de Cloudflare puede cerrar la
-conexión sin matar el proceso local. Siempre verificar con `curl --resolve` antes de reportar
-la URL al usuario.
-
-## OAuth2 con Cloudflare Quick Tunnel — Problema de URL efímera
-
-Cuando se usa un quick tunnel para el callback de OAuth2 (LinkedIn, Google, GitHub), la URL cambia en cada reinicio del tunnel. Esto rompe el flujo porque la redirect_uri registrada en el proveedor queda inválida.
-
-**Síntoma:** Error "The redirect_uri does not match the registered value" en LinkedIn/Google.
-
-**Regla:** Levantar el servidor OAuth ANTES que el tunnel, y NO reiniciar el tunnel durante el flujo.
-
-```bash
-# 1. Levantar servidor OAuth en background
-cd /ruta/al/proyecto && python3 server.py &
-
-# 2. Verificar que está corriendo
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8090  # debe ser 200
-
-# 3. Levantar tunnel y capturar URL
-cloudflared tunnel --url http://localhost:8090 2>&1 | tee /tmp/cf_oauth.log &
-sleep 8
-URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf_oauth.log | tail -1)
-echo "Redirect URI: $URL/callback"
-
-# 4. Registrar $URL/callback en el proveedor (LinkedIn, Google, etc.)
-# 5. Actualizar .env del proyecto con la misma URL
-sed -i "s|REDIRECT_URI=.*|REDIRECT_URI=$URL/callback|" auth/.env
-
-# 6. Reiniciar servidor para que lea la nueva redirect_uri
-pkill -9 -f "server.py"; sleep 1
-cd /ruta/al/proyecto && python3 server.py &
-
-# 7. Verificar scopes en la URL generada
-curl -s http://localhost:8090 | grep -o 'scope=[^&"]*'
-```
-
-**Pitfall crítico:** Si el servidor se reinicia, releer el .env con la redirect_uri nueva. Si se reinicia el tunnel, hay que actualizar la redirect_uri en el proveedor OAuth OTRA VEZ. Para evitar esto, no reiniciar el tunnel durante el flujo de autenticación.
-
-**Solución definitiva:** Para OAuth2 en producción, usar un dominio propio con tunnel nombrado (no quick tunnel). La URL queda fija.
-
-## Patrón de Regeneración Rápida (Túneles Caídos)
-
-Cuando Nelson reporta que una URL no responde, el flujo de recuperación es:
-
-```bash
-# 1. Verificar qué servicios están vivos localmente
-curl -sf http://localhost:PUERTO/health && echo "OK" || echo "CAÍDO"
-
-# 2. Matar túneles viejos de ese puerto (evitar duplicados)
-pkill -f "cloudflared.*PUERTO"
-sleep 2
-
-# 3. Verificar que el puerto quedó libre
-ss -tlnp | grep :PUERTO
-
-# 4. Relanzar tunnel en background
-cloudflared tunnel --url http://127.0.0.1:PUERTO > /tmp/cf_proyecto.log 2>&1 &
-sleep 10
-
-# 5. Extraer nueva URL
-URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_proyecto.log | tail -1)
-echo "Nueva URL: $URL"
-
-# 6. Verificar desde el servidor (con DNS override si Tailscale)
-curl -s --max-time 15 "$URL/health"
-```
-
-**Cuando hay múltiples servicios (ej. ForestAI frontend + backend):**
-Si el proyecto tiene frontend y backend en puertos separados y necesitan URLs independientes:
-
-```bash
-# Frontend (3010)
-cloudflared tunnel --url http://127.0.0.1:3010 > /tmp/cf_fe.log 2>&1 &
-
-# Backend (8010)
-cloudflared tunnel --url http://127.0.0.1:8010 > /tmp/cf_be.log 2>&1 &
-
-# Esperar y extraer ambas URLs
-sleep 10
-FE_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_fe.log | tail -1)
-BE_URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_be.log | tail -1)
-```
-
-**Nota:** El patrón preferido del equipo es **un solo túne al nginx** (ver sección "El Patrón" arriba). Solo usar múltiples túneles cuando el proyecto ya está corriendo con frontend/backend separados (ej. Docker Compose ya levantado) y no se puede reconfigurar nginx.
-
-## Verificar Túnel antes de Notificar a Nelson
-
-Nunca mandar una URL sin verificar primero:
-
-```bash
-# Verificar que responde (usando resolve si Tailscale bloquea DNS)
-if curl -s --max-time 15 "$URL" | grep -q "DOCTYPE\|html\|json"; then
-    echo "✅ URL válida"
-else
-    echo "❌ URL no responde"
-fi
-```
 
 ## Relanzar tunnel cuando la URL caduca (trycloudflare)
 
@@ -1294,46 +577,6 @@ cp mi-pagina.html /home/server/brainstorming/PROYECTO/poc/frontend/dist/
 - **DNS del servidor no resuelve trycloudflare.com:** Problema con Tailscale. Verificar desde el servidor con: `curl --resolve DOMINIO:443:$(dig +short DOMINIO @1.1.1.1 | head -1) https://DOMINIO/ruta`. El túnel funciona normalmente desde browsers externos.
 - **Puerto pisado:** Si el backend del proyecto arranca en el mismo puerto que el servidor de estáticos, el servidor de estáticos muere. Usar puerto distinto (8031, 8032).
 
-## Pitfall Crítico: Frontend Docker + nginx requiere REBUILD COMPLETO de la imagen
-
-Cuando el frontend se sirve mediante nginx dentro de un contenedor Docker (patrón multi-stage build: builder → nginx), **no alcanza con hacer `npm run build` en el host**. El contenedor tiene copiados los archivos estáticos en el momento del build de la imagen. Cualquier cambio en el código fuente requiere reconstruir la imagen completa.
-
-**Síntoma:** El usuario reporta "no veo los cambios" aunque el build local funcionó y el contenedor está corriendo. Los archivos dentro del contenedor son de una fecha anterior a la modificación.
-
-**Diagnóstico:**
-```bash
-# Verificar fecha de los assets dentro del contenedor
-docker exec PROYECTO-frontend-1 ls -la /usr/share/nginx/html/assets/
-# Si la fecha es vieja → la imagen tiene archivos obsoletos
-
-# Comparar con dist local
-ls -la frontend/dist/assets/
-```
-
-**Fix completo (obligatorio):**
-```bash
-cd ~/proyectos/PROYECTO
-
-# 1. Build local (verifica TypeScript + Vite)
-cd frontend && npm run build && cd ..
-
-# 2. Reconstruir la imagen del frontend SIN cache
-docker compose build --no-cache frontend
-
-# 3. Destruir el contenedor viejo y recrearlo con la nueva imagen
-docker compose stop frontend
-docker compose rm -f frontend
-docker compose up -d frontend
-
-# 4. Verificar que los assets son nuevos
-docker exec PROYECTO-frontend-1 ls -la /usr/share/nginx/html/assets/
-
-# 5. Forzar refresh del navegador (Ctrl+F5)
-```
-
-**Alternativa para desarrollo rápido (sin rebuild Docker):**
-Si se está iterando mucho, levantar Vite en modo dev directo en el host (`npm run dev -- --host`) y apuntar el tunnel a ese puerto en vez de al nginx Docker. Cuando los cambios estén listos, recién ahí hacer el build + rebuild Docker para producción/demo.
-
 ## Comandos Útiles
 
 ```bash
@@ -1358,29 +601,6 @@ docker exec PROYECTO-frontend-1 nginx -t
 
 Cuando el frontend corre en modo dev (Vite), no hay nginx. El tunnel va directo al puerto de Vite.
 
-### Vite preview + trycloudflare (pitfall real)
-
-En Vite moderno, `vite preview` puede bloquear hosts externos por seguridad. Con quick tunnel aparece:
-`Blocked request. This host ("...trycloudflare.com") is not allowed.`
-
-**Fix en `vite.config.ts`:**
-
-```ts
-export default defineConfig({
-  server: {
-    host: '0.0.0.0',
-    proxy: { '/api': 'http://localhost:9000' }
-  },
-  preview: {
-    host: '0.0.0.0',
-    allowedHosts: ['.trycloudflare.com'],
-    proxy: { '/api': 'http://localhost:9000' }
-  }
-})
-## Patrón: Tunnel para Dev Server (sin Docker/nginx)
-
-Cuando el frontend corre en modo dev (Vite), no hay nginx. El tunnel va directo al puerto de Vite.
-
 ```bash
 # Lanzar tunnel para Vite dev server en :5174
 cloudflared tunnel --url http://localhost:5174 > /tmp/cf_orch_dash.log 2>&1 &
@@ -1389,117 +609,6 @@ cloudflared tunnel --url http://localhost:5174 > /tmp/cf_orch_dash.log 2>&1 &
 sleep 8
 grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_orch_dash.log | tail -1
 ```
-
-### `tailscale serve` requiere enable en tailnet (pitfall 2026-06-06)
-
-Para evitar Cloudflare Tunnel y usar HTTPS nativo de Tailscale, intentamos `tailscale serve`:
-
-```bash
-tailscale serve --bg --https=3101 --set-path=/ http://localhost:3101
-```
-
-**Síntoma:** Devuelve `Serve is not enabled on your tailnet.` + URL `https://login.tailscale.com/f/serve?node=XXX` que requiere que Nelson habilite Serve en el admin console. El comando no tira error explícito, pero **timeout silencioso** esperando la URL que nunca se asigna.
-
-**Workaround:** Mientras Nelson no habilite Serve, usar:
-- HTTP plano en IP Tailscale: `http://100.110.8.13:3101` (cifrado punto-a-punto de Tailscale, sirve para la mayoría de los casos)
-- Cloudflare Tunnel ephemeral (válido cuando se necesita HTTPS público)
-- nginx + certbot si se requiere HTTPS sin Tailscale (más overhead)
-
-**Decisión práctica:** Para servicios single-user en ai-server (FreeLLMAPI, dashboards internos, PoCs), HTTP por Tailscale es la opción preferida. URL estable (no cambia como trycloudflare), sin DNS externos, sin configuración.
-
-## Patrón: Vite Preview con Proxy a Múltiples Backends (Orchestrator Dashboard)
-
-El **orchestrator-dashboard** usa `vite preview` (no nginx) y el `vite.config.ts` define **proxies internos** a 3 backends distintos:
-
-```typescript
-// vite.config.ts — proxies del orchestrator-dashboard
-export default defineConfig({
-  server: {
-    proxy: {
-      '/api/tasks':      { target: 'http://localhost:8742', rewrite: p => p.replace('/api/tasks', '/tasks'),    changeOrigin: true },
-      '/api/route':      { target: 'http://localhost:8743', rewrite: p => p.replace('/api/route', ''),          changeOrigin: true },
-      '/api/orchestrate':{ target: 'http://localhost:8744', rewrite: p => p.replace('/api/orchestrate', ''),    changeOrigin: true },
-      '/api/chat':        { target: 'http://localhost:8744', rewrite: p => p.replace('/api/chat', '/chat'),       changeOrigin: true },
-      '/ws':             { target: 'ws://localhost:8744',  ws: true },
-    },
-  },
-})
-```
-
-**Arquitectura:**
-```
-Usuario
-   |
-   v
-Cloudflare Tunnel → https://XXXX.trycloudflare.com
-   |
-   v
-Vite Preview (:5174 o el que sea)
-   ├── /api/tasks/*   → proxy a http://localhost:8742 (Task Memory)
-   ├── /api/route/*   → proxy a http://localhost:8743 (Agent Router)
-   ├── /api/orchestrate/* → proxy a http://localhost:8744 (Meta Orchestrator)
-   ├── /api/chat/*    → proxy a http://localhost:8744 (Chat/JARVIS)
-   ├── /ws            → proxy WS a ws://localhost:8744
-   └── /*             → serve dist/ (SPA React)
-```
-
-**Deploy:**
-```bash
-cd /home/server/nelson/orchestrator-dashboard
-
-# Build si es necesario
-npm run build
-
-# Levantar preview (no dev server — preview sirve el dist/)
-npx vite preview --host 0.0.0.0 --port 5174 &
-
-# Verificar que los proxies funcionan antes de tunelar
-curl -s http://127.0.0.1:5174/api/orchestrate/health   # debe responder el orchestrator
-curl -s http://127.0.0.1:5174/api/tasks/                # debe responder task-memory
-
-# Tunelar al Vite preview (NO al backend 8744)
-cloudflared tunnel --url http://127.0.0.1:5174 > /tmp/cf_orch_dash.log 2>&1 &
-sleep 8
-grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_orch_dash.log | tail -1
-```
-
-**Crítico:** El túnel apunta al puerto del **Vite preview**, no al backend directo. El backend (8744) debe estar vivo y respondiendo en localhost para que el proxy funcione. Si `curl http://127.0.0.1:5174/api/orchestrate/health` falla, el problema está en el backend o en los proxies de vite.config.ts, no en el túnel.
-
-**Verificación end-to-end:**
-```bash
-# 1. ¿Backend 8744 vivo?
-curl -s http://127.0.0.1:8744/health
-
-# 2. ¿Vite preview proxy funciona?
-curl -s http://127.0.0.1:5174/api/orchestrate/health
-
-# 3. ¿Túnel responde?
-curl -s https://XXXX.trycloudflare.com/api/orchestrate/health
-```
-
-Si (1) funciona pero (2) no → revisar `vite.config.ts` y que el preview esté en el puerto correcto.
-Si (2) funciona pero (3) no → el túnel se cayó, relanzar.
-
-### Verificación proactiva antes de reuniones con Pablo
-
-Nelson lleva demos en vivo a reuniones presenciales con Pablo (COO/socio). Los tunnels se caen solos — SIEMPRE verificar ANTES de que salga a la reunión:
-
-```bash
-# Diagnóstico rápido de todos los tunnels activos
-for log in /tmp/cf_forestai.log /tmp/cf_fleet.log /tmp/cf_orch_dash.log; do
-  name=$(basename $log .log)
-  url=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' $log 2>/dev/null | tail -1)
-  if [ -n "$url" ]; then
-    ip=$(dig +short ${url#https://} @1.1.1.1 | head -1)
-    code=$(curl -sk --resolve ${url#https://}:443:$ip $url/ -o /dev/null -w '%{http_code}' 2>/dev/null)
-    echo "$name: $url → HTTP $code"
-  else
-    echo "$name: SIN URL"
-  fi
-done
-```
-
-Si alguno devuelve `000` o no tiene URL → está caído → regenerar antes de que salga Nelson.
 
 ### Tunnel caído — procedimiento de recuperación
 
@@ -1518,13 +627,6 @@ sleep 8
 grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' /tmp/cf_PROYECTO.log | tail -1
 ```
 
-**Script automatizado:** `scripts/revive-tunnels.sh` en este skill. Uso:
-```bash
-./revive-tunnels.sh 3010 forestai   # Revive túnel para ForestAI
-./revive-tunnels.sh 5180 orchestrator  # Revive túnel para orchestrator dashboard
-```
-El script mata túneles viejos, verifica que el servicio local esté vivo, lanza nuevo túnel, espera la URL, verifica desde internet, y guarda la URL en `/tmp/cf_{proyecto}.url`.
-
 Después de relanzar: **mandar la URL nueva por WhatsApp** (texto + audio). Las URLs cambian cada vez que se relanza el tunnel.
 
 ### Logs por proyecto
@@ -1534,70 +636,13 @@ Después de relanzar: **mandar la URL nueva por WhatsApp** (texto + audio). Las 
 | ForestAI | :3010 | `/tmp/cf_forestai.log` |
 | Fleet | :8020 | `/tmp/cf_fleet.log` |
 | Orchestrator Dashboard | :5174 | `/tmp/cf_orch_dash.log` |
-| Expreso Bisonte | :9090 | `/tmp/cf_bisonte.log` |
-| YoloV PoC | :9020 | `/tmp/cf_yolov.log` |
-
-### Recuperación automática por watch_pattern
-
-Cuando Hermes detecta que un tunnel caído via `watch_patterns`, el procedimiento es:
-
-```bash
-# 1. Matar proceso viejo del puerto específico
-pkill -f 'cloudflared.*PUERTO' 2>/dev/null; sleep 1
-
-# 2. Relanzar en background con watch_patterns para capturar la nueva URL
-# terminal(background=true, watch_patterns=["trycloudflare.com"])
-cloudflared tunnel --url http://localhost:PUERTO 2>&1 | tee /tmp/cf_proyecto.log
-
-# 3. En follow-up terminal (no en background), capturar y verificar
-sleep 5 && grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' /tmp/cf_proyecto.log | tail -1
-curl -s -o /dev/null -w "%{http_code}" https://NUEVA-URL --max-time 10
-```
-
-**Nota:** El comando `pkill` + `sleep` debe ir en una terminal separada ANTES del background, o combinado en un solo background=false call antes de lanzar el background process. No usar `&&` con `&` en el mismo comando (Hermes lo rechaza).
-
-### Patrón de diagnóstico rápido multi-servicio
-
-Antes de regenerar una URL, verificar en este orden:
-
-```bash
-# 1. ¿El servicio local responde?
-curl -s -o /dev/null -w '%{http_code}' http://localhost:PUERTO/health
-
-# 2. ¿El proceso del tunnel sigue vivo?
-ps aux | grep 'cloudflared.*PUERTO' | grep -v grep
-
-# 3. ¿La URL anterior sigue activa desde afuera?
-curl -sk --resolve NOMBRE.trycloudflare.com:443:$(dig +short NOMBRE.trycloudflare.com @1.1.1.1 | head -1) \
-  https://NOMBRE.trycloudflare.com/ -o /dev/null -w '%{http_code}'
-# 000 = tunnel caído → regenerar; 200 = tunnel OK, problema en otro lado
-```
-
-**Patrón observado en sesiones:** los tunnels se caen solos (proceso muere) pero el servicio
-local sigue corriendo. El diagnóstico correcto es verificar PRIMERO el proceso cloudflared,
-no el servicio. Si `ps aux | grep cloudflared` no muestra el proceso → regenerar URL
-con `terminal(background=True)` + `watch_patterns=["trycloudflare.com"]`.
-
-## Síntoma frecuente: tunnel aparece en log pero da HTTP 000
-
-El proceso cloudflared puede morirse dejando el log con la URL del tunnel anterior.
-Siempre verificar con curl antes de pasar la URL a Nelson:
-
-```bash
-url="https://NOMBRE.trycloudflare.com"
-ip=$(dig +short ${url#https://} @1.1.1.1 | head -1)
-curl -sk --resolve ${url#https://}:443:$ip $url/ -o /dev/null -w '%{http_code}'
-# Si devuelve 000 → tunnel caído → regenerar
-```
-
-Ver `references/tunnel-health-check.md` — rutina completa de verificación + señales de tunnel caído.
 
 ## Casos de Uso en el Equipo
 
 | Proyecto | Puerto nginx | URL pública | Patrón usado |
-|----------|-------------|-------------|--------------|\n| ForestAI PoC | 3010 | trycloudflare | Un túnel ✅ |
+|----------|-------------|-------------|--------------|
+| ForestAI PoC | 3010 | trycloudflare | Un túnel ✅ |
 | Fleet Optimizer | 3010 | trycloudflare | Un túnel ✅ |
-| YoloV PoC | 9020 | trycloudflare | Un túnel ✅ |
 | AI News Aggregator | — | — | No expuesto (cronjob) |
 | JARVIS Demo Shell | 3789 | — | Local only |
 
@@ -1615,9 +660,3 @@ Ver detalle completo en `references/fastapi-spa-no-nginx.md`.
 - Skill: nelson-forest-inventory (patrón original de ForestAI con este deploy)
 - `references/static-html-serving.md` — Servir HTML standalone sin Docker: reusar túnel existente, diagnóstico IPv6, verificación end-to-end con dig + curl resolve
 - `references/ipv6-tunnel-debug.md` — diagnóstico y fix del bug servidor IPv4-only + Cloudflare IPv6
-- `references/nelson-project-ports.md` — Puertos de todos los proyectos conocidos (Orchestrator, ForestAI, Fleet), reglas de qué puerto tunelar, comandos de verificación y levantamiento
-- `references/vite-proxy-multiple-backends.md` — Patrón específico del orchestrator-dashboard: Vite preview con proxies a múltiples backends (8742, 8743, 8744). Diagnóstico paso a paso cuando "no funciona la URL".
-- `references/watchdog-quick-tunnel-ops.md` — patrón de operación estable con quick tunnel + watchdog + scheduler (auto-healing)
-- `references/vite-preview-trycloudflare.md` — fix de `Blocked request ... host is not allowed` en `vite preview` detrás de quick tunnel
-- `references/orchestrator-dashboard-quick-tunnel.md` — runbook específico para exponer la UI del dashboard del meta-orchestrator (Vite :5174 + API :8744)
-- **Skill relacionada:** `nelson-server-services/references/llm-proxy-deploy-pattern.md` — Patrón para deployar OpenAI-compatible LLM proxies (FreeLLMAPI, LiteLLM). Caso real: FreeLLMAPI deployado en :3101 con failover de 16 providers. Cuando un nuevo servicio LLM-related va al server, ese reference es el complemento de este skill.
