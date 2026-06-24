@@ -9,6 +9,8 @@ triggers:
   - clustering rutas
   - segmentacion LAN PASS
 version: "1.0.0"
+# Flash-KMeans: https://github.com/svg-project/flash-kmeans (577 stars, NVIDIA/Berkeley/MIT 2026)
+# Paper: Parallel Box Decoding — O(N×D + K×D) mem en lugar de O(N×K×D). 3-5x más rápido que alternativas en H200.
 ---
 
 # nelson-airline-clustering

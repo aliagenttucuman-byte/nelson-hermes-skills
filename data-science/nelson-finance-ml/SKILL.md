@@ -320,7 +320,11 @@ X = df.select(FEATURES).to_pandas()  # solo para cat encoding si es necesario
 
 ---
 
-## Instalación del stack completo
+### Referencia de contexto LAN Chile
+
+Ver `references/lan-chile-contexto.md` — KPIs de aerolínea, consideraciones de datos (CLP/USD, estacionalidad doble, outliers legítimos), casos de uso confirmados del engagement.
+
+### Instalación del stack completo
 
 ```bash
 pip install polars scikit-learn xgboost lightgbm prophet statsmodels optuna shap openpyxl xlrd

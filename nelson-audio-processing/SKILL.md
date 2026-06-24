@@ -77,17 +77,32 @@ Soporta formatos: mp3, ogg, wav, m4a, flac, webm, mp4, mov, mkv, m4v.
 
 El script usa el modelo `base` (139MB) que transcribe en espanol automaticamente.
 
-### Modelos Disponibles
+### Modelos Disponibles — tabla actualizada con turbo (2026-06-06)
 
-| Modelo | Tamano | VRAM | Uso Recomendado |
-|--------|--------|------|-----------------|
-| tiny | 39MB | ~1GB | Pruebas rapidas, menor precision |
-| base | 139MB | ~1GB | Desarrollo/testing |
-| small | 461MB | ~2GB | **Recomendado para produccion** - mejor precision en espanol argentino |
-| medium | 1.5GB | ~5GB | Alta precision, requiere mas VRAM |
-| large | 2.9GB | ~10GB | Maxima precision, muy lento en CPU |
+| Modelo | Params | VRAM | Velocidad relativa | Uso recomendado equipo Nelson |
+|--------|--------|------|--------------------|-------------------------------|
+| tiny | 39M | ~1GB | ~10x | Edge sin GPU, dispositivos muy limitados |
+| base | 74M | ~1GB | ~7x | Prototipo rápido, pruebas |
+| small | 244M | ~2GB | ~4x | Producción con buena precisión en español |
+| medium | 769M | ~5GB | ~2x | Multilingüe con traducción, máxima calidad sin large |
+| **turbo** | **809M** | **~6GB** | **~8x** | **Sweet spot 2026: calidad large-v3, velocidad x8. Default recomendado.** |
+| large | 1550M | ~10GB | 1x | Máxima precisión, audios difíciles, referencia |
 
-**Nota de precision:** El modelo `base` tiene precision insuficiente para espanol argentino y nombres propios (ej: transcribe "JARVIS" como "les llavis"). Para produccion usar `small` como minimo. Una GTX 1650 4GB banca `small` sin problemas.
+**Nota:** `turbo` = versión optimizada de `large-v3`. NO soporta traducción (`--task translate`). Para traducir usar `medium` o `large`. Para solo transcribir → `turbo` siempre.
+
+### Casos de uso prioritarios para el equipo Nelson
+
+| Caso | Proyecto | Modelo | Modo |
+|------|----------|--------|------|
+| Audios WhatsApp → texto | JARVIS Gateway | base (daemon, <1s) | streaming daemon :5001 |
+| Técnico forestal dictando en campo | ForestAI | turbo | offline/local, sin internet |
+| Operador reportando CDO/PF por voz | Bisonte | small | local con FastAPI |
+| Entrevistas con stakeholders | Bisonte/ForestAI | medium | post-proceso |
+| Audio con vocabulario técnico mixto | cualquier PoC | turbo | local |
+
+**ForestAI campo:** el caso más valioso es técnico forestal dictando datos del inventario mientras opera el drone, sin conexión a internet. Whisper corre 100% local en el drone laptop o tablet con GPU básica. La transcripción se guarda en el JSON del vuelo y después se procesa.
+
+**Bisonte operativo:** operadores de ruta hablan en vez de tipear. Whisper transcribe en tiempo real o en batch. El pipeline extrae CDO/PF del texto y lo vincula al Excel.
 
 ### Deteccion Automatica de GPU vs CPU
 
@@ -226,6 +241,52 @@ supertonic serve --host 127.0.0.1 --port 7788
 
 Supertonic genera voz desde texto (TTS). Applio/RVC convierte una voz existente en otra voz (voice conversion). Son complementarios, no sustitutos. Para clonar la voz de una persona específica y hacerla "hablar" cualquier texto, se necesita RVC (o OpenVoice). Supertonic es para TTS genérico productivo.
 
+## Transcripción de video largo desde Google Drive (flujo validado jun 2026)
+
+Para videos de reuniones/explicaciones alojados en Google Drive público:
+
+```bash
+# 1. Instalar gdown si no está
+pip3 install gdown -q
+
+# 2. Descargar (usar file_id del link /file/d/FILE_ID/view)
+python3 -c "
+import gdown
+gdown.download(
+    f'https://drive.google.com/uc?id=FILE_ID',
+    '/tmp/bisonte/video.mp4', quiet=False
+)"
+
+# 3. Extraer audio en WAV 16kHz mono (óptimo para Whisper)
+ffmpeg -i /tmp/bisonte/video.mp4 -ar 16000 -ac 1 -c:a pcm_s16le /tmp/bisonte/audio.wav -y
+
+# 4. Transcribir en background (modelo small, CPU, español)
+python3 -c "
+import whisper
+model = whisper.load_model('small', device='cpu')
+result = model.transcribe('/tmp/bisonte/audio.wav', language='es', verbose=False)
+open('/tmp/bisonte/transcripcion.txt','w').write(result['text'])
+print('LISTO. Chars:', len(result['text']))
+" > /tmp/bisonte/transcripcion.txt 2>&1 &
+```
+
+**Tiempos de referencia (CPU, sin GPU):**
+- 57 min de audio → ~30 min de transcripción con modelo `small`
+- Modelo `turbo` es más rápido pero requiere GPU — en CPU usa `small`
+
+**Pitfall CRÍTICO — transcribir.py falla en CPU:**
+El script `/home/server/transcribir.py` carga el modelo con `device="cuda"` hardcodeado.
+En el ai-server con driver CUDA 12.2 y PyTorch cu121, `torch.cuda.is_available()` devuelve False.
+**NO usar transcribir.py para archivos largos** — usar el snippet inline con `device='cpu'`.
+
+**Pitfall — gdown y folders privados:**
+`gdown.download_folder()` falla con 401 si el folder no tiene permisos "Anyone with the link".
+Solución: pedir el link del archivo individual (no el folder). Con archivo individual funciona.
+
+**Pitfall — Google Drive redirige a login en curl:**
+`curl` a drive.google.com devuelve la página de login de Google (HTML de accounts.google.com).
+No usar curl directo — usar gdown que maneja la redirección correctamente.
+
 ## Pitfalls
 
 1. **pip no disponible**: En algunos entornos Python, `pip` no esta instalado. Solucion: `python3 -m ensurepip --upgrade`.
@@ -236,7 +297,20 @@ Supertonic genera voz desde texto (TTS). Applio/RVC convierte una voz existente 
 7. **OpenVoice + MeloTTS — MeCab no encuentra el diccionario unidic**: `from melo.api import TTS` falla con `RuntimeError: [ifs] no such file or directory: .../unidic/dicdir/mecabrc`. MeCab ignora el flag `-d` de MeloTTS y busca siempre en `site-packages/unidic/dicdir/`. Fix: copiar el diccionario de `unidic_lite` (que ya viene instalado) al path que busca MeCab y crear un `mecabrc` mínimo. Ver `references/openvoice-install.md` paso 5 para el fix completo. NO ejecutar `python -m unidic download` — cuelga indefinidamente en este servidor.
 3. **Driver NVIDIA vs PyTorch CUDA**: Si `torch.cuda.is_available()` devuelve `False` a pesar de tener GPU, verificar que la version de CUDA de PyTorch coincida con la del driver. Ver seccion "Solucion de Problemas CUDA" arriba.
 4. **Modelo descargado por primera vez**: La primera vez que se usa un modelo, se descarga desde internet (~139MB para `base`, ~461MB para `small`). Guardar en cache local en `~/.cache/whisper/`.
-5. **Archivos muy largos**: Para audios de mas de 30 minutos, usar `whisper.load_model("base").transcribe()` con `condition_on_previous_text=True` (default) para mantener coherencia.
+5. **Archivos muy largos (>30 min) — correr en background obligatorio**: Nunca correr Whisper en foreground para audios de más de 30 minutos en CPU — el proceso timeout antes de terminar (60s default de herramienta). Patrón correcto:
+   ```bash
+   # 1. Extraer audio primero (rápido)
+   ffmpeg -i video.mp4 -ar 16000 -ac 1 -c:a pcm_s16le audio.wav -y
+   # 2. Transcribir en background con notify
+   python3 /home/server/transcribir.py audio.wav > /tmp/transcripcion.txt 2>&1 &
+   echo "PID: $!"
+   # 3. Monitorear progreso
+   tail -f /tmp/transcripcion.txt
+   ```
+   En el servidor (sin GPU / CUDA old driver) el modelo `turbo` en CPU tarda ~15-25 min para 57 min de video.
+   El modelo `base` en CPU tarda ~8-12 min para 57 min de audio.
+   Con GPU (CUDA funcional) turbo tarda ~3-5 min para el mismo archivo.
+   Usar `background=True` + `notify_on_complete=True` en la herramienta terminal si disponible.
 6. **Transcripcion del sistema falla**: Cuando la plataforma solo muestra `[audio received]` sin texto, los audios de WhatsApp se guardan en `/home/server/.hermes/audio_cache/aud_*.ogg` y pueden transcribirse localmente con Whisper.
 7. **Bridge falla al descargar audio tras reconexion**: Si el bridge de WhatsApp (Baileys) se reconecto recientemente, puede aparecer `Failed to download audio: fetch failed`. Baileys necesita completar el sync inicial antes de poder descargar media. Solucion: esperar ~30-60s a que se estabilice la conexion, o reintentar el audio.
 8. **Daemon debe estar siempre corriendo**: El daemon de Whisper (`whisper_daemon.py`) no debe arrancarse bajo demanda desde el bridge. Debe mantenerse como proceso persistente. Si el bridge intenta arrancarlo durante una reconexion, puede fallar por race condition.

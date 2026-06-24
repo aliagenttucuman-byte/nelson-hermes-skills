@@ -190,3 +190,4 @@ variable "db_name"    { type = string }
 - Cloud Run requiere habilitar la API: gcloud services enable run.googleapis.com
 - deletion_protection=true en prod para Cloud SQL — no se puede destruir por accidente
 - Terraformer necesita el provider plugin instalado localmente antes de correr (terraform init primero)
+- Al hacer push al repo con cambios conflictivos con el remote: NO usar rebase si hay commits divergentes. Usar git reset --hard origin/main y cherry-pick del commit local para aplicar cambios encima del remote. Merge directo puede generar conflictos irresolubles si los archivos divergieron mucho.

@@ -252,6 +252,42 @@ hotfix/*  -> Fix urgente (PR directo a main)
 - [ ] CHANGELOG.md actualizado
 - [ ] Version bump en `pyproject.toml` y `package.json`
 
+## React Doctor en CI/CD Frontend
+
+Agregar `react-doctor` al pipeline de todos los proyectos con frontend React (ForestAI, Bisonte, etc.). Reporta SOLO los issues nuevos del PR — no los pre-existentes.
+
+```yaml
+# En .github/workflows/react-doctor.yml
+name: React Doctor
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+concurrency:
+  group: react-doctor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  react-doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # OBLIGATORIO para comparar con merge-base
+      - uses: millionco/react-doctor@v2
+```
+
+También instalar la skill para que los agentes aprendan las reglas:
+```bash
+cd frontend/
+npx react-doctor@latest install
+```
+
+Ver `nelson-react-doctor` para detalles completos.
+
 ## Pitfalls
 
 - No poner secrets en logs de GitHub Actions

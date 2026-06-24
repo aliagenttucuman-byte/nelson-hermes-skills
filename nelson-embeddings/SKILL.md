@@ -26,9 +26,6 @@ Representaciones numericas (vectores) de texto que capturan significado semantic
 | `all-mpnet-base-v2` (sbert) | 768 | Gratis | Muy buena | Local, mejor calidad sbert |
 | `nomic-embed-text` (Ollama) | 768 | Gratis | Buena | Local, open source |
 | `BAAI/bge-large-en` | 1024 | Gratis | Excelente | RAG avanzado, re-ranking |
-| `BAAI/bge-m3` (vía SIE) | 1024 | Gratis | Excelente | Multilingüe, dense+sparse, hybrid search con Qdrant |
-| `BAAI/bge-reranker-v2-m3` (vía SIE) | — | Gratis | Excelente | Reranker cross-encoder multilingüe |
-| `urchade/gliner_multi-v2.1` (vía SIE) | — | Gratis | Muy buena | NER zero-shot ES/EN, extracción de entidades |
 
 > **Default del equipo: OpenAI text-embedding-3-small** para produccion, **all-MiniLM-L6-v2** para desarrollo local.
 
@@ -231,93 +228,6 @@ print(len(emb))  # 768
 - [ ] Caching activado para textos repetidos
 - [ ] Batching para ingestion masiva
 
-## SIE — Superlinked Inference Engine (servidor de inferencia local)
-
-SIE es un servidor open source (Apache 2.0) que expone embeddings, reranking y
-extracción de entidades via HTTP. Alternativa local/self-hosted a OpenAI embeddings.
-Repo: https://github.com/superlinked/sie
-
-```bash
-# Deploy en CPU (no requiere GPU para modelos medium)
-docker run -d --name sie-server -p 8080:8080 --restart unless-stopped \
-  -e SIE_TELEMETRY_DISABLED=1 \
-  ghcr.io/superlinked/sie-server:latest-cpu-default
-
-pip install sie-sdk sie-qdrant
-```
-
-### Tres funciones de SIE
-
-| Función | Descripción | Modelo recomendado |
-|---------|------------|-------------------|
-| `encode` | texto → vector dense/sparse | `BAAI/bge-m3` (multilingüe, 1024d, hybrid) |
-| `score` | reranking cross-encoder | `BAAI/bge-reranker-v2-m3` |
-| `extract` | NER zero-shot sin entrenamiento | `urchade/gliner_multi-v2.1` |
-
-```python
-from sie_sdk import SIEClient
-from sie_sdk.types import Item
-
-client = SIEClient("http://localhost:8080")
-
-# Embed
-result = client.encode("BAAI/bge-m3", Item(text="texto a embeber"))
-# result["dense"] → vector 1024d, result["sparse"] → dict índices/valores
-
-# Rerank (cross-encoder: ve query+doc juntos, más preciso que vectores)
-scores = client.score(
-    "BAAI/bge-reranker-v2-m3",
-    Item(text="query"),
-    [Item(text=doc, item_id=str(i)) for i, doc in enumerate(docs)]
-)
-# scores["scores"] → [{"item_id": "0", "score": 0.98, "rank": 0}, ...]
-
-# NER zero-shot
-entities = client.extract(
-    "urchade/gliner_multi-v2.1",
-    Item(text="Trabajando en ForestAI con FastAPI y Docker"),
-    labels=["proyecto", "tecnología", "persona", "organización"]
-)
-# entities["entities"] → [{"text": "ForestAI", "label": "proyecto", "score": 0.94}]
-```
-
-### Integración con Qdrant (hybrid search)
-
-```python
-from sie_qdrant import SIENamedVectorizer
-from qdrant_client.models import SparseVector, PointStruct
-
-vectorizer = SIENamedVectorizer(
-    base_url="http://localhost:8080",
-    model="BAAI/bge-m3",
-    output_types=["dense", "sparse"],
-)
-named = vectorizer.embed_documents(["texto"])
-# → named[0]["dense"] y named[0]["sparse"] listos para Qdrant
-```
-
-### Compatibilidad OpenAI drop-in
-
-SIE expone `/v1/embeddings` compatible con OpenAI SDK:
-```python
-from openai import OpenAI
-client = OpenAI(base_url="http://localhost:8080", api_key="unused")
-resp = client.embeddings.create(model="BAAI/bge-m3", input=["texto"])
-```
-
-### Cuándo usar SIE vs otras opciones
-
-| Situación | Recomendación |
-|-----------|--------------|
-| Producción, máxima calidad, presupuesto OK | OpenAI text-embedding-3-large |
-| Self-hosted, multilingüe, hybrid search | SIE + BAAI/bge-m3 |
-| Dev local, rápido, sin setup | sentence-transformers all-MiniLM-L6-v2 |
-| Reranking de resultados de búsqueda | SIE score + bge-reranker-v2-m3 |
-| NER automático de mensajes/docs | SIE extract + gliner_multi-v2.1 |
-
-Agregar `BAAI/bge-m3` a la tabla de modelos del equipo: 1024d, gratis/local vía SIE,
-calidad excelente para RAG multilingüe y hybrid search con Qdrant.
-
 ## Pitfalls
 
 - OpenAI rate limits: usar batching y backoff exponencial
@@ -326,6 +236,3 @@ calidad excelente para RAG multilingüe y hybrid search con Qdrant.
 - No mezclar embeddings de modelos diferentes en la misma coleccion
 - text-embedding-3-large es mejor pero 2x mas caro y 2x dimension
 - Siempre verificar que los embeddings no sean todos ceros (modelo no cargado)
-- SIE: el primer request tarda (descarga el modelo on-demand). Calentar con un request dummy al iniciar el servicio.
-- SIE: modelos large (BGE-M3 completo) requieren ~4-8GB RAM. En CPU la latencia es ~200-500ms/doc para dense+sparse.
-- SIE reranker: es cross-encoder (ve query+doc juntos) → más preciso que cosine similarity pero más lento. Usar como segunda etapa sobre candidatos pre-filtrados (top-20 → rerank → top-5).

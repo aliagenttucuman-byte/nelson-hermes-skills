@@ -29,6 +29,7 @@ Compatible con OpenAI SDK — solo cambiás `base_url` y `api_key`.
 | Modelo | Notas |
 |--------|-------|
 | `minimaxai/minimax-m2.7` | Chat rápido, 8K output |
+| `meta/llama-3.3-70b-instruct` | **Default del equipo para chat grounded sobre contexto estructurado.** OpenAI SDK directo, sin parámetros raros. Bajo costo de latencia, buen seguimiento de system prompt con instrucciones estrictas ("NO inventes datos, citá solo los del contexto"). Usado en ForestAI/yolov para chat IA sobre métricas Hansen GFC. |
 
 ### Razonamiento avanzado / Thinking mode
 
@@ -367,7 +368,9 @@ def get_client(model_key: str) -> tuple[OpenAI, str]:
 | Necesidad | Modelo recomendado |
 |-----------|--------------------|
 | Chat/agentes rápido | `deepseek_pro` |
+| **Chat grounded sobre contexto fijo (RAG corto, datos preconfigurados)** | **`meta/llama-3.3-70b-instruct`** — sigue system prompt al pie, no aluciona si le decís "solo los datos del contexto" |
 | Razonamiento paso a paso | `deepseek_flash` (thinking) o `qwen397b` |
+| Coding / generación de código / dataframes | `qwen397b` (default del equipo) |
 | Análisis de imágenes/tablas/diagramas | `llama_vision` |
 | RAG sobre docs largos (>50 páginas) | `mistral` (128K ctx) |
 | Coding complejo / arquitectura | `qwen_coder` (480B) |
@@ -411,3 +414,4 @@ GitGuardian lo detectó en minutos. Se debió limpiar el historial con git-filte
 - **Free tier:** Rate limit y cuota mensual. Para producción, upgradar o rotar keys.
 - **DeepSeek V4 Flash y GLM-5.1 comparten key** en los snippets originales — pueden ser la misma key de NIM que sirve múltiples modelos. Si da 401, generar key nueva desde la página del modelo.
 - **Nemotron Omni:** `reasoning_budget` controla cuántos tokens dedica al thinking interno. 16384 es el sweet spot calidad/velocidad.
+- **Patrón "NIM primario + Groq fallback":** Para servicios en producción donde el chat no puede caer, hacer try/except sobre NIM y caer a Groq Llama 3.3 70B con la misma key. Ambos sirven `llama-3.3-70b-versatile` (Groq) / `meta/llama-3.3-70b-instruct` (NIM) con interfaces OpenAI-compatibles. Código de referencia: `yolov-orientacion-poc/backend/app/api/v1/historico.py`.

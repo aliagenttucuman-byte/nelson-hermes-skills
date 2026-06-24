@@ -158,6 +158,14 @@ curl http://localhost:4588/v1/projects/local-project/topics
 curl http://localhost:4588/v1/projects/local-project/secrets
 ```
 
+## Script de render del stack completo
+
+Para generar PNG visual del stack lean-ctx + Headroom + Honcho:
+```bash
+python3 ~/.hermes/skills/equipo-nelson/nelson-headroom/scripts/render_stack_diagram.py
+```
+Output: /tmp/stack-tokens/stack.png
+
 ## Pitfalls
 
 - floci-gcp no implementa todas las APIs de GCP — verificar qué servicios soporta antes del spike

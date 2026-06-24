@@ -10,6 +10,11 @@ metadata:
     tags: [ops, incident, runbook, oncall, escalamiento, nelson]
     category: devops
     requires_toolsets: [terminal]
+    related_skills:
+      - nelson-server-services
+      - nelson-backup-dr
+      - nelson-monitoring-observability
+      - nelson-incident-response/playbooks/forestai.md
 ---
 
 # nelson-incident-response
@@ -204,7 +209,7 @@ docker volume ls | grep n8n
 **Causas frecuentes:**
 - Webhook externo caído (no es nuestro problema) → deshabilitar nodo y notificar
 - Credencial expirada (OAuth) → reconfigurar en UI de n8n
-- DB interna corrupta → restore desde backup del volumen (si existe, ver nelson-backup-dr pendiente)
+- DB interna corrupta → restore desde backup del volumen (ver `nelson-backup-dr` y `runbooks/` de esa skill)
 
 ### 4.5 JARVIS Demo Shell (puertos 3789 frontend, 8765 backend)
 
@@ -250,7 +255,7 @@ sudo systemctl restart nelson-agent-router
 
 ## 5. Post-mortem (obligatorio Sev-1 y Sev-2)
 
-Plantilla en `templates/postmortem-template.md`. Completar dentro de las **24 horas** posteriores al incidente. Sin excepciones.
+Plantilla en `templates/postmortem.md`. Completar dentro de las **24 horas** posteriores al incidente. Sin excepciones.
 
 **Estructura:**
 - Resumen ejecutivo (3 líneas)
@@ -267,7 +272,7 @@ Plantilla en `templates/postmortem-template.md`. Completar dentro de las **24 ho
 - [ ] Owner técnico designado
 - [ ] Runbook en este skill o linkeado desde acá
 - [ ] Health check expuesto (ver `nelson-monitoring-observability`)
-- [ ] Al menos 1 backup verificado (cuando nelson-backup-dr esté listo)
+- [ ] Al menos 1 backup verificado (ver `nelson-backup-dr` § runbooks)
 - [ ] Acceso documentado al server (Tailscale, sudo, paths)
 
 ### Revisión trimestral
@@ -325,6 +330,7 @@ kill -9 PID
 
 - `nelson-server-services` — mapa vivo de puertos y servicios
 - `nelson-monitoring-observability` — health checks y logging estructurado (sin esto, no hay señal de incendio)
+- `nelson-backup-dr` — política 3-2-1, scripts de backup/restore, runbooks por servicio. **Antes de mitigar un incidente de datos perdidos, abrir esta skill para ver si hay restore viable.**
 - `playbooks/forestai.md` — playbook extendido de ForestAI, el servicio más crítico en producción ahora (6 escenarios de mitigación)
 - `templates/postmortem.md` — plantilla de post-mortem
 - `templates/incident-open.md` / `incident-update.md` / `incident-closed.md` — mensajes pre-armados para WhatsApp
