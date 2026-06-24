@@ -1,0 +1,28 @@
+[Unit]
+Description=__SERVICE_DESCRIPTION__
+After=network.target
+# Para servicios con dependencias, descomentar y ajustar:
+# After=network.target headroom-proxy.service lean-ctx.service
+# Wants=headroom-proxy.service lean-ctx.service
+
+[Service]
+Type=simple
+User=server
+WorkingDirectory=__WORKING_DIR__
+# PATH del venv ANTES del sistema si el binario vive en venv:
+Environment="PATH=/home/server/.hermes/hermes-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="HOME=/home/server"
+# Otras env vars del servicio:
+# Environment="API_URL=https://..."
+# Environment="LOG_LEVEL=INFO"
+
+# Comando con paths absolutos:
+ExecStart=__ABSOLUTE_BINARY_PATH__ __ARGS__
+
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/__SERVICE_NAME__.log
+StandardError=append:/var/log/__SERVICE_NAME__.log
+
+[Install]
+WantedBy=multi-user.target
