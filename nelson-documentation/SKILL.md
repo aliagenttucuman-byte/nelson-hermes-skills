@@ -13,6 +13,105 @@ dependencies: [api-docs-writer, spec-driven-development]
 
 > Regla de oro: Si no esta documentado, no existe.
 
+## Generación de PDF con WeasyPrint (patrón AlegentAI)
+
+Para generar PDFs profesionales desde Markdown — propuestas comerciales, valorización, estrategia:
+
+```bash
+# Verificar disponibilidad
+python3 -c "import weasyprint, markdown; print('ok')"
+
+# Usar el script reutilizable
+python3 ~/.hermes/skills/nelson-documentation/scripts/generar_pdf_weasyprint.py \
+  input.md output.pdf "PROPUESTA COMERCIAL" "Junio 2026"
+```
+
+Estilo incluido: header AlegentAI azul, tablas con header #0066cc, blockquotes destacados, paginación A4, marca CONFIDENCIAL en footer.
+
+Dependencias: `pip install weasyprint markdown` (ya instaladas en ai-server jun 2026).
+
+⚠️ WhatsApp NO entrega PDFs — siempre enviar por Telegram:
+```
+MEDIA:/ruta/al/archivo.pdf → target: telegram:Nelson Acosta (dm)
+```
+
+Ver script completo: `scripts/generar_pdf_weasyprint.py`
+
+## Generación de .docx con python-docx
+
+Para generar documentos Word (casos de uso, propuestas, especificaciones técnicas):
+
+```bash
+python3 -c "from docx import Document; print('ok')"
+# Si falla: pip3 install python-docx
+```
+
+### PITFALL — python3 -c falla con código complejo (comillas, f-strings)
+
+Al pasar código largo a `python3 -c '...'` los caracteres `'`, `"`, `\n`, y paréntesis
+rompen el shell. El síntoma es `syntax error near unexpected token '('`.
+
+**Fix obligatorio**: escribir el código a un archivo `.py` y ejecutarlo:
+
+```python
+# Paso 1: write_file a /tmp/gen_documento.py
+# Paso 2: terminal("python3 /tmp/gen_documento.py")
+```
+
+Nunca intentar pasar código python-docx como argumento inline.
+
+### Patrón básico .docx
+
+```python
+from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+doc = Document()
+
+# Título centrado
+titulo = doc.add_paragraph()
+titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+r = titulo.add_run("TÍTULO")
+r.bold = True
+r.font.size = Pt(20)
+r.font.color.rgb = RGBColor(0x1F, 0x37, 0x64)
+
+# Heading
+p = doc.add_heading("Sección", level=1)
+if p.runs: p.runs[0].font.color.rgb = RGBColor(0x2E, 0x4A, 0x8C)
+
+# Campo clave: valor
+p = doc.add_paragraph()
+p.add_run("Campo: ").bold = True  # ERROR: .bold = True no funciona así
+# Correcto:
+p = doc.add_paragraph()
+r = p.add_run("Campo: ")
+r.bold = True
+p.add_run("valor")
+
+# Bullet
+doc.add_paragraph("Ítem", style="List Bullet")
+
+# Tabla
+t = doc.add_table(rows=3, cols=3)
+t.style = "Table Grid"
+t.rows[0].cells[0].text = "Encabezado"
+
+doc.save("/tmp/output.docx")
+```
+
+### Colores AlegentAI para documentos Bisonte
+
+- Títulos: `RGBColor(0x1F, 0x37, 0x64)` — azul oscuro
+- H2: `RGBColor(0x2E, 0x4A, 0x8C)` — azul medio
+- Notas: `RGBColor(0x80, 0x40, 0x00)` — marrón
+
+### PITFALL — heading sin runs visible
+
+`doc.add_heading("Texto", level=1)` puede generar párrafos con `p.runs = []` dependiendo
+del template. Siempre verificar `if p.runs:` antes de acceder a `p.runs[0]`.
+
 ## README.md Template
 
 Cada proyecto DEBE tener un README.md con esta estructura:

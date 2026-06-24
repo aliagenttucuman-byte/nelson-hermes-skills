@@ -6,6 +6,22 @@ tags: [demo, stakeholder, presentacion, pablo, ventas, poc, comunicacion]
 related_skills: [nelson-project-bootstrap, nelson-pricing-model, nelson-cloudflare-tunnel-deploy]
 ---
 
+## Demo en vivo con cliente nuevo (patrón Gino — jun 2026)
+
+Cuando Nelson dice "estamos con [cliente], quiero hacer una PoC en vivo":
+
+1. **PoC** — Lanzar subagente para construir dashboard + chat IA con datos mock (ver `nelson-poc-dashboard-ai-chat`)
+2. **Propuesta comercial** — Lanzar subagente en paralelo para generar el MD (ver `nelson-business-plan` → patrón Propuesta Comercial a medida)
+3. **PDF** — Generar PDF con WeasyPrint (ver `nelson-documentation` → script `generar_pdf_weasyprint.py`)
+4. **Envío** — Mandar PDF por Telegram (NO WhatsApp — no soporta PDFs)
+5. **Valorización** — Si piden valorización de la empresa, leer `/home/server/brainstorming/2026-06-07-valuacion-equipo-y-proyectos/README.md` y generar PDF desde ahí
+
+Ambas cosas (PoC + propuesta) se lanzan en paralelo con `delegate_task` — no esperar una para hacer la otra.
+
+El saludo a cliente nuevo via audio TTS:
+- Usar `text_to_speech` con mensaje de presentación
+- Enviar como `MEDIA:` por WhatsApp
+
 # Guía de Demo — Equipo Nelson
 
 > **Trigger:** Cuando Nelson tenga que mostrar una PoC a Pablo, a un cliente, o a cualquier stakeholder no técnico.
@@ -17,6 +33,12 @@ related_skills: [nelson-project-bootstrap, nelson-pricing-model, nelson-cloudfla
 3. **Siempre empezar con el problema.** Si no entienden el problema, no valoran la solución.
 4. **Una demo sin interacción del stakeholder es una presentación.** Que toquen, suban un archivo, hagan una pregunta.
 5. **Preparar 3 niveles de profundidad:** 30 segundos (elevator pitch), 5 minutos (demo rápida), 20 minutos (demo completa).
+
+---
+
+## Written Communications (Text/Email/Pitch)
+
+For drafting written messages, emails, stack migration pitches, or questionnaire responses — not verbal demos — see `references/written-stakeholder-pitches.md`.
 
 ---
 
@@ -108,6 +130,26 @@ Para cuando "tengo 5 minutos, mostrame algo":
 ### "Me parece que le falta [feature X]"
 
 > "Buen punto. Eso no está en la PoC porque la armamos para validar [Y]. Feature X es el siguiente paso natural. ¿Es crítico para vos?"
+
+---
+
+## Respuesta a Propuestas/Documentos Recibidos de Terceros
+
+Cuando un tercero le manda a Nelson un Executive Summary, propuesta de inversión, deck, o similar, y **hay una reunión programada en los próximos 2-3 días**, la respuesta correcta es:
+
+**Regla:** No opinar en profundidad por WhatsApp. Guardar el análisis para la reunión.
+
+Plantilla estándar (texto + audio breve):
+> "Hola, recibí el [nombre del doc]. Muy interesante la propuesta y el mercado que apuntan. Me gustaría entender un poco más la parte técnica antes de opinar en profundidad. Lo charlamos pronto."
+
+Ajustar la línea de "lo que es interesante" según el tipo de doc:
+- Energía/tecnología → "la propuesta y el mercado que apuntan"
+- Inversión/startup → "el modelo de negocio y los sectores que eligieron"
+- Software/servicio → "el enfoque y el problema que resuelven"
+
+**Cuándo JARVIS debe generar análisis detallado:** solo cuando Nelson lo pide explícitamente o cuando no hay reunión próxima y Nelson quiere una opinión escrita.
+
+**Cuándo NO:** si Nelson dice "me reúno en X días" — respuesta corta, sin comprometerse, sin pedir más info por escrito.
 
 ---
 

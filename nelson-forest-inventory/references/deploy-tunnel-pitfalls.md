@@ -35,6 +35,55 @@ Cambios en `.tsx` requieren:
 
 Sin Ctrl+Shift+R el browser sirve versión cacheada aunque el dist ya cambió.
 
+## Pitfall crítico: Docker build vs restart — cuándo usar cada uno
+
+El `Dockerfile` del frontend hace `npm run build` **dentro del container** (`COPY . . && RUN npm run build`).
+Esto significa:
+
+| Acción | ¿Incluye cambios de código? |
+|--------|----------------------------|
+| `docker restart <container>` | ❌ No — re-usa el layer cacheado del build anterior |
+| `docker compose up -d --force-recreate` | ❌ No — recrea con la misma imagen |
+| `docker compose build frontend` + `up -d --force-recreate` | ✅ Sí — reconstruye imagen desde fuente |
+
+**Secuencia correcta para deployar cambios de código al container frontend:**
+```bash
+cd ~/proyectos/forestai-poc
+docker compose build frontend        # rebuild image con nuevo código
+docker compose up -d --force-recreate frontend  # recrear container con nueva imagen
+sleep 3 && curl -s -o /dev/null -w "%{http_code}" http://localhost:3010/  # verificar 200
+```
+
+**Verificar que el JS nuevo llegó al container:**
+```bash
+docker exec forestai-poc-frontend-1 grep -rc "NombreComponente" /usr/share/nginx/html/assets/
+# Si devuelve 0 o vacío → el build viejo está adentro → hacer docker compose build
+```
+
+## Bottom nav mobile con 6+ tabs — usar grid no flex
+
+Con `display: flex` en un `position: fixed` nav y 6 tabs, los botones se comprimen hasta quedar
+invisibles en pantallas de 390px (iPhone). Ni `overflowX: auto` ni `minWidth` fijo lo resuelven
+de forma confiable en mobile.
+
+**Solución correcta: `display: grid, gridTemplateColumns: repeat(N, 1fr)`**
+```tsx
+<nav style={{
+  display: "grid",
+  gridTemplateColumns: "repeat(6, 1fr)",
+  position: "fixed", bottom: 0, left: 0, right: 0,
+  background: "white", borderTop: "1px solid #e2e8f0",
+}}>
+  <button style={{ minWidth: 0, display: "flex", flexDirection: "column",
+    alignItems: "center", padding: "8px 2px 6px" }}>
+    <span style={{ fontSize: 18 }}>{icon}</span>
+    <span style={{ fontSize: 8.5, whiteSpace: "nowrap", overflow: "hidden",
+      textOverflow: "ellipsis", maxWidth: "100%", padding: "0 2px" }}>{label}</span>
+  </button>
+</nav>
+```
+`minWidth: 0` en el botón es clave — sin él el grid no puede achicarlo.
+
 ## React Flex Layout — padding aplastado
 
 Cuando un panel tiene `width: "100%"` pero visualmente sigue aplastado en un flex container:

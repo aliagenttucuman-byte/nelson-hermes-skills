@@ -75,6 +75,47 @@ Son capas complementarias:
 
 No compiten — se potencian mutuamente.
 
+## Complemento: Headroom (para agentes hijos)
+
+lean-ctx cubre las herramientas de Hermes. Para agentes hijos spawnados (delegate_task, Claude Code, Codex, agentes de análisis), usar **Headroom** como proxy de compresión transparente.
+
+**Arquitectura combinada:**
+```
+JARVIS (lean-ctx activo)
+  └── spawna agente hijo
+        └── agente hijo → Headroom :8787 → LLM
+```
+
+**Instalación:** `pip3 install 'headroom-ai[all]'`
+
+**Levantar proxy:** `headroom proxy --port 8787 2>&1 | tee /tmp/headroom_proxy.log`
+
+**Resultados medidos en workloads reales del equipo Nelson (2026-06-18):**
+
+| Tipo de payload | Tokens antes | Tokens después | Ahorro |
+|----------------|-------------|----------------|--------|
+| grep/code search | 2.027 | 307 | **85%** |
+| logs/tracebacks | 1.724 | 402 | **77%** |
+| JSON SQL 200 rows | 11.842 | 2.738 | **77%** |
+| Conversación 8 turns | 1.116 | 918 | **18%** |
+
+**Config correcta para tool outputs (NO la default):**
+```python
+from headroom import compress
+from headroom.compress import CompressConfig
+
+cfg = CompressConfig(
+    compress_user_messages=True,  # CRÍTICO — default=False protege mensajes usuario
+    protect_recent=0,             # no proteger mensajes recientes
+)
+result = compress(messages, model="claude-sonnet-4-5-20250929", config=cfg)
+print(f"Ahorro: {result.tokens_saved} tokens ({result.compression_ratio:.0%})")
+```
+
+⚠️ **Pitfall:** La config default (`compress_user_messages=False`) da 0% de ahorro en tool outputs porque los trata como mensajes de usuario y los protege. Siempre usar `compress_user_messages=True` para payloads de herramientas.
+
+Ver benchmark completo en `references/headroom-benchmark.md`.
+
 ## Daemon como servicio systemd
 
 El daemon corre como servicio systemd de usuario para tracking persistente entre sesiones:
