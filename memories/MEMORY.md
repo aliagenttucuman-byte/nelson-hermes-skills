@@ -6,20 +6,16 @@ Puerto 3001 ai-server: WhatsApp Gateway (Node, NO Docker). FreeLLMAPI en 3101. n
 §
 Tailscale: nelsondev=100.76.143.33 Win, ai-server=100.110.8.13 Linux. ai-server sudo: srv2026.
 §
-HU schema de Nelson: "CREEMOS QUE [hipótesis], RESULTARÁ en [output concreto], CRITERIOS DE ACEPTACION [lista verificable]". Usar siempre este formato para historias de usuario.
+HU Nelson: "CREEMOS QUE [hipótesis], RESULTARÁ en [output], CRITERIOS DE ACEPTACION [verificable]".
 §
-ReForest Latam (Tucumán): prospecto AlegentAI, CEO Damián Rivadeneira, gap=YOLO drones. Propuesta jun 2026: Opción A sociedad 25% equity / Opción B inversión USD 20-57K.
+AlegentAI propuestas comerciales: 3 caminos estándar (A=Sociedad 60% AlegentAI, B=Cliente paga 100% IP, C=Híbrido aporte valorizable). Equipo sweat equity 4 roles: Fede(Arquitecto)+Nelson(Líder Téc)+Gustavo(Analista Func)+Ana(QA), USD 30/h. Sin nombres propios de prospectos por defecto.
 §
 Nelson does not upload documents. Files arrive from stakeholders and he places them in local directories. Read from existing paths, never assume upload workflows.
 §
-Telegram: @Jarvis_Alegent_bot. Nelson aprobado (ID 8896858194). Notificar nombre+ID de cada nuevo usuario — nadie entra sin OK de Nelson.
-§
-DNS ai-server: Tailscale DNS no resuelve externos. Fix: sudo resolvectl dns wlo1 8.8.8.8 o sudo tailscale set --accept-dns=false. /etc/hosts también sirve.
-§
-En Expreso Bisonte: colores por CELDA (no fila). sucdest==CC tolerancia=0, resto=7 días. OBSERVACIÓN rojo si "VER DIF". fechaedit rojo si DIAS_ATRASO supera tolerancia. Campo clave: sucdest (no succobro).
+Telegram: @Jarvis_Alegent_bot. Nelson aprobado (ID 8896858194). Avisar nombre+ID de nuevos usuarios — nadie sin OK Nelson.
 §
 Expreso Bisonte PoC: Pablo (COO). Infra: FastAPI :9000, spa_proxy :9090. CF→:9090. Repo: github.com/aliagenttucuman-byte/expreso-bisonte-excel-poc. NO venv. Pitfall: reiniciar spa_proxy tras build. WS: usar window.location.host, no hostname:9000.
 §
-GitHub token aliagenttucuman-byte: [REDACTED-PAT]
+LAN/LATAM: contractor Intermedia LLC 29/06-29/12/2026, $28/hr, 8h/día L-V 9-18 ARG. Rol: Data Scientist Sr - M365 Copilot governance. Pagos USDc via ARQ→Lead Bank Kansas City: ABA 101019644, Acc 219123167275, SWIFT LEADUS42, 1801 Main St KC MO 64108. Cláusula 7 exclusividad CHOCA con AlegentAI — pendiente carve-out con Cassola.
 §
-LAN Chile / LATAM: infra GCP + Terraform. Nelson va a pasar repos para generar skills nelson-gcp-terraform.
+Hermes routing JARVIS: main=opus-4-7 (gateway custom Azure Anthropic). sonnet-4-6 para auxiliares: compression, session_search, title_generation, triage, curator. Config: ~/.hermes/config.yaml.

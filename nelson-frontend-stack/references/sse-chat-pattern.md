@@ -70,6 +70,47 @@ const send = async () => {
 
 **Por que fetch y no Axios:** Axios no soporta streaming nativo. Para SSE, usar siempre `fetch` + `response.body.getReader()`.
 
+## ⚠️ Anti-pattern crítico: `async function*` con callback
+
+**Síntoma:** El usuario clickea enviar, el spinner aparece, **nunca llega nada**, no hay error en consola. Backend funciona perfecto (curl directo devuelve tokens). UI queda colgada para siempre.
+
+**Causa real (caso farmacia-poc, 25/06/2026):** la función de la API estaba declarada como **async generator** pero usada con callback + `await`:
+
+```js
+// ❌ MAL — el cuerpo NUNCA ejecuta
+const api = {
+  chat: async function*(message, history, onToken) {   // ← asterisco
+    const res = await fetch('/api/chat', {...})
+    const reader = res.body.getReader()
+    // ...
+    onToken(parsed.token)
+  }
+}
+
+// En el componente:
+await api.chat(msg, history, (token) => { ... })   // ← await sobre generator
+```
+
+Cuando hacés `await` sobre una función `async function*`, JS te devuelve **el iterator inmediatamente sin ejecutar el cuerpo**. `await` resuelve al instante con el objeto generator. `fetch` jamás se dispara. El callback `onToken` nunca se llama. La UI queda esperando algo que nunca va a venir, sin error ni timeout.
+
+**Fix:** sacar el asterisco. O es generator (y se itera con `for await`), o es async normal (y usa callback). No las dos cosas:
+
+```js
+// ✅ BIEN — async function normal con callback
+chat: async function(message, history, onToken) {
+  const res = await fetch('/api/chat', {...})
+  const reader = res.body.getReader()
+  // ... loop normal, llamar onToken(token) en cada chunk
+}
+```
+
+**Cómo detectarlo rápido:**
+1. Verificar backend con curl directo — si responde, el bug es 100% frontend.
+2. `grep "async function\*" frontend/src/api*` — si aparece y se usa con `await` (no con `for await`), ese es el bug.
+3. El bundle minificado puede ocultar el problema (`Dop_OJXz.js` → idéntico tras rebuild si el fuente no cambió).
+
+**Regla:** funciones de SSE con callback son **`async function` normales**, no generators. Los generators son para `for await (const chunk of api.chat(...))`, otra arquitectura entera.
+
 ## Proxy Vite para SSE
 
 ```ts

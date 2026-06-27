@@ -585,9 +585,51 @@ Patrón aplicado el 2026-06-07 con `~/brainstorming/2026-05-15-skills-faltantes-
 
 **Por qué:** un roadmap regenerado que no se ejecuta vuelve a perderse en 2 semanas. La regeneración y la primera acción tienen que ser la misma sesión.
 
+## Exploración de Repos GitHub Trending (patrón "mira esto, jarvis?")
+
+Cuando Nelson manda un link de repo GitHub con la pregunta corta tipo "mira esto, jarvis?" o "qué te parece esto?", el flujo es:
+
+1. **Inspeccionar repo via API**: stars, license, fecha creación, lenguaje, descripción, topics, tamaño, open issues
+2. **Leer README** (probar `main` Y `master` — muchos repos chinos/asiáticos usan `master`)
+3. **Listar archivos clave**: `requirements.txt`, `config.json`, `model.safetensors`, tamaños reales con `curl -sIL ... | grep content-length`
+4. **Validar fit con hardware del ai-server** (GTX 1650 4GB VRAM, 13GB RAM, CPU only fallback) — verificar SIEMPRE con `nvidia-smi` y `free -h` la primera vez en la sesión
+5. **Mapear contra skills/proyectos existentes del equipo** (AlegentAI, ForestAI, Expreso Bisonte, LAN/LATAM)
+6. **Veredicto en 3 categorías**:
+   - ✅ Self-hosteable HOY en ai-server
+   - ⚠️ Self-hosteable con caveats (cuantización, RunPod, etc.)
+   - ❌ No viable hoy — vigilar madurez
+
+Si Nelson dice "guarda esto como brainstorming" / "anotemos brainstorming", crear carpeta `~/brainstorming/YYYY-MM-DD-{nombre-repo}-spike/` con README que use el **template `templates/repo-trending-brainstorm.md`**. Estructura: TL;DR → Hardware fit → Casos de uso para equipo Nelson → Hipótesis CREEMOS/RESULTARÁ → Plan 2 fases (VIGILAR + SPIKE) → Pitfalls → Próximos pasos → Status checkboxes.
+
+Pitfall importante: **NO crear skill operativa** desde un repo trending hasta validar Fase 1 (vigilancia 2-4 semanas) y Fase 2 (spike concreto). Hasta entonces es solo brainstorming.
+
+## Fusión de Documentos para Propuestas Comerciales
+
+Cuando Nelson pide "fusionar estos 2 documentos en propuesta para X", el flujo validado es:
+
+1. **Identificar los 2 docs exactos** — preguntar paths si no son obvios, listar candidatos
+2. **Preguntar 4 cosas ANTES de escribir**:
+   - Audiencia: ¿interna o para enviar a prospecto?
+   - Caminos de negocio: ¿cuántos y cuáles (A/B/C)?
+   - Formato/tono: Project Charter PMI vs deck visual; PDF directo vs MD primero
+   - Sweat equity: ¿se mantiene número total y se desglosa por roles?
+3. **Si pide desglose de sweat equity**: pedir nombres+roles del equipo (4 personas típico: Arquitecto, Líder Técnico, Analista Funcional, QA). Repartir horas con coherencia técnica (Líder Técnico la mayoría, QA y AF cantidades menores).
+4. **3 caminos comerciales estándar para propuestas AlegentAI**:
+   - **A — Sociedad con equity mayoritario AlegentAI** (60-65%)
+   - **B — Cliente paga desarrollo** (100% IP AlegentAI, servicio)
+   - **C — Híbrido / activos valorizables como aporte** (paridad o cuasi-paridad)
+5. **Cada camino con hipótesis CREEMOS / RESULTARÁ / CRITERIOS DE ACEPTACIÓN**
+6. **Sin nombres propios de prospectos por defecto** — usar "el prospecto" / "prospecto forestal regional" salvo que Nelson autorice
+7. **Output dual**: MD editable + PDF profesional usando `nelson-documentation/scripts/generar_pdf_weasyprint.py`
+8. **Copia a `/tmp/`** antes de mandar por WhatsApp (pitfall conocido de paths largos)
+
+Ver template: `templates/propuesta-comercial-3-caminos.md`
+
 ## Archivos de Soporte
 
 - `references/forestai-geotiff-sources.md` — Fuentes públicas de GeoTIFF forestales para PoCs de inventario forestal: NeonTreeEvaluation, ReforesTree, OpenAerialMap. Incluye comandos de descarga directa y limitaciones Argentina.
+- `templates/repo-trending-brainstorm.md` — Template README para brainstorming de repos GitHub trending con plan de 2 fases (VIGILAR + SPIKE).
+- `templates/propuesta-comercial-3-caminos.md` — Template para propuestas comerciales AlegentAI con 3 caminos (Sociedad / Cliente paga / Híbrido) + sweat equity desglosado por roles.
 - `references/external-eval-patterns.md` — Patrones de extracción de metadata de fuentes externas: endpoints API exactos (HF, GitHub, arxiv, npm, PyPI), comandos curl one-liner, campos JSON importantes, y pitfalls por fuente. Para aplicar el patrón de Evaluación Rápida.
 - `templates/brainstorming-README.md` — Template copiable para README de cada sesión
 - `templates/sdd-template.md` — Template para Software Design Documents
@@ -605,6 +647,7 @@ Patrón aplicado el 2026-06-07 con `~/brainstorming/2026-05-15-skills-faltantes-
 - `nelson-ai-vision/references/drowning-detection-market.md` — Análisis de mercado completo para sistema de detección de ahogamiento en piletas
 - `templates/poc-ai-quickstart.md` — Template README para PoCs con IA (hipótesis CREEMOS QUE, HU formato Nelson, plan 3-5 tareas, smoke test con proxy FreeLLMAPI). Companion de la skill `nelson-poc-ai-quickstart`.
 - `references/forestai-inventario-forestal-drones.md` — Stack validado, repos GitHub, datasets, técnicas sin ML, criterios de éxito PoC ForestAI (2026-05-19)
+- `references/github-repo-selfhost-evaluation.md` — Recipe para evaluar repos GitHub que Tony comparte ("¿se puede self-hostear?"): stats del repo, tamaño del modelo, match con hardware ai-server (GTX 1650 4GB), formato de respuesta, cuándo guardar como brainstorming vs spike directo
 - `references/knowhere-analysis.md` — Análisis de Ontos-AI/knowhere: knowledge graph + RAG, veredicto 🟡 robar idea (síntesis multi-fuente y extracción de triplas), no adoptar directo
 
 ## Skills nuevas — workflow hermano

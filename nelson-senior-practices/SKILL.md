@@ -317,7 +317,127 @@ Regla de oro: **solo sincronizar cuando la informacion sea valiosa o haya cambio
 - ✅ Dejar que el usuario decida cuando es el momento de hacer backup.
 - ✅ Usar los scripts `sync-to-repo.sh` y `sync-from-repo.sh` del repo.
 
-## Regla de los 3 intentos (Workflow con Nelson)
+> **Para sincronizar repos de PoCs al cierre de sesion** (no el repo de skills, sino los repos de proyectos como `expreso-bisonte-excel-poc`, `yolov-orientacion-poc`): ver `references/repo-sync-end-of-session.md`. Incluye reglas de commits por tema, gitignore, fix de auth cuando falta token en remote, y mensajes de commit en castellano operativo.
+
+## Sincronizacion end-of-session de repos PoC
+
+Cuando Nelson pide "actualizar los repositorios" al cierre de sesion (PoCs como `expreso-bisonte-excel-poc`, `yolov-orientacion-poc`), aplican estas reglas. Mercedes/Julian leen la historia git — **commits monoliticos hacen el repo ilegible**.
+
+### Reglas
+
+1. **Direct push a `main`, sin PRs.** Los PoCs trabajan directo en main.
+2. **Separar commits por tema, no por archivo.** Un commit = una intencion (UI/design, feature de negocio, chore/gitignore, infra). Si tocaste UI + pipeline + infra en una sesion, salen 3 commits.
+3. **Revisar `.gitignore` ANTES de `git add .`** Builds servidos por backend (`backend/static/`), `frontend/dist/`, `node_modules/`, archivos del agente (`.hermes.md`, `.claude/`). Si faltan, agregarlos al `.gitignore` y commitearlo con el primer commit "housekeeping".
+4. **Verificar auth del remote por repo.** Algunos tienen token embebido en la URL, otros no. Si push falla con "Invalid username or token", copiar del remote de otro repo del mismo owner:
+   ```bash
+   REMOTE_AUTH=$(cd /ruta/repo-con-token && git remote get-url origin | sed 's|https://||; s|@github.com.*||')
+   cd /ruta/repo-sin-token && git remote set-url origin "https://${REMOTE_AUTH}@github.com/OWNER/REPO.git"
+   ```
+5. **Mensajes de commit en castellano operativo, no marketing.** Listar archivos tocados y por que.
+6. **Reportar al final solo lo esencial.** Repos × SHAs cortos × titulos. NO repetir el diff en el mensaje al usuario.
+
+### Pitfalls
+
+- `git add .` arrastra build output, lock files no deseados, archivos del agente. Siempre `git status -sb` primero.
+- `package-lock.json` SI va al repo. `node_modules/` NO.
+- NO mezclar fix de `.gitignore` con commit de feature.
+- Build output servido en prod (`backend/static/`, `dist/`): ignorarlo igual, el deploy lo regenera.
+
+## Sincronizacion end-of-session de repos PoC
+
+Cuando Nelson pide "actualizar los repositorios" al cierre de sesion (PoCs como expreso-bisonte-excel-poc, yolov-orientacion-poc, etc.), aplican estas reglas. El equipo (Mercedes/Julian) lee la historia git para entender que cambio — **commits monoliticos hacen el repo ilegible**.
+
+### Reglas
+
+1. **Direct push a `main`, sin PRs.** Los PoCs Nelson trabajan directo en main. No abrir PR.
+2. **Separar commits por tema, no por archivo.** Un commit = una intencion (UI/design system, feature de negocio, gitignore/chore, infra). Si en una sola sesion tocaste UI + pipeline + infra, salen 3 commits separados con mensajes distintos.
+3. **Revisar `.gitignore` ANTES de `git add .`** Nelson trabaja con builds que el backend sirve (ej: `backend/static/` en Bisonte), `frontend/dist/`, `node_modules/`, y archivos del agente (`.hermes.md`, `.claude/`). Si no estan ignorados, agregarlos al `.gitignore` y commitear ese fix con el primer commit "housekeeping" de la sesion.
+4. **Verificar auth del remote en cada repo.** Algunos repos tienen el token embebido en la URL (`https://user:TOKEN@github.com/...`), otros no. Si `git push` falla con "Invalid username or token. Password authentication is not supported", copiar el token del remote de otro repo del mismo owner:
+   ```bash
+   REMOTE_AUTH=$(cd /ruta/repo-con-token && git remote get-url origin | sed 's|https://||; s|@github.com.*||')
+   cd /ruta/repo-sin-token && git remote set-url origin "https://${REMOTE_AUTH}@github.com/OWNER/REPO.git"
+   ```
+5. **Mensajes de commit en castellano operativo, no marketing.** Listar archivos tocados y por que. Nelson y Mercedes leen estos messages cuando hacen pull.
+6. **Reportar al final solo lo esencial.** Lista de repos × SHAs cortos × titulo de cada commit. NO repetir el contenido del diff en el mensaje al usuario — ya esta en git log.
+
+### Pitfalls
+
+- `git add .` arrastra `backend/static/`, `frontend/dist/`, `package-lock.json` no deseado, archivos del agente. Siempre `git status --short` primero y decidir archivo por archivo.
+- `package-lock.json` SI va al repo (Mercedes lo necesita para reproducir). `node_modules/` NO.
+- Si el repo no tiene `.gitignore`, crearlo: `node_modules/`, `dist/`, `__pycache__/`, `*.pyc`, `.venv/`, `.env`, `.hermes.md`, `.claude/`, `*.log`.
+- NO mezclar el fix de `.gitignore` con un commit de feature. El gitignore va con un chore o con el primer commit "housekeeping".
+- Build output (`backend/static/`, `frontend/dist/`) que SI esta sirviendose en produccion: ignorarlo igual, el deploy lo regenera. No se versiona.
+
+### Flujo tipo
+
+```bash
+# 1. Status de todos los repos tocados
+for repo in /home/server/proyectos/repo-a /home/server/proyectos/repo-b; do
+  echo "=== $(basename $repo) ===" && cd $repo && git status -sb
+done
+
+# 2. Por cada repo: revisar diff, decidir gitignore, separar por tema
+cd /home/server/proyectos/repo-a
+git diff --stat                              # ver alcance real
+# editar .gitignore si falta algo
+git add .gitignore frontend/src/styles/      # commit 1: chore + UI
+git commit -m "chore(ui): ..."
+git add backend/services/feature.py          # commit 2: feature
+git commit -m "feat(feature): ..."
+
+# 3. Push (verificar auth si falla)
+git push origin main
+
+# 4. Reportar SHAs cortos + titulos al usuario, sin repetir el diff
+```
+
+## Sincronizacion end-of-session de repos PoC
+
+Cuando Nelson pide "actualizar los repositorios" al cierre de sesion, aplican estas reglas. El equipo (Mercedes/Julian) lee la historia git para entender que cambio — **commits monoliticos hacen el repo ilegible**.
+
+### Reglas
+
+1. **Direct push a `main`, sin PRs.** Los PoCs Nelson trabajan directo en main. No abrir PR.
+2. **Separar commits por tema, no por archivo.** Un commit = una intencion (UI design system, feature de negocio, gitignore/chore). Si en una sola sesion tocaste UI + pipeline + infra, salen 3 commits.
+3. **Revisar `.gitignore` ANTES de `git add .`** Nelson trabaja con builds que el backend sirve (ej: `backend/static/` en Bisonte), `frontend/dist/`, `node_modules/`, y archivos del agente (`.hermes.md`, `.claude/`). Si no estan ignorados, ignorarlos y commitear el `.gitignore` con el primer commit de la sesion.
+4. **Verificar auth del remote en cada repo.** Algunos repos tienen el token embebido en la URL (`https://user:TOKEN@github.com/...`), otros no. Si `git push` falla con "Invalid username or token", copiar el token del remote de otro repo del mismo owner:
+   ```bash
+   REMOTE_AUTH=$(cd /ruta/repo-con-token && git remote get-url origin | sed 's|https://||; s|@github.com.*||')
+   cd /ruta/repo-sin-token && git remote set-url origin "https://${REMOTE_AUTH}@github.com/OWNER/REPO.git"
+   ```
+5. **Mensajes de commit en castellano operativo, no marketing.** Listar archivos tocados y por que. Nelson y Mercedes leen estos messages.
+6. **Reportar al final solo lo esencial.** Lista de repos × SHAs cortos × titulo de cada commit. NO repetir el contenido del diff.
+
+### Pitfalls
+
+- `git add .` arrastra `backend/static/`, `frontend/dist/`, `package-lock.json` huerfanos, archivos del agente. Siempre `git status --short` primero y decidir.
+- `package-lock.json` SI va al repo (Mercedes lo necesita). `node_modules/` NO.
+- Si el repo no tiene `.gitignore`, crearlo en el primer commit con: `node_modules/`, `dist/`, `__pycache__/`, `*.pyc`, `.venv/`, `.env`, `.hermes.md`, `.claude/`, `*.log`.
+- NO mezclar el fix de `.gitignore` con un commit de feature. El gitignore va con un chore o con el primer commit "housekeeping" de la sesion.
+- Build output (`backend/static/`, `frontend/dist/`) que SI esta siendo servido en produccion: ignorarlo igual, el deploy lo regenera. No se versiona.
+
+### Flujo tipo
+
+```bash
+# 1. Status de todos los repos tocados
+for repo in /home/server/proyectos/repo-a /home/server/proyectos/repo-b; do
+  echo "=== $(basename $repo) ===" && cd $repo && git status -sb
+done
+
+# 2. Por cada repo: revisar diff, decidir gitignore, separar por tema
+cd /home/server/proyectos/repo-a
+git diff --stat                              # ver el alcance
+# editar .gitignore si falta algo
+git add .gitignore frontend/src/styles/ ...  # commit 1: chore + UI
+git commit -m "chore(ui): ..."
+git add backend/services/feature.py ...      # commit 2: feature
+git commit -m "feat(feature): ..."
+
+# 3. Push (verificar auth si falla)
+git push origin main
+
+# 4. Reportar SHAs cortos + titulos al usuario
+```
 
 > Frase guia de Nelson: **"Si no podes, no sigas"**. Y: **"Vos tenes que parar solo, y hablar conmigo para que lo revaluemos."**
 

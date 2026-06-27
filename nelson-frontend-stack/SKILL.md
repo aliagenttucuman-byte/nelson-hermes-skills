@@ -557,6 +557,9 @@ Checklist rápido antes de compartir URL:
 ## Referencias de soporte
 
 - `references/dashboard-mapa-websocket-chat.md` — Template completo: dashboard React con Leaflet + WebSocket live + chat IA flotante (validado FleetOptimizer PoC)
+- `references/css-overlay-redesign-legacy-inline.md` — Rediseño visual completo de PoC con inline styles legacy sin tocar JSX. Inyectar `design-system.css` global + override por selectores de atributo (`div[style*="background: rgb(255, 255, 255)"]`). Validado en Bisonte (1341 LoC HomePage.tsx, 0 líneas de lógica tocadas).
+- `references/css-overlay-reskinning.md` — Rediseño visual de apps React con inline styles masivos SIN tocar JSX. Patrón overlay CSS via attribute selectors `[style*="..."]`. Estilo Linear × Bloomberg incluido (validado Bisonte PoC jun 2026).
+- `references/css-overlay-reskin.md` — Re-skin completo de un componente React con cientos de inline styles SIN tocar JSX, usando CSS attribute selectors + design tokens. Patrón "Linear × Bloomberg" para apps operativas (Bisonte). Reversible borrando 1 import.
 - `references/excel-pipeline-operational-mode.md` — Guía de UI mínima operativa para pipelines Excel (sin IA/demo), con foco en conteo de filas útiles.
 - `references/excel-poc-white-screen-500-debug.md` — Postmortem corto: pantalla blanca por Axios multipart global + 500 en merge encadenado; fixes y checks de verificación.
 - `references/white-screen-triage-cloudflare.md` — Runbook rápido para "pantalla blanca" en demos por tunnel (verificación HTML/JS/API + secuencia de recuperación)
@@ -941,6 +944,25 @@ La forma correcta de reescribir un archivo entero es `write_file()`, no `patch()
 - **Cambios en vite.config.ts requieren reiniciar Vite:** el hot reload NO aplica a la configuracion del servidor (proxy rules, allowedHosts, ports). Matar el proceso y relanzar: `pkill -f "node.*vite"` y luego `npm run dev` en background.
 - **Proxy de Vite para SSE (Server-Sent Events):** agregar `changeOrigin: true` y asegurarse de que el proxy no bufferea la respuesta. Si el streaming no funciona, verificar que el backend devuelve `Content-Type: text/event-stream` y que el cliente usa `fetch` con `response.body.getReader()` en lugar de Axios (Axios no soporta streaming nativo).
 - **Patron de chat con SSE en React:** usar `fetch` nativo + `ReadableStream` para leer chunks en tiempo real. Axios no sirve para SSE. Ver patron en `references/sse-chat-pattern.md`.
+
+- **PITFALL — `async function*` (generator) con `await` queda colgado para siempre:** Si una función SSE se declara como `async function*` (con asterisco) pero el consumer la llama con `await fn(...)` sin iterarla con `for await`, el cuerpo del generator **nunca se ejecuta**. El `fetch` no se dispara, el callback no se llama, el chat queda con el spinner girando indefinidamente. Síntoma típico: backend responde 200 con todos los tokens en curl directo, pero la UI nunca recibe nada y el botón send queda en estado loading. **Fix:** si la función usa callback (`onToken`) en vez de `yield`, declararla como `async function` normal sin asterisco. Si usa `yield`, el consumer DEBE usar `for await (const chunk of fn(...))`. Confirmar el fix mirando el hash del bundle `dist/assets/index-<hash>.js` — si cambió tras el rebuild, el código nuevo se desplegó.
+  ```js
+  // ❌ Bug — generator nunca se ejecuta con await
+  chat: async function*(message, history, onToken) {
+    const res = await fetch(...)  // nunca llega
+    ...
+  }
+  await api.chat(msg, hist, onToken)  // resuelve instantáneo sin correr nada
+  
+  // ✅ Fix — función normal con callback
+  chat: async function(message, history, onToken) {
+    const res = await fetch(...)
+    ...
+  }
+  ```
+  Caso real: PoC farmacia (`nelson-farmacia-poc`), 2026-06-25.
+
+- **⚠️ `async function*` con callback = UI colgada sin error.** Si una función SSE usa callback (`onToken`) PERO está declarada como async generator (`async function*` con asterisco), y el componente la llama con `await api.chat(...)` (no con `for await`), el cuerpo NUNCA se ejecuta — `await` resuelve al instante devolviendo el iterator. Fetch jamás se dispara, callback jamás se llama, UI queda esperando para siempre. Backend funciona perfecto vía curl, frontend solo cuelga. Fix: sacar el asterisco. Ver caso farmacia-poc en `references/sse-chat-pattern.md` (sección anti-pattern). Diagnóstico rápido: `grep "async function\*" frontend/src/api*`.
 - **SSE (Server-Sent Events) en React:** Para consumir streaming desde FastAPI, usar `fetch` nativo con `res.body.getReader()` — NO usar Axios (no soporta streaming). Leer chunks con `decoder.decode(value)`, splitear por `\n`, filtrar lineas `data: `, parsear JSON. Ver pattern en `references/sse-streaming-pattern.md`.
 
 - **Proxy Vite para SSE:** El proxy de Vite funciona bien con SSE pero hay que asegurarse de que el path mas especifico va primero. Ejemplo: `/api/chat/speak` queda cubierto por `/api/chat` → verificar que el rewrite no rompa la sub-ruta.
