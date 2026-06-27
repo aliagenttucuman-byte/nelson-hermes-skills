@@ -1,16 +1,20 @@
 Tony Stark (Nelson) prefiere comunicarse por WhatsApp con audios. Es action-oriented, no le gusta leer mucho texto largo. Quiere que le responda con audios concisos. El roleplay es Iron Man / JARVIS.
 §
-Equipo I+D+I: Tony + Julián (backend) + Mercedes (frontend). Stack mobile: Expo SDK 56, expo-dev-client (nunca Expo Go), EAS Build+OTA. ML en FastAPI :9000, Expo consume via Server Actions.
+Equipo I+D+I (innovacion, PoCs): Tony + 2 agentes IA — Julián (backend) y Mercedes (frontend).
 §
-Puerto 3001 ai-server: WhatsApp Gateway (Node, NO Docker). FreeLLMAPI en 3101. n8n :5678 login: nelsongacosta@gmail.com/BuenosAires435!.
+Convención brainstorming: Todo doc de proyecto/SDD/spec se guarda en ~/brainstorming/YYYY-MM-DD-nombre-proyecto/ con README.md obligatorio. Templates en ~/brainstorming/templates/. Skill: nelson-brainstorming.
 §
-Tailscale: nelsondev=100.76.143.33 Win, ai-server=100.110.8.13 Linux. ai-server sudo: srv2026.
+Dashboard PIN: 123456
+§
+Regla de oro del stack: Backend Python, Frontend React. Innegociable. Skills: nelson-spec-driven-workflow, nelson-project-constitution.
+§
+Tailscale cuenta aliagenttucuman@gmail.com. IP servidor (ai-server): 100.110.8.13. Windows Nelson (nelsondev): 100.76.143.33. SSH: ssh server@100.110.8.13 pass srv2026. Android: instalar Tailscale + JuiceSSH/Termius con mismos datos.
 §
 HU Nelson: "CREEMOS QUE [hipótesis], RESULTARÁ en [output], CRITERIOS DE ACEPTACION [verificable]".
 §
 AlegentAI propuestas comerciales: 3 caminos estándar (A=Sociedad 60% AlegentAI, B=Cliente paga 100% IP, C=Híbrido aporte valorizable). Equipo sweat equity 4 roles: Fede(Arquitecto)+Nelson(Líder Téc)+Gustavo(Analista Func)+Ana(QA), USD 30/h. Sin nombres propios de prospectos por defecto.
 §
-Nelson does not upload documents. Files arrive from stakeholders and he places them in local directories. Read from existing paths, never assume upload workflows.
+Azure Foundry yiazlafoc001: Claude ✅. Codex gpt-5.3-codex-2026-02-20 ❌ deployment no creado — crear en portal (AI Foundry → Deployments). URL: cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview. Config: codex_responses + extra_params.api_version.
 §
 Telegram: @Jarvis_Alegent_bot. Nelson aprobado (ID 8896858194). Avisar nombre+ID de nuevos usuarios — nadie sin OK Nelson.
 §

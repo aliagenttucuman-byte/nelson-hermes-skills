@@ -9,7 +9,6 @@ Repositorio de backup y versionado de las skills custom y la memoria persistente
 | equipo-nelson | Skill maestra del equipo. Stack general y convenciones |
 | nelson-ai-agents | Agentes de IA autonomos. ReAct, function calling, multi-agent |
 | nelson-ai-vision | Vision por computadora. OCR, object detection, documentos |
-| nelson-backup-dr | Politica de backups y disaster recovery. RTO/RPO, scripts, runbooks |
 | nelson-background-jobs | Procesamiento async con Celery + Redis |
 | nelson-ci-cd | Pipeline CI/CD con GitHub Actions + GCP |
 | nelson-code-quality | Ruff, mypy, pre-commit hooks |
@@ -21,12 +20,9 @@ Repositorio de backup y versionado de las skills custom y la memoria persistente
 | nelson-embeddings | OpenAI, sentence-transformers, Ollama local |
 | nelson-frontend-stack | React 18, TypeScript, Vite, Tailwind |
 | nelson-frontend-testing | Vitest, React Testing Library, Playwright |
-| nelson-incident-response | Runbooks y escalamiento para caidas en produccion |
 | nelson-llm-generation | Integracion LLMs. Streaming, retry, cost tracking |
-| nelson-multi-tenancy | Aislamiento multi-tenant. DB separada, schema, row-level + RLS |
 | nelson-observability | structlog, Prometheus, health checks |
 | nelson-project-bootstrap | Scaffold completo backend+frontend+devops |
-| nelson-project-tracking | Estimacion T-shirt, velocity, burndown, time tracking |
 | nelson-rag-pipeline | Chunking, embeddings, retrieval, re-ranking |
 | nelson-security | JWT, OAuth2, CORS, rate limiting, bcrypt |
 | nelson-senior-practices | Type hints estrictos, SOLID, clean code |

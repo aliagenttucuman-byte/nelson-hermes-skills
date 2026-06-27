@@ -10,6 +10,12 @@ metadata:
     tags: [backup, disaster-recovery, postgresql, qdrant, minio, sqlite, cron, nelson, ops]
     category: devops
     requires_toolsets: [terminal]
+    related_skills:
+      - nelson-incident-response
+      - nelson-server-services
+      - nelson-windows-ssh-setup
+      - nelson-scheduled-jobs
+      - nelson-monitoring-observability
 ---
 
 # nelson-backup-dr
@@ -693,6 +699,25 @@ Re-evaluar RTO/RPO y la política completa cuando:
 - [ ] Hay 5+ proyectos productivos (considerar backup incremental continuo tipo WAL archiving)
 - [ ] El server pasa a producción 24/7 (considerar backup a S3/GCS en vez de solo local + nelsondev)
 - [ ] Alguien pregunta "¿podemos confiar en que esto se restaura?" (sí, pero con evidencia: último verify)
+- [ ] Se agrega un servicio nuevo al server (ver § 11.1 abajo)
+
+### 10.1 Workflow: agregar un servicio nuevo al backup
+
+Cuando Diego (o quien sea) agrega un servicio nuevo al server, no es opcional actualizar esta skill. Pasos:
+
+1. **Identificar el tipo de dato** (consultar § 9):
+   - SQLite → `backup-sqlite.sh`
+   - PostgreSQL/MySQL/MariaDB → `backup-postgres.sh` (adaptar el wrapper)
+   - Volumen Docker → `backup-docker-volume.sh`
+   - Archivos/carpetas → `backup-filesystem.sh`
+2. **Agregar una línea en § 1 (Inventario) y § 2 (RTO/RPO)**.
+3. **Agregar una entrada en § 9 (Catálogo)** con: servicio, qué, cómo, script.
+4. **Modificar `scripts/backup-all.sh`** para incluir el backup nuevo (ver § 5 para el patrón).
+5. **Crear runbook de restore en `runbooks/restore-<servicio>.md`** siguiendo el formato de los 4 existentes.
+6. **Actualizar `related_skills` del frontmatter** si el servicio toca otra skill (ej: si es parte de un proyecto ForestAI, mencionar `nelson-forest-inventory`).
+7. **Testear**: correr el script nuevo una vez manualmente, validar que el backup abre/se importa, validar el restore.
+
+**Trigger automático:** cuando se crea una skill nueva en `nelson-skill-authoring`, chequear si la skill referencia algún servicio con estado persistente. Si sí, agregar acá.
 
 ## 11. Anti-patrones y pitfalls
 
@@ -709,6 +734,8 @@ Re-evaluar RTO/RPO y la política completa cuando:
 11. **Asumir que `pg_dump` resuelve todo.** Solo respalda SQL. Los roles, los tablespaces, los usuarios de la DB hay que respaldarlos aparte (`pg_dumpall --globals-only`).
 12. **Backups sin encriptación con datos sensibles.** Si el dump de PostGIS tiene datos de clientes, el backup local es un vector de ataque. Considerar gpg con clave del equipo.
 13. **No versionar la política.** Si cambia el stack (nuevo servicio, nueva DB), la política tiene que actualizarse. Trimestral: revisar este skill.
+14. **Pegar el cron sin verificar TZ.** El bloque de § 6 usa `TZ=America/Argentina/Tucuman`. Pegarlo al final del `crontab -e` después de un `TZ` distinto, o sin `TZ` explícito cuando el server está en otra zona, hace que los logs queden con timestamps confusos. Confirmar la TZ del server con `date` antes de pegar el bloque.
+15. **Asumir que el `verify-all.sh` anda sin probarlo.** El script tiene un `set -uo pipefail` (sin `-e`) a propósito — para que un fallo no aborte el resto del verify. Pero eso significa que errores silenciosos se loguean y siguen. La primera vez que corra el cron de verificación, monitorear el log en `/var/log/nelson-backup.log` el lunes siguiente.
 
 ## 12. Verificación rápida (smoke test mensual)
 

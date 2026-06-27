@@ -1,0 +1,19 @@
+[Unit]
+Description=Headroom Proxy - Token compression for Hermes Agent
+After=network.target
+
+[Service]
+Type=simple
+User=server
+WorkingDirectory=/home/server
+Environment="ANTHROPIC_TARGET_API_URL=https://yizlafclc001.services.ai.azure.com/anthropic/"
+Environment="HEADROOM_TELEMETRY=off"
+Environment="PATH=/home/server/.hermes/hermes-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/server/.hermes/hermes-agent/venv/bin/headroom proxy --host 127.0.0.1 --port 8787 --intercept-tool-results
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/headroom-proxy.log
+StandardError=append:/var/log/headroom-proxy.log
+
+[Install]
+WantedBy=multi-user.target

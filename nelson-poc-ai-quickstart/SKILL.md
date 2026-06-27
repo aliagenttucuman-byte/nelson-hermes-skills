@@ -265,6 +265,7 @@ grep -i "x-routed-via" /tmp/h.txt
 | Endpoint Azure Anthropic requiere `/anthropic` en el path | `baseUrl = https://<resource>.services.ai.azure.com/anthropic` (no `...azure.com` solo) |
 | `POST /api/keys` no inserta el modelo en el catálogo (built-ins) | Para built-ins seedear en `db/index.ts` migrate. Para custom usar `POST /api/keys/custom` |
 | FreeLLMAPI admin password olvidado | `docker compose down -v && docker compose up -d` (nuclear) o recuperarla del password manager |
+| `model: "meta-llama/llama-4-maverick:free"` da error | Ese modelo NO existe en FreeLLMAPI. Usar `deepseek-ai/deepseek-v4-flash` como default confiable para chat |
 | Container FreeLLMAPI da 404 "Resource not found" pero curl directo al URL completo da 200 | Path prefix mal armado. Comparar las dos URLs carácter por carácter. El adapter concatena `${baseUrl}/v1/messages` |
 | Provider sin `Authorization: Bearer` (ej. Anthropic `x-api-key`) | El adapter AnthropicProvider ya lo maneja. Si usás SDK directo, ver `references/azure-anthropic-foundry.md` |
 | Keys con formato inesperado (gsk_ es Groq, sk-or-v1- es OpenRouter) | El dashboard las detecta por el prefijo. Si tenés dudas, sanity check con curl al endpoint del provider antes de cargar al proxy |

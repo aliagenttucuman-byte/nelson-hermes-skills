@@ -147,7 +147,6 @@ Ver `references/tailscale-ssh-access.md` para acceso remoto SSH desde Windows y 
 | `references/skills-from-github.md` | Instalar skills cuando el hub trunca los IDs |
 | `references/skill-backup-workflow.md` | Exportar/importar skills custom a repo GitHub. Backup y migración |
 | `references/google-cloud-deploy.md` | Deploy a GCP, credenciales, Cloud Run |
-| `references/startup-screening-responses.md` | Respuestas modelo para screening de startups (CTO/VPE/Founder) |
 | `templates/project-boilerplate.md` | Boilerplate completo del stack (FastAPI + React + Docker) |
 | `templates/nginx-frontend.conf` | Config nginx para servir el build de React/Vite |
 
@@ -435,19 +434,19 @@ networks:
 ## Preferencias de Comunicación de Nelson
 
 - **Canal preferido:** WhatsApp (no usar markdown, no renderiza bien)
-- **Formato de respuesta:** SIEMPRE texto + audio. El texto tiene el detalle técnico; el audio (`es-AR-TomasNeural`) resume en lenguaje sencillo (qué hice, qué problema resolvió, qué probar). Nunca solo audio.
+- **Formato preferido:** Audio/voz masculina en español argentino (`es-AR-TomasNeural`)
 - **Estilo:** Action-oriented, directo. Nelson quiere ver el plan y ejecutar.
 - **Stack:** Python 3.12 + FastAPI backend, React 19 + Vite 6 + Tailwind 4 frontend, Docker, IA/ML
 - **Metodología:** Spec-driven development (OpenAPI primero), spikes/POCs antes de builds completos
 - **GitHub:** aliagenttucuman@gmail.com, usuario `aliagenttucuman-byte`
 
-> **Regla de formato SIEMPRE aplicar:** Cada respuesta DEBE incluir texto (con el detalle técnico de lo que se hizo) + audio (resumen sencillo y corto con edge-tts es-AR-TomasNeural). NUNCA enviar solo audio. El audio no reemplaza al texto — es un complemento que explica brevemente qué se hizo.
+> **Importante:** Cuando las respuestas son largas, preferir enviar audio resumido. Nelson puede pedir "mandame audio" cuando no quiere leer texto extenso.
 
 ## Preferencias de Workflow
 
-- **Paso a paso, sin apuro.** Nelson prefiere ejecutar las tareas "pasito, pasito", confirmando cada etapa antes de avanzar. NO tirar todo el código o todos los pasos de una sola vez. Esperar su aprobación ("dale", "vamos con el siguiente", "ok") antes de ejecutar el próximo paso.
-- **Nadie nos apura.** Si Nelson dice "no hagas nada más hasta que yo te dé la orden", respetar estrictamente. Quedar en standby.
-- **Texto + Audio siempre.** SIEMPRE enviar ambos. El texto tiene el detalle; el audio resume en lenguaje sencillo. Nunca solo audio, nunca solo texto cuando hay algo que reportar.
+- **Paso a paso, sin apuro.** Nelson prefiere ejecutar las tareas "pasito, pasito", confirmando cada etapa antes de avanzar. NO tirar todo el código o todos los pasos de una sola vez. Esperar su aprobación (“dale”, “vamos con el siguiente”, “ok”) antes de ejecutar el próximo paso.
+- **Nadie nos apura.** Si Nelson dice “no hagas nada más hasta que yo te dé la orden”, respetar estrictamente. Quedar en standby.
+- **Audio como canal principal.** A menos que pida explícitamente texto, preferir comunicación por audio (TTS).
 
 ## Reglas del Equipo
 
@@ -479,11 +478,6 @@ El equipo ahora cuenta con un meta-agente orquestador formal. Ver skills:
 - `nelson-agent-routing` — router declarativo por categoría de tarea
 - `nelson-eval-harness` — métricas de calidad 0-100 por tarea
 - `nelson-context-handoff` — HandoffPacket entre agentes
-
-Patrón operativo recomendado en dashboard: **Modo Misión**
-- Flujo visible: Objetivo → Plan → Ejecución → Resultado
-- Acción principal por fase: planificar primero, luego confirmar ejecución
-- Recuperación rápida: botón de retry del último goal tras fallo
 
 **JARVIS ya actúa como meta-orquestador** via `delegate_task`. La formalización
 es incremental — no rompe el flujo existente.

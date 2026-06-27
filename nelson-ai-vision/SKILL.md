@@ -386,31 +386,6 @@ Spike completo: `~/brainstorming/2026-05-22-fleet-optimizer/spikes/001-ocr-compr
 
 Ver `references/ocr-comprobantes-pipeline.md` para detalles y pitfalls.
 
-## PITFALL — TIFs subexpuestos para VLM (ortofotos drone Pix4Dfields)
-
-Los TIFs exportados por Pix4Dfields tienen mean ~60/255 (muy oscuro).
-Las imágenes generadas sin stretch parecen en escala de grises para el VLM
-→ gpt-4o-mini devuelve todo "Otro" / no puede clasificar.
-
-**Fix — stretch de contraste p2-p98 per-canal al generar tiles:**
-```python
-for ch in range(3):
-    p2, p98 = np.percentile(rgb[:, :, ch], (2, 98))
-    if p98 > p2:
-        rgb_stretched[:, :, ch] = np.clip(
-            (rgb[:, :, ch].astype(np.float32) - p2) / (p98 - p2) * 255, 0, 255
-        ).astype(np.uint8)
-    else:
-        rgb_stretched[:, :, ch] = rgb[:, :, ch]
-rgb = rgb_stretched
-```
-
-**Diagnóstico:** `cv2.imread(tile_path).mean()` — si < 80, aplicar stretch.
-**Resultado esperado con stretch:** mean ~122/255, VLM clasifica correctamente.
-
-**Cuidado con RGBA:** Pix4Dfields exporta 4 bandas. Leer solo R,G,B con
-`src.read([1,2,3])`. Verificar con `src.colorinterp` que sea (red, green, blue, alpha).
-
 ## Dependencias
 
 ```bash

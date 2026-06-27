@@ -1,7 +1,7 @@
 ---
 name: nelson-external-integrations
 description: "Patrones para integrar APIs y servicios externos en el equipo Nelson. Fallback strategy, rate limits, red Docker vs host, y spike obligatorio antes de integrar."
-version: 1.1.0
+version: 1.0.0
 author: Equipo Nelson (Tony + JARVIS)
 license: MIT
 platforms: [linux]
@@ -503,35 +503,6 @@ PORT=3789 npm run dev
 
 ---
 
-## Scraping de sitios Next.js (SSR/CSR)
-
-Sitios Next.js con renderizado en cliente devuelven un HTML vacío (~7KB skeleton) en `curl` a la raíz. Estrategia en orden de prioridad:
-
-1. **Rutas internas directamente** — Next.js suele pre-renderizar `/nosotros`, `/impacto`, `/tecnologia`, etc. Fan-out de rutas y medir tamaño (`wc -c`). Páginas con contenido real tienen 40–100KB+.
-2. **Wayback Machine** — `curl -sL 'https://web.archive.org/web/2024/https://SITIO/'` devuelve HTML pre-renderizado completo la mayoría de las veces.
-3. **Google cache** — `https://webcache.googleusercontent.com/search?q=cache:SITIO`.
-4. **Chunks JS** como último recurso — buscar `/_next/static/chunks/*.js` en el HTML, descargar los de 30–200KB, usar `strings + grep` para extraer texto.
-
-```bash
-# Fan-out de rutas
-for page in / /nosotros /servicios /impacto /premios /tecnologia /contacto; do
-  curl -sL --max-time 8 "https://SITIO${page}" -o /tmp/rf_${page//\//_}.html 2>/dev/null
-  wc -c /tmp/rf_${page//\//_}.html
-done
-
-# Extraer texto limpio (heredoc evita problemas de quoting en bash)
-python3 - <<'EOF'
-import re
-with open('/tmp/rf__nosotros.html', errors='ignore') as f: html=f.read()
-text = re.sub('<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
-text = re.sub('<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
-text = re.sub('<[^>]+>', ' ', text)
-print(re.sub(r'\s+', ' ', text).strip()[:5000])
-EOF
-```
-
-> Pitfall: el script Python inline con `-c "..."` dentro de bash falla cuando el código tiene comillas simples. Usar heredoc `python3 - <<'EOF'` o guardar en `/tmp/script.py` y ejecutarlo.
-
 ## Pitfalls
 
 - **Imagen PNG no visible en WhatsApp desde path anidado:** Si el `MEDIA:` apunta a un path largo como `~/brainstorming/2026-05-19-x/output/reporte.png` y Nelson dice que no ve la imagen, copiar a `/tmp/reporte.png` y reenviar. `cp ~/brainstorm/.../reporte.png /tmp/reporte.png` resuelve de forma consistente.
@@ -542,71 +513,3 @@ EOF
 - **Timeouts:** Siempre setear `timeout=10` o similar. Sin timeout, una API lenta bloquea todo el worker.
 - **Sync repo: agregar skill nueva a sync-to-repo.sh:** Cada vez que se crea una skill nueva (`skill_manage action=create`), agregarla manualmente al array `SKILLS=()` en `/home/server/repos/nelson-hermes-skills/sync-to-repo.sh` antes de hacer el sync. Si se olvida, la skill no se pushea al repo.
 - **Token GitHub expira:** El token personal de GitHub (`ghp_...`) tiene vida limitada. Cuando `gh auth status` muestra "The token in default is invalid", re-autenticar con `gh auth login -h github.com -p https --with-token < ~/secrets/github_token.txt`. El token nuevo se genera en https://github.com/settings/tokens/new (scope: `repo` completo). Para push sin terminal interactiva: `git push "https://$(gh auth token)@github.com/USER/REPO.git" main`. Guardar siempre el token nuevo en `~/secrets/github_token.txt` (chmod 600).
-- **Diagnosticar 4xx en APIs cloud con paths no obvios (Azure, AWS, GCP):** cuando una llamada da 4xx, hacer el debug en cascada: 1) probar el URL EXACTO que arma el adapter con `curl` directo; 2) comparar con el URL que sugieren los docs; 3) listar deployments/recursos disponibles en el endpoint canónico (ej. Azure Foundry: `GET <resource>/openai/v1/models` con `api-key: <key>`); 4) verificar que la key corresponde al recurso y región. Los 4xx más comunes y sus significados: `401` = key mala, `404` con `DeploymentNotFound` = modelo no deployado en el recurso, `404` con `Resource not found` = path mal armado o endpoint no soportado por el recurso, `400` con `header is required` = falta header de versión.
-- **Spike obligatorio antes de agregar un provider a un gateway/router:** si la integración la hace un gateway multi-provider (FreeLLMAPI, LiteLLM, etc.), probar primero con `curl` directo al endpoint upstream con el body exacto que va a mandar el adapter. Si el curl da 200 pero el adapter da error, el problema es cómo el adapter construye el body o el path. Si ambos dan error, el problema es upstream. Nunca debuggear el adapter sin haber confirmado que el endpoint upstream responde — perdés horas persiguiendo bugs que están en el lado equivocado.
-
----
-
-## 10. OpenAI-compatible LLM proxies (FreeLLMAPI y similares)
-
-**Qué es:** Un proxy que expone `/v1/chat/completions` y agrega varios proveedores de LLM con free tier (Google, Groq, Cerebras, SambaNova, OpenRouter, NVIDIA NIM, Mistral, etc.) detrás de un único endpoint. Hace failover automático entre providers y trackea rate-limits per-key.
-
-**Útil para:** I+D+I, demos, agentes JARVIS. NO para producción comercial multi-tenant (ToS de los free tiers no permite revender).
-
-**Referencia operativa actual en el equipo:** FreeLLMAPI (https://github.com/tashfeenahmed/freellmapi) — deployado en ai-server :3101 (ver `nelson-server-services`). MIT, TypeScript, single-user.
-
-### Patrón de uso como drop-in replacement
-
-```python
-from openai import OpenAI
-
-# Antes: apunta a un provider directo
-# client = OpenAI(api_key="sk-...", base_url="https://api.openai.com/v1")
-
-# Ahora: apunta al proxy
-client = OpenAI(
-    base_url="http://100.110.8.13:3101/v1",
-    api_key="freellmapi-<unified-key-del-dashboard>"
-)
-
-resp = client.chat.completions.create(
-    model="auto",  # deja que el router elija
-    messages=[{"role": "user", "content": "hola"}]
-)
-print(resp.headers.get("x-routed-via"))  # qué provider atendió
-```
-
-**Header clave en response:** `X-Routed-Via: <platform>/<model>` y `X-Fallback-Attempts: N` — útil para debugging y métricas.
-
-### Configuración inicial (FreeLLMAPI)
-
-1. Entrar al dashboard `http://100.110.8.13:3101`
-2. Crear admin (primera vez) o login
-3. **Keys** → agregar API key de cada provider (Groq, OpenRouter, NVIDIA NIM, etc.)
-4. **Fallback Chain** → ordenar prioridad. Recomendado: NVIDIA NIM (self-hosted) → Groq → Cerebras → OpenRouter free → Pollinations (anon)
-5. **Playground** → probar chat, vision, embeddings
-6. La unified key para clients está en el header de la página Keys
-
-### Probar failover end-to-end
-
-```bash
-# 1. Request normal (debería rutear a provider #1)
-curl -sS http://100.110.8.13:3101/v1/chat/completions \
-  -H "Authorization: Bearer $FREELLMAPI_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"auto","messages":[{"role":"user","content":"ping"}]}' \
-  -i | grep -E "(X-Routed-Via|HTTP)"
-
-# 2. Marcar provider #1 como disabled en el dashboard
-# 3. Repetir — debería rutear al siguiente con X-Fallback-Attempts: 0 (no hubo retry)
-# 4. Forzar 429 con un provider real y ver X-Fallback-Attempts: 1+
-```
-
-### Pitfalls FreeLLMAPI
-
-- **Puerto default 3001 colisiona con WhatsApp Gateway** (proceso Node persistente en ai-server). Usar 3101+ al deployar. Ver `nelson-server-services` → "Pitfalls" para el patrón.
-- **Volumen Docker `freellmapi-data` retiene el admin user y las keys encriptadas entre restarts.** Un `docker compose up -d` NO recrea el state. Para reset total: `docker compose down -v` (⚠️ borra todo).
-- **Unified key se autogenera en el primer boot** — leerla de los logs: `docker logs freellmapi-freellmapi-1 2>&1 | grep "unified API key"`. Guardarla en lugar seguro.
-- **Auth admin: `/api/auth/setup` solo funciona si NO hay users.** Una vez creado el admin, el endpoint devuelve 409 "setup already completed". Si olvidás la password, hay que resetear el volumen.
-- **No es multi-tenant.** Single-user by design. Para exponer a clientes de AlegentAI hay que forkear y agregar auth per-tenant (futuro).
-- **ToS gris:** Cada free tier tiene ToS que prohíbe revender. Para I+D+I / JARVIS personal está bien. Para exponer comercialmente, no.

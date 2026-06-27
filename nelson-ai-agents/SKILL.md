@@ -263,7 +263,128 @@ class Orchestrator:
         return final
 ```
 
-## Function Calling nativo (OpenAI)
+## Patron Event Stream (AgentScope 2.0)
+
+AgentScope introduce un stream de eventos granulares por paso del agente. Permite observar en tiempo real cada fase del loop ReAct: thinking, tool call, tool result, texto delta. Ideal para UI en tiempo real en el dashboard.
+
+```python
+# Patrón de consumo del event stream — adaptable a nuestro FastAPI
+from enum import Enum
+from typing import AsyncGenerator
+from dataclasses import dataclass
+
+class EventType(str, Enum):
+    REPLY_START          = "reply_start"
+    REPLY_END            = "reply_end"
+    THINKING_START       = "thinking_start"
+    THINKING_DELTA       = "thinking_delta"
+    THINKING_END         = "thinking_end"
+    TEXT_DELTA           = "text_delta"
+    TOOL_CALL_START      = "tool_call_start"
+    TOOL_CALL_END        = "tool_call_end"
+    TOOL_RESULT_START    = "tool_result_start"
+    TOOL_RESULT_END      = "tool_result_end"
+    REQUIRE_CONFIRMATION = "require_confirmation"   # Human-in-the-loop
+    EXCEED_MAX_ITERS     = "exceed_max_iters"
+
+@dataclass
+class AgentEvent:
+    type: EventType
+    data: dict
+
+# En nuestro executor.py — emitir eventos por SSE al frontend
+async def run_agent_stream(task: str) -> AsyncGenerator[AgentEvent, None]:
+    yield AgentEvent(type=EventType.REPLY_START, data={"task": task})
+
+    async for step in agent.react_loop(task):
+        if step.is_thinking:
+            yield AgentEvent(type=EventType.THINKING_DELTA, data={"text": step.text})
+        elif step.is_tool_call:
+            yield AgentEvent(type=EventType.TOOL_CALL_START, data={"tool": step.tool_name, "args": step.args})
+            result = await execute_tool(step.tool_name, step.args)
+            yield AgentEvent(type=EventType.TOOL_RESULT_END, data={"result": result})
+        elif step.is_text:
+            yield AgentEvent(type=EventType.TEXT_DELTA, data={"text": step.text})
+
+    yield AgentEvent(type=EventType.REPLY_END, data={})
+```
+
+**Por qué importa para nosotros:** el dashboard ya tiene timeline persistente (SQLite). Conectar el stream de eventos al `_log_event()` del orquestador le da visibilidad en tiempo real por paso, no solo por subtarea completa.
+
+## Patron Permission Engine (Human-in-the-loop)
+
+AgentScope tiene un `PermissionEngine` que pausa la ejecución del agente antes de acciones potencialmente peligrosas y espera confirmación humana. Implementar este patrón en nuestro meta-orquestador para operaciones destructivas.
+
+```python
+# app/agents/permissions.py
+from enum import Enum
+from typing import Callable, Any
+from dataclasses import dataclass
+
+class PermissionMode(str, Enum):
+    AUTO    = "auto"      # ejecutar sin confirmación
+    CONFIRM = "confirm"   # pedir confirmación al usuario
+    DENY    = "deny"      # denegar siempre
+
+@dataclass
+class PermissionRule:
+    tool_name: str
+    mode: PermissionMode
+    reason: str = ""
+
+class PermissionEngine:
+    """Decide si una tool call requiere confirmación humana."""
+
+    DEFAULT_RULES: list[PermissionRule] = [
+        # Operaciones destructivas → siempre confirmar
+        PermissionRule("delete_file",       PermissionMode.CONFIRM, "operación destructiva"),
+        PermissionRule("drop_table",        PermissionMode.CONFIRM, "operación destructiva"),
+        PermissionRule("run_migration",     PermissionMode.CONFIRM, "modifica schema de DB"),
+        PermissionRule("deploy_production", PermissionMode.CONFIRM, "deploy a producción"),
+        PermissionRule("send_email",        PermissionMode.CONFIRM, "comunicación externa"),
+        # Lectura y generación → automático
+        PermissionRule("read_file",         PermissionMode.AUTO),
+        PermissionRule("search_qdrant",     PermissionMode.AUTO),
+        PermissionRule("generate_text",     PermissionMode.AUTO),
+    ]
+
+    def __init__(self, rules: list[PermissionRule] = None):
+        self.rules = {r.tool_name: r for r in (rules or self.DEFAULT_RULES)}
+
+    def check(self, tool_name: str) -> PermissionMode:
+        rule = self.rules.get(tool_name)
+        if rule:
+            return rule.mode
+        return PermissionMode.CONFIRM  # default: confirmar si no hay regla
+
+    def requires_confirmation(self, tool_name: str) -> bool:
+        return self.check(tool_name) == PermissionMode.CONFIRM
+
+
+# En el executor — verificar antes de cada tool call
+class ToolExecutor:
+    def __init__(self, permission_engine: PermissionEngine, notify_fn: Callable):
+        self.permissions = permission_engine
+        self.notify = notify_fn  # envía evento REQUIRE_CONFIRMATION al frontend
+
+    async def execute(self, tool_name: str, args: dict, task_id: str) -> Any:
+        if self.permissions.requires_confirmation(tool_name):
+            # Pausar y esperar OK del usuario via WebSocket/SSE
+            confirmed = await self.notify({
+                "event": "require_confirmation",
+                "task_id": task_id,
+                "tool": tool_name,
+                "args": args,
+            })
+            if not confirmed:
+                raise PermissionDeniedError(f"Usuario denegó ejecución de {tool_name}")
+
+        return await self._run_tool(tool_name, args)
+```
+
+**Cuándo usar CONFIRM vs AUTO:**
+- CONFIRM: cualquier operación con efecto secundario externo (deploy, email, DB write, delete)
+- AUTO: operaciones de lectura, búsqueda, generación de texto local
 
 ```python
 # Alternativa moderna: usar function calling nativo de OpenAI
@@ -332,9 +453,14 @@ class FunctionCallingAgent:
 - [ ] Validar inputs de tools (no ejecutar codigo arbitrario)
 - [ ] Fallback si el agente no puede resolver
 
+## Herramientas de data collection para agentes
+
+**BigSet** (`references/bigset-radar.md`) — convierte frases en lenguaje natural en datasets CSV/XLSX usando sub-agentes paralelos con búsqueda web. CLI diseñado para ser invocado por agentes autónomos. Stack TS/Node, requiere TinyFish + OpenRouter keys.
+
 ## Referencias
 
 - [Extracción de cookies de Epiphany para autenticación de agentes](references/epiphany-cookie-extraction.md) — cómo extraer sesiones de GNOME Web para Playwright y herramientas que requieren auth de Google.
+- [Identidad Multi-Plataforma](references/user-identity-multiplatform.md) — arquitectura completa para reconocer al mismo usuario desde WhatsApp, Telegram y Teams usando un canonical_id unificado + Holographic Memory. Incluye pitfall crítico de Teams (`aadObjectId` vs `from.id`), flujos de aprobación, IdentityResolver Python, y deploy de SIE como potenciador.
 
 ## Pitfalls
 
@@ -344,10 +470,14 @@ class FunctionCallingAgent:
 - Memoria crece sin limite; resumir o truncar periodicamente
 - Tools lentas bloquean al agente; usar async cuando sea posible
 - Costos: cada iteracion es una llamada al LLM; monitorizar tokens
+- **Identidad multi-plataforma:** En Teams, NUNCA usar `from.id` (inestable). Siempre `from.aadObjectId` (UUID de Azure AD, inmutable). Ver `references/user-identity-multiplatform.md`.
+- **Identidad multi-plataforma:** Sin un Identity Map explícito, el mismo usuario visto desde WhatsApp/Telegram/Teams genera 3 perfiles distintos en Holographic — la memoria no se comparte.
 
 ## Orquestacion Multi-Agente con Frameworks Externos
 
-Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencia comparativa en `references/multi-agent-frameworks.md`.
+Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion antes de construir custom. Ver referencias:
+- `references/multi-agent-frameworks.md` — comparativa de 9 frameworks
+- `references/agentscope-integration.md` — integración de AgentScope 2.0 con nuestro stack
 
 ### Decision rapida
 
@@ -359,6 +489,7 @@ Para workflows de I+D+i o equipos de agents, evaluar frameworks de orquestacion 
 | Equipo de agents con roles, brainstorming | **CrewAI** (probar con locales primero) |
 | RAG complejo, pipelines de documentos | **LlamaIndex Workflows** |
 | Automatizaciones, notificaciones, integraciones | **n8n** (complementario) |
+| Multi-agente con message hub + MCP + A2A + voz | **AgentScope 2.0** (Alibaba, 26k stars, Apache 2.0) |
 
 ### Arquitectura hibrida recomendada (Equipo Nelson)
 
@@ -371,6 +502,53 @@ Layer 4: Ollama + Qdrant + FastAPI → infraestructura
 
 **Regla:** Empezar con custom ReAct (ya operativo) y migrar a LangGraph solo cuando el flujo requiera estados complejos o ciclos.
 
+## Honcho — Memoria Semántica para JARVIS
+
+Honcho es la capa de memoria semántica de JARVIS. Servicio permanente en ai-server :8008 (Docker). Almacena conversaciones importantes, construye perfil adaptativo de Nelson, recupera contexto por búsqueda semántica usando `text-embedding-3-small`.
+
+**Stack:** honcho-api-1 (:8008) + pgvector/pg15 (127.0.0.1:5434) + redis (127.0.0.1:6381)
+
+**Health check:** `curl http://localhost:8008/health` → `{"status":"ok"}`  
+**Acceso Tailscale:** http://100.110.8.13:8008
+
+### Nomenclatura API v3
+
+| Concepto | API v3 |
+|---|---|
+| App | Workspace |
+| User/Agent | Peer |
+| Conversación | Session |
+| Mensaje | Message |
+| Inferencia sobre usuario | Conclusion |
+
+**Workspace JARVIS:** `jarvis-nelson`, Peers: `nelson` + `jarvis`
+
+### Uso rápido
+
+```python
+from honcho import Honcho
+honcho = Honcho(base_url="http://localhost:8008", workspace_id="jarvis-nelson")
+nelson = honcho.peer("nelson")
+jarvis = honcho.peer("jarvis")
+session = honcho.session("2026-06-12-bisonte-deploy")
+# Guardar mensajes importantes
+session.add_messages([nelson.message("levantame expreso bisonte"), jarvis.message("backend :9000 ok")])
+# Recuperar contexto semántico
+context = nelson.chat("qué proyectos estamos trabajando?")
+```
+
+Scripts operativos: `~/.hermes/scripts/honcho_store.py` y `~/.hermes/scripts/honcho_context.py`.
+
+### Pitfalls Honcho
+
+- **OpenAI key truncada en docker-compose**: El shell redacta API keys con `***`. El container arranca con `len=13` en vez de 164 → error 401. Fix: usar script Python para leer la key como bytes y reescribir el docker-compose sin pasar por el shell. Luego `docker compose stop api && docker compose rm -f api && docker compose up -d api`.
+- **`docker compose restart` NO recarga variables de entorno** — recrear el container con `stop + rm -f + up -d`.
+- **Puertos custom**: postgres en 5434 (no 5432 — forestai usa 5433), redis en 6381 (no 6379).
+- **`restart: unless-stopped`** en todos los containers — sobreviven reinicios del servidor.
+- **Qué guardar**: decisiones de arquitectura, preferencias de Nelson, estado de proyectos activos, correcciones, specs aprobadas. NO guardar saludos, comandos de levantamiento, logs, passwords.
+
+Ver `references/honcho-ops.md` para scripts completos de inyección de key y endpoints API v3.
+
 ## Scripts
 
 - `scripts/run-multi-agent-spike.sh` — crea estructura estandar para evaluar un framework multi-agente (LangGraph, CrewAI, PydanticAI, etc.)
@@ -382,3 +560,4 @@ Layer 4: Ollama + Qdrant + FastAPI → infraestructura
 - `references/notebooklm-evaluation.md` — evaluacion de notebooklm-py para generar podcasts/infografias/quizzes desde documentos (ideal para I+D+i)
 - `scripts/run-multi-agent-spike.sh` — script para crear spike de evaluacion de framework
 - `scripts/test-notebooklm-podcast.py` — script de spike para NotebookLM + WhatsApp
+- `references/honcho-ops.md` — Honcho memoria semántica JARVIS: deploy, SDK Python, scripts de store/context, pitfalls de key injection, docker-compose template, API v3 nomenclatura

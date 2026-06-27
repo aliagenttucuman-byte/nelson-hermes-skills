@@ -11,6 +11,8 @@ triggers:
   - claude code setup
   - codex setup
 version: "1.0.0"
+# Basado en: https://github.com/walkinglabs/learn-harness-engineering (8.483 stars, jun 2026)
+# Insight clave: mismo modelo Claude Opus 4.5, mismo prompt — SIN harness: USD 9, 20 min, resultado no funciona. CON harness: USD 200, 6hs, juego completo. La diferencia es el contexto, no el modelo.
 ---
 
 # nelson-harness-creator

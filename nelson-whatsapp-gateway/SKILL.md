@@ -55,26 +55,29 @@ POST /send
 }
 ```
 
-## Enviar audio via gateway (workaround)
+## Pipeline TTS → WhatsApp (audio PTT nativo)
 
-El gateway Baileys expone `/send` para texto y no tiene `/send-media` implementado (devuelve 404). Para enviar un audio generado con TTS a un número externo, dos opciones:
+El bridge nativo de Hermes (`:3000`) tiene `/send-media` implementado con soporte de audio completo. El pipeline completo es:
 
-1. **Enviar el texto del mensaje como texto plano** via `/send` — funciona siempre, sin fricción.
-2. **Transcribir el audio a texto** y enviarlo como mensaje de texto.
+1. Hermes genera respuesta de texto
+2. `text_to_speech` → genera `.mp3` en `~/.hermes/audio_cache/`
+3. El bridge llama `/send-media` con `mediaType: "audio"`
+4. `bridge.js` detecta que no es ogg/opus → convierte con ffmpeg a ogg/opus (`libopus`, 48kHz mono)
+5. Se envía como PTT (nota de voz nativa con burbuja de audio)
 
-El endpoint `/send-media` NO existe en la implementación actual del gateway. No intentarlo.
+La conversión mp3→ogg es automática y silenciosa. Si ffmpeg no está disponible, cae back a enviar como archivo adjunto.
 
 ```bash
-# ✅ Funciona
-curl -X POST http://localhost:3001/send \
+# ✅ Enviar audio como nota de voz PTT
+curl -X POST http://localhost:3000/send-media \
   -H 'Content-Type: application/json' \
-  -d '{"to": "5493816240691", "message": "Texto del mensaje"}'
-
-# ❌ No existe
-curl -X POST http://localhost:3001/send-media ...  # 404
+  -d '{"chatId": "549...", "filePath": "/ruta/audio.mp3", "mediaType": "audio"}'
 ```
 
-Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el servidor Node.js del gateway usando `sock.sendMessage(jid, { audio: fs.readFileSync(path), mimetype: 'audio/ogg; codecs=opus', ptt: true })`.
+El gateway standalone Baileys (`:3001`) solo tiene `/send` para texto. Para audio nativo, usar el bridge de Hermes (`:3000`).
+
+Provider TTS activo: `edge` con voz `es-AR-TomasNeural` (Microsoft Edge TTS, local, gratis).
+Otros providers configurados (inactivos): ElevenLabs, OpenAI TTS, xAI, Mistral Voxtral, NeuTTS.
 
 ## Pitfalls
 
@@ -95,6 +98,7 @@ Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el s
   ```
   El código de Hermes debería detectar el PID stale automáticamente, pero con `--replace` a veces el lock no se limpia si el proceso anterior terminó de forma abrupta entre arranques del sistema.
 
+- **Hermes WhatsApp NO puede entregar archivos (PDF, MD, etc.) vía MEDIA:** El tool `send_message` de WhatsApp en Hermes solo soporta imágenes (.jpg/.png/.webp) y audios (.ogg/.mp3) inline. Archivos como PDF o .md no se entregan — el intento falla silenciosamente o con error. Para compartir documentos con Nelson via WhatsApp, las opciones son: (1) enviarlo por Telegram (funciona nativo), (2) indicarle la ruta en el server (`/home/server/...`), (3) generar una URL temporaria con `python3 -m http.server`. Nunca intentar MEDIA: con archivos que no sean imagen o audio en WhatsApp.
 - **Bridge nativo de Hermes no envía a contactos nuevos**: El tool `send_message` de Hermes (que usa el bridge de WhatsApp) solo puede enviar a números que ya están en los contactos de la sesión del bot. Si intenta enviar a un número nuevo (ej. Pablo, 5493816240691), da error:
   ```
   {"error":"Cannot destructure property 'user' of 'jidDecode(...)' as it is undefined."}
@@ -114,9 +118,6 @@ Si en el futuro se necesita enviar audio nativo, implementar el endpoint en el s
 - **El QR se guarda en archivo PNG** porque el usuario puede no estar mirando la terminal (GNOME, otras apps abiertas). Abrir automáticamente con `xdg-open` si es posible.
 - **NO usar `&` o `nohup` en comandos de terminal Hermes**. Hermes bloquea backgrounding en foreground commands. Usar `execute_code` con `subprocess.Popen(..., start_new_session=True)` para levantar el servidor, luego verificar con health checks separados.
 - **Health check con Python `urllib`** en vez de `curl` desde terminal cuando el servidor corre en background — más fiable dentro del entorno de Hermes.
-- **Gateway no arranca: no hay `package.json` ni `node_modules`**: Si el directorio del gateway solo tiene `server.js` y `auth/`, npm nunca se inicializó. Síntoma: `node server.js` falla con `MODULE_NOT_FOUND`. Fix: `npm init -y && npm install @whiskeysockets/baileys express qrcode`.
-- **`Bad MAC` / `No matching sessions` / `conflict: replaced`**: El `auth/` está corrupto o desincronizado con WhatsApp Web (probablemente por conflicto con otro proceso de Baileys, como el bridge de Hermes). Síntomas en log: errores de `libsignal`, luego `stream errored out (conflict, type: replaced)`. Fix: parar el gateway, borrar `auth/`, generar QR nuevo y re-vincular. Ver `references/troubleshooting-gateway-down.md`.
-- **Gateway muerto pero bridge de Hermes funciona**: El puerto 3001 no responde mientras 3000 está `connected`. Revisar si el proceso `node server.js` existe (`lsof -i :3001`). Si no existe, revisar que `node_modules` esté instalado y que no haya lock stale bloqueando el arranque.
 - **"Connected" pero mensajes no llegan**: El gateway (puerto 3001) puede estar conectado y responder bien a `/send` manual, pero si los mensajes automatizados dejaron de llegar, el problema suele estar en el **script emisor** (cronjob caído, script con error) o en el **bridge de Hermes** (puerto 3000) con `queueLength > 0` (mensajes atascados esperando consumo). Ver `references/troubleshooting-messages-not-arriving.md` para flujo de diagnóstico completo.
 - **ai_news_collector_v2.py NO envía por WA**: El script solo genera el digest en disco. El envío por WhatsApp está en el prompt del cron job (04bdd6e154a3), no en el script Python. Si los mensajes no llegan, revisar el prompt del cron primero, no el script.
 - **Secuencia de diagnóstico validada (mayo 2026)**: 1) `systemctl --user status whatsapp-gateway` → 2) `curl -s http://localhost:3001/health` → 3) test manual `curl -X POST http://localhost:3001/send` con número propio → 4) revisar journalctl en la ventana horaria del cron → 5) revisar prompt del cron job en Hermes.
@@ -220,71 +221,6 @@ CONTACTS = {
 
 Cuando Tony agregue un nuevo contacto del equipo, sumarlo a este diccionario y guardar en memoria de usuario el nombre + número.
 
----
-
-## Comunicación Externa — Reglas de JARVIS
-
-Cuando Nelson pide generar un mensaje o audio **para una tercera persona** (socios, familiares, colaboradores), seguir estas reglas.
-
-### Confirmar identidad antes de actuar
-
-**SIEMPRE** preguntar o confirmar:
-- Nombre completo o cómo prefiere ser llamado.
-- Relación con Nelson (socio, amigo, familiar, cliente).
-- Contexto de la interacción (reunión de negocios, social, familiar).
-
-> **Pitfall Crítico:** No asumir profesión o rol del destinatario. En producción se asumió que Pablo era "terapeuta" cuando era **socio en la consultora**. La asunción incorrecta generó corrección de Nelson.
-
-### Generar audio para terceros
-
-1. Usar `text_to_speech` con voz `es-AR-TomasNeural`, output en `.ogg` para compatibilidad nativa con WhatsApp.
-2. Incluir siempre: saludo por nombre, presentación de JARVIS, cierre cordial.
-3. Mencionar proyectos del equipo **solo** si Nelson lo solicita explícitamente.
-4. Mantener audios **concisos** (máximo 20-30 segundos). Nelson es action-oriented.
-
-### Formato de respuesta obligatorio a Nelson
-
-**Toda respuesta a Nelson debe tener SIEMPRE:**
-1. **Texto** — detalle técnico o información completa.
-2. **Audio** — resumen sencillo de lo que se hizo. Conciso, en castellano natural.
-
-**Nunca enviar solo audio sin texto.** El audio no repite el texto literalmente — es un resumen oral.
-
-> Corrección explícita de Nelson: *"Texto y audio. Si te pido cosas no me vas a mandar solo un audio. Que el audio sea una explicación sencilla de lo que hiciste."*
-
-### Ritmo de trabajo — pasito a pasito
-
-Nelson prefiere que las tareas complejas se ejecuten **pasito a pasito**. No adelantar pasos sin su OK explícito. Cuando Nelson ya aprobó explícitamente ("mandále a Pablo"), ejecutar directo sin re-confirmar — la re-confirmación es fricción innecesaria.
-
-**Re-confirmar SOLO cuando:** el pedido es ambiguo, no hay contexto claro, o el contenido podría ser incorrecto.
-
-> **Importante:** "pasito a pasito" (no "pasito a pasio"). Nelson corrigió explícitamente esta frase.
-
-### Regla de oro — información a terceros
-
-Nelson decide qué ve Pablo y qué no. JARVIS NO envía nada a Pablo sin aprobación explícita previa de Nelson.
-
-- Si Nelson dice "compartile esto a Pablo" → se comparte.
-- Si no especifica → queda en manos de Nelson.
-- Si el documento es de I+D+i o estratégico → preguntar antes de compartir.
-
-**Pitfall crítico:** Se enviaron dos documentos de I+D+i a Pablo sin preguntar. Nelson corrigió: *"no le mandes nada.. solo te comento.. lo tengo que ver y revisar, en un principio, yo.. si es que quiero que Pablo sepa lo que vamos haciendo"*.
-
-### Manejo de falla en transcripción de audios
-
-Si el servicio de transcripción falla (solo aparece `[audio received]`):
-1. **NO explicar extensamente** la falla técnica.
-2. **Pedir directamente** que Nelson escriba el mensaje por texto.
-3. **Frase estándar:** *"Tony, no puedo escuchar el audio ahora. ¿Me lo escribís por acá?"*
-
-### Contactos clave
-
-| Nombre | Rol | Notas |
-|--------|-----|-------|
-| Pablo | Socio en consultora + Terapeuta | Presentarse como parte del equipo de agentes |
-| Mercedes (8) | Hija | Mensajes familiares, afectuosos |
-| Julián (5) | Hijo | Mensajes familiares, afectuosos |
-
 ## Patrón: delivery híbrido desde cron jobs
 
 Cuando un cron job de Hermes necesita entregar a Nelson + contactos externos:
@@ -332,9 +268,7 @@ Ejemplo de uso: el AI News Aggregator genera un resumen y al finalizar llama `se
 - `references/ai-news-aggregator-delivery.md` — Patrón completo de delivery híbrido, fuentes del script v2, formato del mensaje externo, cron job ID.
 - `references/hermes-bridge-sigterm-crash.md` — Problema recurrente: el bridge nativo de Hermes (puerto 3000) se cae con SIGTERM (`code -15`) mientras el gateway standalone (3001) permanece estable. Diagnóstico, hipótesis de causa raíz, y solución temporal de monitoreo.
 - `references/troubleshooting-messages-not-arriving.md` — Guía paso a paso para cuando los mensajes dejan de llegar aunque el gateway diga "connected". Diferencia gateway (3001) vs bridge (3000) vs origen del mensaje.
-- `references/troubleshooting-gateway-down.md` — Secuencia de diagnóstico validada cuando el gateway en 3001 no responde: proceso muerto, auth corrupto (`Bad MAC`, `conflict: replaced`), y pasos de re-vinculación.
 - `references/connect-example.js` — Script Node.js completo de conexión con QR + código de emparejamiento.
 - `references/whatsapp-api-server.js` — Servidor Express completo con endpoints `/send` y `/send-batch`.
 - `references/send_whatsapp.py` — Script Python helper para consumir la API sin dependencias.
 - `references/session-troubleshooting.md` — Problemas reales encontrados durante setup (pairing code fallando, health check "disconnected", port conflicts, proceso zombie). Incluye secuencia paso a paso validada.
-- `templates/connect-relink.js` — Script template para re-generar QR y re-vincular la sesión cuando `auth/` está corrupto. Copiar al directorio del gateway, correr `node connect-relink.js`, escanear QR.

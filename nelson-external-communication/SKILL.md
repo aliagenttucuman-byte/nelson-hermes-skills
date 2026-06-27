@@ -101,6 +101,61 @@ Re-confirmar cuando Nelson YA dijo qué enviar es fricción innecesaria y frustr
 3. Nelson decide si comparte con Pablo
 4. Si Nelson aprueba → entonces enviar a Pablo
 
+## Análisis de Documentos Legales (NDA / Contratos)
+
+Cuando Nelson manda un PDF de contrato o NDA para revisión:
+
+1. Extraer texto con `pdfplumber` (ver skill nelson-document-processing)
+2. Analizar y resumir con este esquema:
+   - ¿Quiénes son las partes?
+   - ¿Cuál es el objeto? (NDA puro, contrato de servicios, mixto)
+   - Cláusulas clave para un contractor tech argentino:
+     - **Propiedad Intelectual** — ¿queda en el cliente o en Nelson?
+     - **No captación** — ¿hay restricción de contratar empleados?
+     - **Confidencialidad** — duración, alcance
+     - **Jurisdicción** — ¿Argentina, USA, otra?
+     - **No dependencia laboral** — ¿lo aclara explícitamente?
+   - Semáforo: Verde (firmar tranquilo) / Amarillo (negociar) / Rojo (no firmar)
+3. Dar opinión directa y concisa — Nelson no quiere análisis académico
+
+**Pitfall:** Nelson manda documentos "para saber qué opinás" — NO es pedido de acción legal. Dar la opinión y esperar que él decida si actúa.
+
+### Patrón documentado — NDAs para contratos internacionales (jun 2026)
+
+| Documento | Partes | Tipo | Resultado |
+|-----------|--------|------|-----------|
+| NDA_-_Esp.pdf | Nelson ↔ Globant (intermediario LAN) | NDA + PI + No captación | ✅ Firmar, cuidado PI a largo plazo |
+| NDA_Contractor_-_Nelson_Acosta.pdf | Nelson ↔ Intermedia LLC (Florida) | NDA puro confidencialidad | ✅ Firmar tranquilo — sin PI, sin no captación |
+
+**Intermedia LLC:** empresa de Florida (Hallandale Beach), Manager: Maximiliano Cassola. Intermediario para contratos LAN Chile/LATAM. Contrato efectivo 29/06/2026, rol: Data Scientist Sr Level 1. Ley Delaware, jurisdicción Miami-Dade.
+
+---
+
+## Datos Bancarios Internacionales (Cuenta USA para cobros del exterior)
+
+Nelson recibe pagos internacionales vía ARQ (DolarApp) — cuenta bancaria USA real en Lead Bank.
+
+**Datos de cuenta (Lead Bank / ARQ):**
+- Beneficiary: Nelson Acosta
+- Bank: Lead Bank
+- Address: 1801 Main St., Kansas City, Missouri 64108, USA
+- ABA/Routing: 101019644
+- Account: 219123167275
+- Account type: Checking
+- SWIFT/BIC: **LEADUS42** (confirmado Google/Remitly jun 2026)
+- Comisión ACH: 3 USD por transferencia
+
+**Flujo de cobro:** Intermedia LLC → ACH/Wire → Lead Bank (ARQ) → retiro a Argentina en USDc
+
+**Cómo obtener SWIFT si no aparece en la app:**
+1. Preguntarle al soporte de ARQ por el chat de la app
+2. Buscar en Google: "[banco] [ciudad] SWIFT code"
+3. swift.com — buscador oficial
+
+**Pitfall:** el SWIFT tiene sufijo XXX para la casa central — al llenar formularios usar solo los 8 caracteres (LEADUS42), sin XXX.
+
+---
+
 ## Contactos Clave
 
 | Nombre | Rol | Notas |

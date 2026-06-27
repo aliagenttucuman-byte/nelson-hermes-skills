@@ -8,13 +8,19 @@ platforms: [linux]
 metadata:
   hermes:
     tags: [forestai, drones, geotiff, rasterio, opencv, maplibre, inventario-forestal, obia]
-    related_skills: [nelson-spec-driven-workflow, nelson-brainstorming, nelson-project-bootstrap]
+    related_skills: [nelson-spec-driven-workflow, nelson-brainstorming, nelson-project-bootstrap, nelson-netflora]
 ---
 
 # ForestAI — Inventario Forestal con Drones (PoC I+D+I)
 
 Skill de dominio para la PoC de inventario forestal automático desde ortofotos de drone.
 Detecta árboles, estima especie, biomasa y edad usando image analytics sin ML.
+
+## Ortomosaicos reales de Tucumán
+
+Ver `references/ortomosaicos-tucuman-caso-real.md` — caso real de junio 2026.
+IMPORTANTE: los archivos son RGB (4 bandas RGBA), NO multiespectrales. NDVI no aplicable.
+Usar VARI o ExG para índices de vegetación. rasterio==1.4.4 disponible en el server.
 
 ## Deploy rápido post-cambios
 
@@ -1263,6 +1269,18 @@ Todos los GeoTIFFs actuales son 3 bandas uint8 (RGB puro) — verificado con ras
 3. **Escala adaptativa** — rango área mínima/máxima en función del GSD real del GeoTIFF
 
 ---
+
+## Integración con NetFlora (Embrapa Acre)
+
+NetFlora es un sistema open source (GPL 3.0) que resuelve el mismo problema que ForestAI
+con 60+ especies entrenadas sobre 100.000 ha de Amazonia. Sus modelos YOLOv7 y datos
+son reutilizables. Ver detalles completos en `references/netflora-embrapa.md`.
+
+Integración propuesta:
+- Importar pesos `model_weights.pt` de NetFlora al backend ForestAI
+- Agregar catálogo de 60 especies (json/ del repo NetFlora)
+- Output: CSV + Shapefile georreferenciado por árbol, filtrable por categoría
+- Plugin QGIS disponible (Netflora2, abril 2026): detección directa en QGIS sin UI web
 
 ## Referencias y Scripts
 

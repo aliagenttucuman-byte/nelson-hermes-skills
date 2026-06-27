@@ -217,59 +217,6 @@ Este plan documenta los workflows clave para transformar la consultora en una m�
 
 **Pitfall:** No usar n8n para tareas que un cronjob Hermes resuelve en 30 minutos. El overhead de configurar un workflow visual no se justifica para automatizaciones simples.
 
-## Importar workflows programáticamente (sin UI)
-
-Cuando el browser no está disponible (servidor headless), importar y activar workflows via CLI:
-
-### Paso 1 — Importar via n8n CLI
-```bash
-# Copiar el JSON al container y importar
-docker cp /tmp/mi_workflow.json n8n:/tmp/mi_workflow.json
-docker exec n8n n8n import:workflow --input=/tmp/mi_workflow.json
-```
-
-El JSON debe tener un campo `"id"` (string alfanumérica) o falla con:
-```
-SQLITE_CONSTRAINT: NOT NULL constraint failed: workflow_entity.id
-```
-Fix: agregar `"id": "abcdef1234567890"` (16 chars hex) al JSON antes de importar.
-
-Si el JSON tiene `"active": true`, n8n lo ignora al importar y lo deja inactivo de todas formas.
-
-### Paso 2 — Activar via sqlite3 (node.js)
-n8n no tiene `sqlite3` ni `python3` en el container, pero sí tiene `node` con el módulo `sqlite3` de n8n disponible:
-
-```javascript
-// /tmp/activate.js
-const sqlite3 = require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');
-const db = new sqlite3.Database('/home/node/.n8n/database.sqlite');
-db.run("UPDATE workflow_entity SET active=1 WHERE id=?", ['MI_WORKFLOW_ID'], function(err) {
-  if(err) console.error(err);
-  else console.log('Activado, rows:', this.changes);
-  db.close();
-});
-```
-
-```bash
-docker cp /tmp/activate.js n8n:/tmp/activate.js
-docker exec n8n node /tmp/activate.js
-# Reiniciar para que n8n registre el scheduler del workflow activo
-cd ~/n8n-docker && docker compose restart n8n
-```
-
-### Verificar workflows importados
-```bash
-docker exec n8n n8n export:workflow --all --output=/tmp/exported.json 2>&1
-docker exec n8n node -e "
-const sqlite3 = require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');
-const db = new sqlite3.Database('/home/node/.n8n/database.sqlite');
-db.all('SELECT id, name, active FROM workflow_entity', (err,rows) => {
-  rows.forEach(r => console.log(r.id, r.active ? '✅' : '❌', r.name));
-  db.close();
-});
-"
-```
-
 ## Estado del servidor (2026-05-21)
 
 - n8n v2.20.6 corriendo en Docker, puerto 5678, uptime estable
@@ -370,116 +317,6 @@ conn.close()
 "
 ```
 
-## Credenciales actualizadas (sesión 2026-06-09)
-
-- **Email:** nelsongacosta@gmail.com
-- **Password:** BuenosAires435!
-- **UI:** http://100.110.8.13:5678/
-
-(Nota: el docker-compose tiene N8N_BASIC_AUTH_* pero esas variables son ignoradas en modo user-management. Usar el email/password registrado al hacer setup inicial.)
-
-## Patrón: Health Server Python como proxy para n8n
-
-El nodo `n8n-nodes-base.executeCommand` **NO existe en n8n v2.20.6**. Intentar importar un workflow con ese nodo da:
-```
-Unrecognized node type: n8n-nodes-base.executeCommand
-```
-
-**Solución validada**: levantar un mini servidor HTTP Python en el host que ejecuta los comandos de sistema y devuelve JSON. n8n lo consulta via HTTP Request nativo.
-
-```python
-# /home/server/n8n-docker/health_server.py — puerto 9099
-import subprocess, json, psutil
-from http.server import HTTPServer, BaseHTTPRequestHandler
-
-def run(cmd):
-    try:
-        return subprocess.check_output(cmd, shell=True, text=True, timeout=5).strip()
-    except:
-        return "0"
-
-def safe_int(val):
-    try:
-        return int(val.split()[0])
-    except:
-        return 0
-
-def get_metrics():
-    cpu  = str(round(psutil.cpu_percent(interval=None), 1))  # interval=None evita bloqueo
-    ram  = str(round(psutil.virtual_memory().percent, 1))
-    disk = str(round(psutil.disk_usage("/").percent, 1))
-    forestai = run("docker ps --filter name=forestai-poc --filter status=running --format '{{.Names}}' | wc -l")
-    bisonte  = run("ss -tlnp 2>/dev/null | grep ':9000' | wc -l")
-    whatsapp = run("ss -tlnp 2>/dev/null | grep ':3001' | wc -l")
-    alerts = []
-    if float(cpu) > 80: alerts.append(f"CPU: {cpu}% > 80%")
-    if float(ram) > 85: alerts.append(f"RAM: {ram}% > 85%")
-    if float(disk) > 80: alerts.append(f"Disco: {disk}% > 80%")
-    if safe_int(forestai) == 0: alerts.append("ForestAI Docker CAIDO")
-    if safe_int(bisonte) == 0:  alerts.append("Expreso Bisonte :9000 CAIDO")
-    if safe_int(whatsapp) == 0: alerts.append("WhatsApp Gateway :3001 CAIDO")
-    return {"status": "alert" if alerts else "ok", "alerts": alerts,
-            "metrics": {"cpu": cpu, "ram": ram, "disk": disk},
-            "services": {"forestai_docker": safe_int(forestai),
-                         "bisonte_9000": safe_int(bisonte), "whatsapp_3001": safe_int(whatsapp)}}
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args): pass
-    def do_GET(self):
-        data = json.dumps(get_metrics()).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(data)
-
-HTTPServer(("0.0.0.0", 9099), Handler).serve_forever()
-```
-
-**Pitfall crítico — `psutil.cpu_percent(interval=1)` bloquea el HTTP thread**: usar siempre `interval=None` para no bloquear. Con interval=1, el servidor acepta la conexión pero nunca responde (curl da exit 52 / empty reply).
-
-**Pitfall — awk con escapes en raw strings Python**: los comandos awk con `printf "%.0f"` generan `backslash not last character` cuando se definen con `r"""..."""`. Usar `psutil` directamente para CPU/RAM/disco — es más limpio y no tiene problemas de escaping.
-
-Desde n8n, el nodo HTTP Request apunta a `http://172.17.0.1:9099/` (IP del host desde Docker).
-
-## Activar workflows en n8n programáticamente
-
-### El problema con `n8n import:workflow`
-Importar via CLI marca el workflow como "draft" aunque tenga `active: true` en el JSON. n8n **no lo activa al reiniciar** — solo activa los que pasaron por la UI o la REST API.
-
-### Flujo correcto para activar via REST (sin UI)
-
-```bash
-# 1. Login con cookie
-curl -s -c /tmp/n8n_cookies.txt -X POST http://localhost:5678/rest/login \
-  -H 'Content-Type: application/json' \
-  -d '{"emailOrLdapLoginId":"nelsongacosta@gmail.com","password":"BuenosAires435!"}'
-
-# 2. Obtener versionId del workflow
-VID=$(curl -s -b /tmp/n8n_cookies.txt http://localhost:5678/rest/workflows/WORKFLOW_ID \
-  | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['versionId'])")
-
-# 3. Activar con versionId
-curl -s -b /tmp/n8n_cookies.txt \
-  -X POST "http://localhost:5678/rest/workflows/WORKFLOW_ID/activate" \
-  -H 'Content-Type: application/json' \
-  -d "{\"versionId\":\"$VID\"}"
-```
-
-**Pitfall**: el endpoint `/activate` requiere el `versionId` — sin él devuelve `{"code":"invalid_type",...,"path":["versionId"]}`. Y el versionId solo aparece en `data.versionId` dentro de la respuesta de GET del workflow individual.
-
-### Activar via SQLite (alternativa sin REST)
-```javascript
-// docker cp script.js n8n:/tmp/ && docker exec n8n node /tmp/script.js
-const sqlite3 = require('/usr/local/lib/node_modules/n8n/node_modules/sqlite3');
-const db = new sqlite3.Database('/home/node/.n8n/database.sqlite');
-db.run("UPDATE workflow_entity SET active=1 WHERE id=?", ['WORKFLOW_ID'], function(err) {
-  console.log('activado, rows:', this.changes);
-  db.close();
-});
-```
-Después de editar la DB directamente, reiniciar n8n: `cd ~/n8n-docker && docker compose restart n8n`.
-**Nota**: n8n puede ignorar el flag de la DB al cargar si el workflow tiene issues de validación internos. La REST API es más confiable.
-
 ## Pitfalls de red: host.docker.internal NO funciona en este setup
 
 **`host.docker.internal` NO está configurado en el Docker de este servidor.** Usar siempre la IP del gateway de Docker:
@@ -545,90 +382,6 @@ subprocess.run(["docker", "restart", "n8n"])
 
 Email de la cuenta: `aliagenttucuman@gmail.com` (cuenta Tony Stark).
 
-## Pipeline LinkedIn con n8n
-
-n8n tiene nodo nativo de LinkedIn. Permite publicar posts en cuentas personales y company pages usando OAuth2 oficial.
-
-### Prerequisito crítico: LinkedIn Developer App
-
-1. Crear app en https://developer.linkedin.com
-2. Agregar producto **"Share on LinkedIn"** (solicitar en pestaña Products)
-3. Esperar aprobación del scope `w_member_social` — puede tardar días
-4. Con aprobación: los endpoints `/rest/posts` y `/rest/documents` quedan habilitados
-
-### Credenciales necesarias
-
-- **Client ID**: visible en la pantalla principal de la app (ej: `77djcvwzhlbcak`)
-- **Client Secret**: pestaña Auth → Primary Client Secret → icono ojo para mostrarlo. Formato: cadena alfanumérica larga sin guiones
-
-**PITFALL CRÍTICO**: El token con formato `WPL_AP1.XXXX.YYYY==` NO es el Client Secret. Es un access token de sesión. El Client Secret está en Auth → Primary Client Secret y tiene formato distinto (sin `WPL_AP1`).
-
-### Flujo OAuth2 para n8n
-
-1. En n8n: Credentials → New → LinkedIn OAuth2 API
-2. Pegar Client ID y Client Secret
-3. Redirect URI debe ser: `https://oauth.n8n.io/oauth2/callback` (o la URL de tu instancia)
-4. Agregar esa Redirect URI en la app de LinkedIn Developer (Auth → OAuth 2.0 settings)
-5. Autorizar la conexión — LinkedIn pedirá login y permisos
-
-### Workflow típico: Fuente → IA → LinkedIn
-
-```
-Cron / Webhook → HTTP Request (fuente de contenido RSS/API) 
-→ Code Node (formatear/procesar con IA vía Ollama) 
-→ LinkedIn (Create Post)
-```
-
-### Operaciones del nodo LinkedIn en n8n
-
-- `Create Post` — texto simple o con imagen
-- `Create Post with Image` — subir imagen + texto
-- `Get Person` — perfil del usuario autenticado
-- Versión de API: `202401`
-
-### Alternativa sin n8n: Python directo
-
-```python
-import requests
-
-def post_to_linkedin(access_token: str, person_urn: str, text: str):
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0"
-    }
-    payload = {
-        "author": f"urn:li:person:{person_urn}",
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
-    }
-    r = requests.post(
-        "https://api.linkedin.com/v2/ugcPosts",
-        headers=headers,
-        json=payload
-    )
-    return r.json()
-```
-
-### Rate limits LinkedIn API
-
-- 100 requests/día en plan básico
-- 500 requests/día con verificación adicional
-- 1 post cada 10 segundos por miembro
-- Access token: válido 60 días, necesita refresh manual
-
-### Lo que hay que EVITAR
-
-- `linkedin-api` (pip) — usa cookies de sesión, riesgo alto de ban
-- Selenium/Playwright — LinkedIn detecta bots activamente
-- Usar email/password directamente — violación de ToS
-
 ## Pitfalls
 
 1. **Docker requiere sudo.** Si el usuario no esta en el grupo `docker`, todos los comandos necesitan `sudo`. Usar: `echo 'PASSWORD' | sudo -S docker compose up -d` para evitar prompts interactivos.
@@ -641,15 +394,7 @@ def post_to_linkedin(access_token: str, person_urn: str, text: str):
 
 5. **NO instalar nodos custom dentro del contenedor Docker.** Instalar paquetes como `n8n-nodes-opencode` via `npm install` dentro del container genera problemas de permisos (root vs node). El contenedor corre como usuario `node` pero `npm install` como `root` deja archivos inaccesibles. Solucion: **usar el nodo HTTP Request nativo de n8n** en lugar de nodos custom. Es mas simple y no requiere instalacion.
 
-6. **Simplificar cuando el usuario lo pida.**
-
-7. **Importar workflow via API requiere API key, no basic auth.** La API REST de n8n en `/api/v1/workflows` requiere header `X-N8N-API-KEY`. Las variables `N8N_BASIC_AUTH_*` del docker-compose NO sirven para autenticar la API. Para obtener una API key: Settings → API → Create API Key en la UI de n8n.
-
-8. **`docker inspect` redacta las variables de entorno.** `docker inspect n8n` y `docker exec n8n env` muestran `***` para variables sensibles. No se pueden recuperar programáticamente — pedirlas al usuario directamente.
-
-9. **Desde n8n, localhost NO apunta al host.** Usar `172.17.0.1` para llegar a servicios del host desde dentro del container. Verificar: `docker exec n8n wget -qO- http://172.17.0.1:3001/health`.
-
- Si el usuario dice "simplifica" o muestra frustracion con pasos complejos, reducir a la solucion minima viable. No explicar teorias extensas ni dar multiples opciones. Ir directo a lo que funciona.
+6. **Simplificar cuando el usuario lo pida.** Si el usuario dice "simplifica" o muestra frustracion con pasos complejos, reducir a la solucion minima viable. No explicar teorias extensas ni dar multiples opciones. Ir directo a lo que funciona.
 
 ## Template: Reporte Semanal con Health Checks
 
@@ -709,39 +454,6 @@ Hardware de referencia: NVIDIA GTX 1650 Mobile 4GB VRAM, 13GB RAM.
 ## Templates
 
 - `templates/reporte-semanal-servicios.json` — Workflow n8n listo para importar: trigger lunes 9AM → health checks en paralelo (ForestAI, n8n, WA Gateway) → resumen en JS → envío WhatsApp a Nelson. Usar como base para otros reportes periódicos.
-- `templates/health_server.py` — Mini servidor HTTP Python (puerto 9099) que expone métricas del sistema como JSON. Workaround validado para reemplazar el nodo `executeCommand` que no existe en n8n v2.20.6.
-- `templates/monitor-servidor-workflow.json` — Workflow de monitoreo de servidor listo para importar. Consulta el health_server cada 5 minutos, filtra alertas y manda WhatsApp via gateway Baileys.
-- `templates/monitor-servidor-whatsapp.json` — Workflow de monitoreo cada 5 min: chequea CPU (>80%), RAM (>85%), Disco (>80%), ForestAI Docker, Bisonte :9000, WhatsApp GW :3001. Solo alerta cuando hay problema. WA via `172.17.0.1:3001/send`. ID activo en prod: `8316487bc6e44b9c`.
-- `templates/reporte-semanal-servicios.json` — Workflow n8n listo para importar: trigger lunes 9AM → health checks en paralelo (ForestAI, n8n, WA Gateway) → resumen en JS → envío WhatsApp a Nelson. Usar como base para otros reportes periódicos.
-
-## Referencias de soporte
-
-- `references/linkedin-api-pipeline.md` — App LinkedIn creada (Alegent AI investigations), flujo OAuth2 completo, endpoints, pitfalls, estado del pipeline al 2026-05-31.
-
-## LinkedIn Feed Pipeline
-
-Pipeline para publicar contenido en LinkedIn desde cuenta personal vía API oficial.
-Archivos en `~/brainstorming/2026-05-31-linkedin-feed-pipeline/`.
-
-Documentación completa, quirks del Client Secret (formato WPL_AP1) y flujo OAuth2:
-→ `references/linkedin-api-oauth2.md`
-
-**App registrada:** Alegent AI investigations (Client ID: 77djcvwzhlbcak)
-**Producto aprobado:** Share on LinkedIn (w_member_social) ✅
-
-## LinkedIn Feed Pipeline
-
-Pipeline para publicar posts en LinkedIn desde cuenta personal via API oficial.
-Ver detalles completos en [`references/linkedin-oauth2-pipeline.md`](references/linkedin-oauth2-pipeline.md).
-
-Resumen del flujo:
-1. Crear app en LinkedIn Developer con producto "Share on LinkedIn" (w_member_social)
-2. Levantar servidor OAuth2 FastAPI en :8090
-3. Exponer con túnel Cloudflare — registrar ESA URL como redirect_uri en LinkedIn Developer
-4. Autenticar una vez → tokens guardados en `auth/tokens.json`
-5. Publicar con `publisher.py` o via n8n nodo LinkedIn
-
-**Pitfall clave:** redirect_uri del .env DEBE coincidir exactamente con la registrada en LinkedIn Developer. Si el túnel se reinicia (nueva URL), actualizar ambos lugares.
 
 ## Recursos
 
